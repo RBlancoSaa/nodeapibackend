@@ -28,6 +28,10 @@ app.get('/check-inbox', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+app.use((req, res) => {
+  console.log('Onbekende route:', req.method, req.url);
+  res.status(404).send('Route bestaat niet');
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
