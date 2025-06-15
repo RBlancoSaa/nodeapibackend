@@ -1,9 +1,13 @@
+// 📁 automatinglogistics-api/api/check-inbox.js
+
 import { ImapFlow } from 'imapflow';
 import { createClient } from '@supabase/supabase-js';
+import { findPDFs } from '../services/pdfService.js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -25,6 +29,7 @@ export default async function handler(req, res) {
     await client.mailboxOpen('INBOX');
 
     const uids = await client.search({ seen: false });
+
     if (uids.length === 0) {
       await client.logout();
       return res.status(200).json({ success: true, mails: [], uploadedFiles: [] });
@@ -33,33 +38,40 @@ export default async function handler(req, res) {
     const mails = [];
     const uploadedFiles = [];
 
-    for await (const message of client.fetch(uids, { envelope: true, source: true })) {
-      const filename = `mail-${message.uid}.eml`;
+    for await (const message of client.fetch(uids, { envelope: true, bodyStructure: true })) {
+      const pdfParts = await findPDFs(message.bodyStructure, client, message.uid);
 
-      const { data, error } = await supabase.storage
-        .from('pdf-attachments')
-        .upload(filename, message.source, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: 'message/rfc822',
-        });
-
-      if (error) {
-        console.error('Supabase upload error:', error);
-        continue;
-      }
+      if (pdfParts.length === 0) continue;
 
       mails.push({
         uid: message.uid,
         subject: message.envelope.subject || '(geen onderwerp)',
         from: message.envelope.from.map(f => `${f.name ?? ''} <${f.address}>`.trim()).join(', '),
         date: message.envelope.date,
+        pdfParts,
       });
 
-      uploadedFiles.push({
-        filename,
-        url: `${process.env.SUPABASE_URL}/storage/v1/object/public/pdf-attachments/${filename}`,
-      });
+      for (const part of pdfParts) {
+        const filename = `pdf-${message.uid}-${part.part.replace(/\s+/g, '_')}`;
+
+        const { error } = await supabase.storage
+          .from('pdf-attachments')
+          .upload(filename, part.buffer, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: 'application/pdf',
+          });
+
+        if (error) {
+          console.error('Supabase upload error:', error);
+          continue;
+        }
+
+        uploadedFiles.push({
+          filename,
+          url: `${process.env.SUPABASE_URL}/storage/v1/object/public/pdf-attachments/${filename}`,
+        });
+      }
     }
 
     await client.logout();
