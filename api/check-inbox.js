@@ -1,13 +1,11 @@
-// 📁 automatinglogistics-api/api/check-inbox.js
-
 import { ImapFlow } from 'imapflow';
 import { createClient } from '@supabase/supabase-js';
+import nodemailer from 'nodemailer';
 import { findPDFs } from '../services/pdfService.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -27,9 +25,7 @@ export default async function handler(req, res) {
 
     await client.connect();
     await client.mailboxOpen('INBOX');
-
     const uids = await client.search({ seen: false });
-
     if (uids.length === 0) {
       await client.logout();
       return res.status(200).json({ success: true, mails: [], uploadedFiles: [] });
@@ -39,9 +35,7 @@ export default async function handler(req, res) {
     const uploadedFiles = [];
 
     for await (const message of client.fetch(uids, { envelope: true, bodyStructure: true })) {
-      const pdfParts = await findPDFs(message.bodyStructure, client, message.uid);
-
-      if (pdfParts.length === 0) continue;
+      const pdfParts = findPDFs(message.bodyStructure);
 
       mails.push({
         uid: message.uid,
@@ -52,11 +46,12 @@ export default async function handler(req, res) {
       });
 
       for (const part of pdfParts) {
-        const filename = `pdf-${message.uid}-${part.part.replace(/\s+/g, '_')}`;
+        const attachment = await client.download(message.uid, part);
+        const filename = `pdf-${message.uid}-${part}.pdf`;
 
-        const { error } = await supabase.storage
+        const { data, error } = await supabase.storage
           .from('pdf-attachments')
-          .upload(filename, part.buffer, {
+          .upload(filename, attachment, {
             cacheControl: '3600',
             upsert: true,
             contentType: 'application/pdf',
