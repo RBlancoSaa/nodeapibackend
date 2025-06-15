@@ -22,6 +22,7 @@ export default async function handler(req, res) {
     await client.connect();
     await client.mailboxOpen('INBOX');
     const uids = await client.search({ seen: false });
+
     if (uids.length === 0) {
       await client.logout();
       return res.status(200).json({ success: true, mails: [] });
@@ -29,7 +30,29 @@ export default async function handler(req, res) {
 
     const mails = [];
     for await (const message of client.fetch(uids, { envelope: true, bodyStructure: true })) {
-      // ...zelfde logica zoals pdf zoeken etc...
+      const pdfParts = [];
+
+      // Recursief zoeken naar PDF attachments
+      function findPDFs(structure) {
+        if (
+          structure.disposition?.type?.toUpperCase() === 'ATTACHMENT' &&
+          structure.type === 'application' &&
+          structure.subtype.toLowerCase() === 'pdf'
+        ) {
+          pdfParts.push(structure.part);
+        }
+        if (structure.childNodes) structure.childNodes.forEach(findPDFs);
+        if (structure.parts) structure.parts.forEach(findPDFs);
+      }
+      if (message.bodyStructure) findPDFs(message.bodyStructure);
+
+      mails.push({
+        uid: message.uid,
+        subject: message.envelope.subject || '(geen onderwerp)',
+        from: message.envelope.from.map(f => `${f.name ?? ''} <${f.address}>`.trim()).join(', '),
+        date: message.envelope.date,
+        pdfParts,
+      });
     }
 
     await client.logout();
