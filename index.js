@@ -1,25 +1,20 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import { checkInbox } from './services/imapService.js';
+import express from "express";
+import dotenv from "dotenv";
+import { checkInbox } from "./services/imapService.js";
 
 dotenv.config();
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
-
-app.get('/check-inbox', async (req, res) => {
+app.get("/check-inbox", async (req, res) => {
   try {
-    console.log('Inbox check gestart...');
     const mails = await checkInbox();
     res.json({ success: true, mails });
-  } catch (error) {
-    console.error('Fout bij inbox check:', error);
-    res.status(500).json({ success: false, error: error.message });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server draait op poort ${PORT}`));
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Server running on port", process.env.PORT || 3000);
+});
