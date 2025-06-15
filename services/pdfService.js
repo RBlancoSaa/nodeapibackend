@@ -1,22 +1,42 @@
-import fs from 'fs/promises';
-import path from 'path';
+// 📁 automatinglogistics-api/services/pdfService.js
 
-export async function downloadPdfAttachments(client, mails) {
-  const downloadFolder = path.join(process.cwd(), 'downloads');
+import { simpleParser } from 'mailparser';
+
+export async function findPDFs(bodyStructure, client, uid) {
+  const pdfParts = [];
+
   try {
-    await fs.mkdir(downloadFolder, { recursive: true });
-  } catch (err) {
-    console.error('Maken van download folder mislukt:', err);
-    throw err;
-  }
+    const { content } = await client.download(uid);
+    const parsed = await simpleParser(content);
 
-  for (const mail of mails) {
-    for (const part of mail.pdfParts) {
-      const attachment = await client.download(mail.uid, part);
-      const filename = `pdf-${mail.uid}-${part}.pdf`;
-      const filepath = path.join(downloadFolder, filename);
-      await fs.writeFile(filepath, attachment);
-      console.log(`PDF opgeslagen: ${filename}`);
+    const text = (parsed.text || '') + (parsed.html || '');
+    const mentionsPDF = text.toLowerCase().includes('.pdf');
+
+    if (!mentionsPDF) {
+      console.log(`📭 Mail UID ${uid} bevat geen .pdf-vermelding in tekst`);
+      return [];
     }
+
+    if (!parsed.attachments || parsed.attachments.length === 0) {
+      console.log(`📭 Mail UID ${uid} bevat geen bijlages`);
+      return [];
+    }
+
+    for (const attachment of parsed.attachments) {
+      if (
+        attachment.filename &&
+        attachment.contentType === 'application/pdf'
+      ) {
+        pdfParts.push({
+          part: attachment.filename,
+          buffer: attachment.content,
+        });
+      }
+    }
+
+    return pdfParts;
+  } catch (err) {
+    console.error(`❌ Fout bij findPDFs voor UID ${uid}:`, err);
+    return [];
   }
 }
