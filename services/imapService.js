@@ -1,6 +1,10 @@
 import { ImapFlow } from 'imapflow';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export async function checkInbox() {
+  console.log('Start IMAP connectie...');
   const client = new ImapFlow({
     host: process.env.IMAP_HOST,
     port: Number(process.env.IMAP_PORT),
@@ -12,53 +16,33 @@ export async function checkInbox() {
   });
 
   await client.connect();
-  console.log('Verbonden met IMAP-server');
+  console.log('Verbonden met IMAP-server.');
 
   await client.mailboxOpen('INBOX');
+  console.log('Mailbox INBOX geopend.');
 
   const uids = await client.search({ seen: false });
+  console.log(`Aantal ongelezen e-mails: ${uids.length}`);
 
   if (uids.length === 0) {
     console.log('Geen ongelezen mails gevonden.');
     await client.logout();
-    return;
+    console.log('IMAP-verbinding gesloten.');
+    return [];
   }
 
-  for await (const message of client.fetch(uids, { envelope: true, bodyStructure: true })) {
-    const subject = message.envelope?.subject || '(geen onderwerp)';
-    console.log('Mail gevonden:', subject);
-
-    if (!message.bodyStructure) continue;
-
-    const pdfParts = [];
-
-    function findPDFs(structure) {
-      if (
-        structure.disposition &&
-        structure.disposition.type &&
-        structure.disposition.type.toUpperCase() === 'ATTACHMENT' &&
-        structure.type === 'application' &&
-        structure.subtype.toLowerCase() === 'pdf'
-      ) {
-        pdfParts.push(structure.part);
-      }
-      if (structure.childNodes) {
-        structure.childNodes.forEach(findPDFs);
-      }
-      if (structure.parts) {
-        structure.parts.forEach(findPDFs);
-      }
-    }
-
-    findPDFs(message.bodyStructure);
-
-    for (const part of pdfParts) {
-      const attachment = await client.download(message.uid, part);
-      console.log(`PDF-bijlage gevonden: part ${part}, grootte: ${attachment.length} bytes`);
-      // Hier kun je de attachment verder verwerken of opslaan
-    }
+  const mails = [];
+  for await (const message of client.fetch(uids, { envelope: true })) {
+    mails.push({
+      subject: message.envelope.subject || '(geen onderwerp)',
+      from: message.envelope.from.map(f => `${f.name} <${f.address}>`).join(', '),
+      date: message.envelope.date,
+    });
+    console.log(`Mail gevonden: "${mails[mails.length - 1].subject}" van ${mails[mails.length - 1].from}`);
   }
 
   await client.logout();
-  console.log('IMAP-verbinding gesloten, klaar met checkInbox');
+  console.log('IMAP-verbinding netjes gesloten.');
+
+  return mails;
 }

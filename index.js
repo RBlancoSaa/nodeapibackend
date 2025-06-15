@@ -1,39 +1,25 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-
 import { checkInbox } from './services/imapService.js';
 
 dotenv.config();
 
 const app = express();
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+app.use(cors());
 app.use(express.json());
 
-// Simpel test endpoint
-app.get('/', (req, res) => {
-  res.send('API is live');
-});
-
-// Endpoint om inbox te checken via HTTP GET
 app.get('/check-inbox', async (req, res) => {
   try {
-    console.log('Inbox check gestart via /check-inbox endpoint');
-    await checkInbox();
-    console.log('Inbox check voltooid');
-    res.json({ success: true, message: 'Inbox check voltooid' });
+    console.log('Inbox check gestart...');
+    const mails = await checkInbox();
+    res.json({ success: true, mails });
   } catch (error) {
-    console.error('Fout in inbox check:', error);
+    console.error('Fout bij inbox check:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
-app.use((req, res) => {
-  console.log('Onbekende route:', req.method, req.url);
-  res.status(404).send('Route bestaat niet');
-});
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server draait op poort ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server draait op poort ${PORT}`));
