@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Service Role Key voor uploaden
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Gebruik Service Role Key voor uploadrechten
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default async function handler(req, res) {
@@ -12,6 +12,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    // IMAP client connectie
     const client = new ImapFlow({
       host: process.env.IMAP_HOST,
       port: Number(process.env.IMAP_PORT),
@@ -24,21 +25,20 @@ export default async function handler(req, res) {
 
     await client.connect();
     await client.mailboxOpen('INBOX');
-    const uids = await client.search({ seen: false });
 
+    const uids = await client.search({ seen: false });
     if (uids.length === 0) {
       await client.logout();
-      return res.status(200).json({ success: true, mails: [] });
+      return res.status(200).json({ success: true, mails: [], uploadedFiles: [] });
     }
 
     const mails = [];
     const uploadedFiles = [];
 
     for await (const message of client.fetch(uids, { envelope: true, bodyStructure: true })) {
+      // PDF attachment parts zoeken
       const pdfParts = [];
-
-      // Recursief zoeken naar PDF attachments
-      function findPDFs(structure) {
+      (function findPDFs(structure) {
         if (
           structure.disposition?.type?.toUpperCase() === 'ATTACHMENT' &&
           structure.type === 'application' &&
@@ -48,8 +48,7 @@ export default async function handler(req, res) {
         }
         if (structure.childNodes) structure.childNodes.forEach(findPDFs);
         if (structure.parts) structure.parts.forEach(findPDFs);
-      }
-      if (message.bodyStructure) findPDFs(message.bodyStructure);
+      })(message.bodyStructure);
 
       mails.push({
         uid: message.uid,
@@ -59,13 +58,13 @@ export default async function handler(req, res) {
         pdfParts,
       });
 
-      // Upload PDF attachments naar Supabase
+      // PDF's downloaden en uploaden naar Supabase storage bucket "pdf-attachments"
       for (const part of pdfParts) {
         const attachment = await client.download(message.uid, part);
         const filename = `pdf-${message.uid}-${part}.pdf`;
 
         const { data, error } = await supabase.storage
-          .from('pdf-attachments') // jouw bucket naam
+          .from('pdf-attachments')
           .upload(filename, attachment, {
             cacheControl: '3600',
             upsert: true,
@@ -79,18 +78,19 @@ export default async function handler(req, res) {
 
         uploadedFiles.push({
           filename,
-          url: `${process.env.SUPABASE_URL}/storage/v1/object/public/pdf-attachments/${filename}`
+          url: `${process.env.SUPABASE_URL}/storage/v1/object/public/pdf-attachments/${filename}`,
         });
       }
     }
 
     await client.logout();
 
-    // Optioneel: stuur een mail met de geüploade bestanden als bijlage of link (kan je later toevoegen)
+    // TODO: hier kan je straks .easy files genereren en versturen
+    // Denk aan een aparte functie generateAndSendEasyFiles(mails, uploadedFiles)
 
     res.status(200).json({ success: true, mails, uploadedFiles });
   } catch (error) {
-    console.error(error);
+    console.error('CheckInbox error:', error);
     res.status(500).json({ success: false, error: error.message || 'Onbekende fout' });
   }
 }

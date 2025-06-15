@@ -1,10 +1,13 @@
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 
 export async function downloadPdfAttachments(client, mails) {
   const downloadFolder = path.join(process.cwd(), 'downloads');
-  if (!fs.existsSync(downloadFolder)) {
-    fs.mkdirSync(downloadFolder);
+  try {
+    await fs.mkdir(downloadFolder, { recursive: true });
+  } catch (err) {
+    console.error('Maken van download folder mislukt:', err);
+    throw err;
   }
 
   for (const mail of mails) {
@@ -12,7 +15,7 @@ export async function downloadPdfAttachments(client, mails) {
       const attachment = await client.download(mail.uid, part);
       const filename = `pdf-${mail.uid}-${part}.pdf`;
       const filepath = path.join(downloadFolder, filename);
-      await fs.promises.writeFile(filepath, attachment);
+      await fs.writeFile(filepath, attachment);
       console.log(`PDF opgeslagen: ${filename}`);
     }
   }
