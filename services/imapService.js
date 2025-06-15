@@ -1,6 +1,6 @@
 import { ImapFlow } from 'imapflow';
 
-export async function checkInbox() {
+export async function fetchUnreadMails() {
   const client = new ImapFlow({
     host: process.env.IMAP_HOST,
     port: Number(process.env.IMAP_PORT),
@@ -12,29 +12,45 @@ export async function checkInbox() {
   });
 
   await client.connect();
-  console.log('Verbonden met IMAP-server');
-
   await client.mailboxOpen('INBOX');
 
   const uids = await client.search({ seen: false });
 
   if (uids.length === 0) {
-    console.log('Geen ongelezen mails gevonden.');
     await client.logout();
     return [];
   }
 
   const mails = [];
 
-  for await (const message of client.fetch(uids, { envelope: true })) {
+  for await (const message of client.fetch(uids, { envelope: true, bodyStructure: true })) {
+    // Zoek PDF-parts
+    const pdfParts = [];
+
+    function findPDFs(structure) {
+      if (
+        structure.disposition?.type?.toUpperCase() === 'ATTACHMENT' &&
+        structure.type === 'application' &&
+        structure.subtype.toLowerCase() === 'pdf'
+      ) {
+        pdfParts.push(structure.part);
+      }
+      if (structure.childNodes) structure.childNodes.forEach(findPDFs);
+      if (structure.parts) structure.parts.forEach(findPDFs);
+    }
+
+    if (message.bodyStructure) findPDFs(message.bodyStructure);
+
     mails.push({
+      uid: message.uid,
       subject: message.envelope.subject || '(geen onderwerp)',
-      from: message.envelope.from.map(f => `${f.name || ''} <${f.address}>`.trim()).join(', '),
+      from: message.envelope.from.map(f => `${f.name ?? ''} <${f.address}>`.trim()).join(', '),
       date: message.envelope.date,
+      pdfParts,
     });
   }
 
   await client.logout();
-  console.log('IMAP-verbinding gesloten');
+
   return mails;
 }
