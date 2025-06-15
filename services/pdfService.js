@@ -9,14 +9,6 @@ export async function findPDFs(bodyStructure, client, uid) {
     const { content } = await client.download(uid);
     const parsed = await simpleParser(content);
 
-    const text = (parsed.text || '') + (parsed.html || '');
-    const mentionsPDF = text.toLowerCase().includes('.pdf');
-
-    if (!mentionsPDF) {
-      console.log(`📭 Mail UID ${uid} bevat geen .pdf-vermelding in tekst`);
-      return [];
-    }
-
     if (!parsed.attachments || parsed.attachments.length === 0) {
       console.log(`📭 Mail UID ${uid} bevat geen bijlages`);
       return [];
