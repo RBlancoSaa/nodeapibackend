@@ -1,7 +1,10 @@
 import { ImapFlow } from 'imapflow';
-import path from 'path';
-import fs from 'fs/promises';
+import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Service Role Key voor uploaden
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -29,6 +32,8 @@ export default async function handler(req, res) {
     }
 
     const mails = [];
+    const uploadedFiles = [];
+
     for await (const message of client.fetch(uids, { envelope: true, bodyStructure: true })) {
       const pdfParts = [];
 
@@ -53,12 +58,37 @@ export default async function handler(req, res) {
         date: message.envelope.date,
         pdfParts,
       });
+
+      // Upload PDF attachments naar Supabase
+      for (const part of pdfParts) {
+        const attachment = await client.download(message.uid, part);
+        const filename = `pdf-${message.uid}-${part}.pdf`;
+
+        const { data, error } = await supabase.storage
+          .from('pdf-attachments') // jouw bucket naam
+          .upload(filename, attachment, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: 'application/pdf',
+          });
+
+        if (error) {
+          console.error('Supabase upload error:', error);
+          continue;
+        }
+
+        uploadedFiles.push({
+          filename,
+          url: `${process.env.SUPABASE_URL}/storage/v1/object/public/pdf-attachments/${filename}`
+        });
+      }
     }
 
     await client.logout();
 
-    // Response teruggeven
-    res.status(200).json({ success: true, mails });
+    // Optioneel: stuur een mail met de geüploade bestanden als bijlage of link (kan je later toevoegen)
+
+    res.status(200).json({ success: true, mails, uploadedFiles });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: error.message || 'Onbekende fout' });
