@@ -6,16 +6,12 @@ export async function findPDFs(bodyStructure, client, uid) {
   const pdfParts = [];
 
   try {
-    const { content } = await client.download(uid);
-    const parsed = await simpleParser(content);
+    console.log(`📨 Start download van e-mail UID ${uid}`);
+    const { content: mailContent } = await client.download(uid);
+    console.log(`✅ Download compleet UID ${uid}`);
 
-    const text = (parsed.text || '') + (parsed.html || '');
-    const mentionsPDF = text.toLowerCase().includes('.pdf');
-
-    if (!mentionsPDF) {
-      console.log(`📭 Mail UID ${uid} bevat geen .pdf-vermelding in tekst`);
-      return [];
-    }
+    const parsed = await simpleParser(mailContent);
+    console.log(`🧠 Mail parsed: ${parsed.subject || 'geen subject'}, ${parsed.attachments?.length || 0} bijlages`);
 
     if (!parsed.attachments || parsed.attachments.length === 0) {
       console.log(`📭 Mail UID ${uid} bevat geen bijlages`);
@@ -23,6 +19,8 @@ export async function findPDFs(bodyStructure, client, uid) {
     }
 
     for (const attachment of parsed.attachments) {
+      console.log(`🔎 Gevonden bijlage: ${attachment.filename} (${attachment.contentType})`);
+
       if (
         attachment.filename &&
         attachment.contentType === 'application/pdf'
@@ -31,19 +29,17 @@ export async function findPDFs(bodyStructure, client, uid) {
           part: attachment.filename,
           buffer: attachment.content,
         });
+        console.log(`✅ PDF bijlage toegevoegd: ${attachment.filename}`);
       }
     }
-    console.log(`📨 Download start UID ${uid}`);
-const { content } = await client.download(uid);
-console.log(`✅ Download compleet UID ${uid}`);
 
-const parsed = await simpleParser(content);
-console.log(`🧠 Mail parsed: ${parsed.subject || 'geen subject'}, ${parsed.attachments?.length || 0} bijlages`);
-
+    if (pdfParts.length === 0) {
+      console.log(`❗ Geen geldige PDF-bijlagen gevonden bij UID ${uid}`);
+    }
 
     return pdfParts;
   } catch (err) {
-    console.error(`❌ Fout bij findPDFs voor UID ${uid}:`, err);
+    console.error(`❌ Fout bij verwerken van UID ${uid}:`, err);
     return [];
   }
 }
