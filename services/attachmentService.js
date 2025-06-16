@@ -13,14 +13,10 @@ export async function findAttachmentsAndUpload(client, uids, supabase) {
         att.filename && att.filename.toLowerCase().endsWith('.pdf')
       );
 
-      console.log(
-        `📦 UID ${message.uid} - PDF attachments gevonden:`,
-        attachments.map(a => ({
-          filename: a.filename,
-          contentType: a.contentType,
-          size: a.content?.length
-        }))
-      );
+      console.log(`📨 UID ${message.uid} - PDF attachments gevonden:`);
+      attachments.forEach(a => {
+        console.log(`   - ${a.filename} (${a.content?.length} bytes, ${a.contentType})`);
+      });
 
       mails.push({
         uid: message.uid,
@@ -31,37 +27,38 @@ export async function findAttachmentsAndUpload(client, uids, supabase) {
       });
 
       for (const att of attachments) {
-        console.log(`➡️ Uploaden: ${att.filename} (${att.content?.length} bytes)`);
+        try {
+          console.log(`➡️ Uploaden: ${att.filename} (${att.content?.length} bytes)`);
 
-        const contentBuffer = Buffer.isBuffer(att.content)
-          ? att.content
-          : Buffer.from(att.content, att.transferEncoding || 'base64');
+          const contentBuffer = Buffer.isBuffer(att.content)
+            ? att.content
+            : Buffer.from(att.content, att.transferEncoding || 'base64');
 
-        const { error } = await supabase.storage
-          .from('inboxpdf')
-          .upload(att.filename, contentBuffer, {
-            contentType: att.contentType || 'application/octet-stream',
-            cacheControl: '3600',
-            upsert: true,
-          });
+          const { error } = await supabase.storage
+            .from('inboxpdf')
+            .upload(att.filename, contentBuffer, {
+              contentType: att.contentType || 'application/pdf',
+              cacheControl: '3600',
+              upsert: true,
+            });
 
-        if (error) {
-          console.error('❌ Uploadfout:', error.message);
-        } else {
-          console.log(`✅ Succesvol geüpload: ${att.filename}`);
-          uploadedFiles.push({
-            filename: att.filename,
-            url: `${process.env.SUPABASE_URL}/storage/v1/object/public/inboxpdf/${att.filename}`
-          });
+          if (error) {
+            console.error(`❌ Uploadfout bij ${att.filename}:`, error.message);
+          } else {
+            console.log(`✅ Succesvol geüpload: ${att.filename}`);
+            uploadedFiles.push({
+              filename: att.filename,
+              url: `${process.env.SUPABASE_URL}/storage/v1/object/public/inboxpdf/${att.filename}`
+            });
+          }
+        } catch (uploadErr) {
+          console.error(`❌ Upload exception bij ${att.filename}:`, uploadErr);
         }
       }
     } catch (err) {
-      console.error(`❌ Fout bij verwerken van UID ${message.uid}:`, err);
+      console.error(`❌ Parserfout bij UID ${message.uid}:`, err);
     }
   }
-console.log(
-  `🧪 Upload response:`,
-  { status: error ? 'FAILED' : 'OK', filename: att.filename }
-);
+
   return { mails, uploadedFiles };
 }
