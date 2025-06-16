@@ -1,6 +1,5 @@
 export async function parsePdfToEasyFile(pdfBuffer) {
   const pdfParse = (await import('pdf-parse')).default;
-
   const { text } = await pdfParse(pdfBuffer);
 
   const get = (label) => {
