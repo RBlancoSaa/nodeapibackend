@@ -59,6 +59,9 @@ export async function findAttachmentsAndUpload(client, uids, supabase) {
       console.error(`❌ Fout bij verwerken van UID ${message.uid}:`, err);
     }
   }
-
+console.log(
+  `🧪 Upload response:`,
+  { status: error ? 'FAILED' : 'OK', filename: att.filename }
+);
   return { mails, uploadedFiles };
 }
