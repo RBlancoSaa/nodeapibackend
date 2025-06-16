@@ -25,7 +25,13 @@ export default async function handler(req, res) {
     const uids = await client.search({ seen: false });
     if (uids.length === 0) {
       await client.logout();
-      return res.status(200).json({ message: 'Geen ongelezen mails' });
+      return res.status(200).json({
+  success: true,
+  uploadedFiles,
+  mailCount: mails.length,
+  filenames: mails.map(m => m.attachments?.[0]?.filename)
+});
+
     }
 
     // ✅ 2. Parse bijlagen uit e-mails
