@@ -9,10 +9,12 @@ export async function findAttachmentsAndUpload(client, uids, supabase) {
   for await (const message of client.fetch(uids, { envelope: true, source: true })) {
     try {
       const parsed = await simpleParser(message.source);
-      const attachments = parsed.attachments || [];
+      const attachments = (parsed.attachments || []).filter(att =>
+        att.filename && att.filename.toLowerCase().endsWith('.pdf')
+      );
 
       console.log(
-        `📦 UID ${message.uid} - attachments gevonden:`,
+        `📦 UID ${message.uid} - PDF attachments gevonden:`,
         attachments.map(a => ({
           filename: a.filename,
           contentType: a.contentType,
