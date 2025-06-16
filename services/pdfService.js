@@ -3,37 +3,34 @@
 import { simpleParser } from 'mailparser';
 
 export async function findPDFs(bodyStructure, client, uid) {
-  const pdfParts = [];
+  const attachmentsToSave = [];
 
   try {
-    console.log(`📩 Start ophalen mail UID ${uid}`);
+    console.log(`📨 Ophalen mail UID ${uid}`);
     const { content: raw } = await client.download(uid);
-
     const parsed = await simpleParser(raw);
-    const attachments = parsed.attachments || [];
 
-    console.log(`🔍 Bijlages gevonden: ${attachments.length}`);
+    const attachments = parsed.attachments || [];
+    console.log(`📎 Gevonden bijlages: ${attachments.length}`);
 
     for (const attachment of attachments) {
       const { filename, contentType, content } = attachment;
 
-      if (contentType === 'application/pdf') {
-        pdfParts.push({
-          part: filename || `bijlage-${uid}.pdf`,
-          buffer: content,
-        });
+      const safeName = filename?.replace(/\s+/g, '_') || `bijlage-${uid}`;
+      attachmentsToSave.push({
+        part: safeName,
+        buffer: content,
+        contentType
+      });
 
-        console.log(`✅ PDF bijlage herkend: ${filename}`);
-      } else {
-        console.log(`⛔ Niet-PDF overgeslagen: ${filename} (${contentType})`);
-      }
+      console.log(`✅ Bijlage toegevoegd: ${safeName} (${contentType})`);
     }
 
-    if (pdfParts.length === 0) {
-      console.warn(`⚠️ Geen PDF-bijlagen aangetroffen in UID ${uid}`);
+    if (attachmentsToSave.length === 0) {
+      console.warn(`⚠️ Geen bijlagen gevonden in UID ${uid}`);
     }
 
-    return pdfParts;
+    return attachmentsToSave;
   } catch (error) {
     console.error(`❌ Fout bij verwerken UID ${uid}:`, error);
     return [];
