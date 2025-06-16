@@ -1,5 +1,5 @@
 export async function parsePdfToEasyFile(pdfBuffer) {
-  const pdfParse = (await import('pdf-parse')).default; // ✅ dynamisch
+  const pdfParse = (await import('@wmfs/pdf-parse')).default;
 
   const result = await pdfParse(pdfBuffer); // ✅ geen destructuring
   const text = result.text;
