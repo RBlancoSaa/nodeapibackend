@@ -34,16 +34,16 @@ export async function findAttachmentsAndUpload(client, uids, supabase) {
         console.log(`➡️ Uploaden: ${att.filename} (${att.content?.length} bytes)`);
 
         const contentBuffer = Buffer.isBuffer(att.content)
-  ? att.content
-  : Buffer.from(att.content, att.transferEncoding || 'base64');
+          ? att.content
+          : Buffer.from(att.content, att.transferEncoding || 'base64');
 
-const { error } = await supabase.storage
-  .from('inboxpdf')
-  .upload(att.filename, contentBuffer, {
-    contentType: att.contentType || 'application/octet-stream',
-    cacheControl: '3600',
-    upsert: true,
-  });
+        const { error } = await supabase.storage
+          .from('inboxpdf')
+          .upload(att.filename, contentBuffer, {
+            contentType: att.contentType || 'application/octet-stream',
+            cacheControl: '3600',
+            upsert: true,
+          });
 
         if (error) {
           console.error('❌ Uploadfout:', error.message);
