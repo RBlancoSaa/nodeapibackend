@@ -17,9 +17,16 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
   const uploadedFiles = [];
 
   for (const att of attachments) {
-    if (!att.filename?.endsWith('.pdf')) continue;
+    if (!att.filename?.toLowerCase().endsWith('.pdf')) continue;
 
-    console.log(`➡️ Uploaden: ${att.filename} (${att.content?.length} bytes)`);
+    console.log(`➡️ Uploaden: ${att.filename}`);
+    console.log(`📂 Grootte: ${att.content?.length ?? 'onbekend'} bytes`);
+    console.log(`📂 Is Buffer: ${Buffer.isBuffer(att.content)}`);
+
+    if (!att.content || !Buffer.isBuffer(att.content)) {
+      console.error(`⛔ Ongeldige buffer voor ${att.filename}`);
+      continue;
+    }
 
     const { data, error } = await supabase.storage
       .from('inboxpdf')

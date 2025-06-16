@@ -1,5 +1,5 @@
-import { parseAttachmentsFromEmails } from '@/services/parseAttachments.js';
-import { uploadPdfAttachmentsToSupabase } from '@/services/uploadPdfAttachmentsToSupabase.js';
+import { parseAttachmentsFromEmails } from '../services/parseAttachments.js';
+import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
 import { ImapFlow } from 'imapflow';
 
 export default async function handler(req, res) {
