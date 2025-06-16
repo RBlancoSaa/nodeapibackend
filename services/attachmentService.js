@@ -11,6 +11,15 @@ export async function findAttachmentsAndUpload(client, uids, supabase) {
       const parsed = await simpleParser(message.source);
       const attachments = parsed.attachments || [];
 
+      console.log(
+        `📦 UID ${message.uid} - attachments gevonden:`,
+        attachments.map(a => ({
+          filename: a.filename,
+          contentType: a.contentType,
+          size: a.content?.length
+        }))
+      );
+
       mails.push({
         uid: message.uid,
         subject: message.envelope.subject || '(geen onderwerp)',
