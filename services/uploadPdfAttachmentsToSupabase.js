@@ -2,7 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// ✅ Supabase setup vanuit Vercel env
+// ✅ Supabase setup
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -25,7 +25,12 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       continue;
     }
 
-    if (!att.content || !Buffer.isBuffer(att.content)) {
+    // ✅ Buffer veilig converteren
+    const contentBuffer = Buffer.isBuffer(att.content)
+      ? att.content
+      : Buffer.from(att.content);
+
+    if (!contentBuffer || !contentBuffer.length) {
       console.warn(`⛔ Ongeldige buffer voor ${att.filename}`);
       continue;
     }
@@ -33,8 +38,9 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
     try {
       const { error } = await supabase.storage
         .from(process.env.SUPABASE_BUCKET)
-        .upload(att.filename, att.content, {
+        .upload(att.filename, contentBuffer, {
           contentType: att.contentType || 'application/pdf',
+          cacheControl: '3600',
           upsert: true,
         });
 
@@ -52,5 +58,6 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
     }
   }
 
+  console.log(`📤 Totaal succesvol geüpload: ${uploadedFiles.length}`);
   return uploadedFiles;
 }
