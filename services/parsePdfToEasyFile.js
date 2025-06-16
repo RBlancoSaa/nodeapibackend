@@ -1,7 +1,7 @@
-import pdf from 'pdf-parse';
-
 export async function parsePdfToEasyFile(pdfBuffer) {
-  const result = await pdf(pdfBuffer); // ✅ GEEN destructuring
+  const pdfParse = (await import('pdf-parse')).default; // ✅ dynamisch
+
+  const result = await pdfParse(pdfBuffer); // ✅ geen destructuring
   const text = result.text;
 
   const get = (label) => {
