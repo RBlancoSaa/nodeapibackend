@@ -30,7 +30,7 @@ export default async function handler(req, res) {
         continue;
       }
 
-      const pdfBuffer = await fileData.arrayBuffer();
+      const pdfBuffer = Buffer.from(await fileData.arrayBuffer());
 
       let easyContent;
       try {
