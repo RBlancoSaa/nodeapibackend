@@ -1,13 +1,12 @@
-// 📁 automatinglogistics-api/services/uploadPdfAttachmentsToSupabase.js
+// 📁 nodeapibackend/services/uploadPdfAttachmentsToSupabase.js
 
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
 
-// ✅ Supabase setup
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// ✅ Supabase setup vanuit Vercel env
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 /**
  * Uploadt PDF-bestanden naar Supabase Storage vanuit een lijst met bijlagen.
@@ -17,31 +16,25 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 export async function uploadPdfAttachmentsToSupabase(attachments) {
   const uploadedFiles = [];
 
-  console.log('🔐 SUPABASE_URL:', supabaseUrl);
-  console.log('🔐 SUPABASE_KEY aanwezig:', !!supabaseKey);
-  console.log('📦 Totaal attachments ontvangen:', attachments.length);
+  console.log('🔐 KEY lengte:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
+  console.log('📦 Aantal attachments:', attachments.length);
 
   for (const att of attachments) {
     if (!att.filename?.toLowerCase().endsWith('.pdf')) {
-      console.log(`⏭️ Bestand overgeslagen (geen .pdf): ${att.filename}`);
+      console.log(`⏭️ Skip (geen pdf): ${att.filename}`);
       continue;
     }
 
-    console.log(`➡️ Uploaden: ${att.filename}`);
-    console.log(`📂 Grootte: ${att.content?.length ?? 'onbekend'} bytes`);
-    console.log(`📂 Is Buffer: ${Buffer.isBuffer(att.content)}`);
-
     if (!att.content || !Buffer.isBuffer(att.content)) {
-      console.error(`⛔ Ongeldige of ontbrekende buffer voor ${att.filename}`);
+      console.warn(`⛔ Ongeldige buffer voor ${att.filename}`);
       continue;
     }
 
     try {
-      const { data, error } = await supabase.storage
-        .from('inboxpdf')
+      const { error } = await supabase.storage
+        .from(process.env.SUPABASE_BUCKET)
         .upload(att.filename, att.content, {
           contentType: att.contentType || 'application/pdf',
-          cacheControl: '3600',
           upsert: true,
         });
 
@@ -50,19 +43,14 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
         continue;
       }
 
-      const publicUrl = `${supabaseUrl}/storage/v1/object/public/inboxpdf/${att.filename}`;
+      const url = `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${att.filename}`;
+      uploadedFiles.push({ filename: att.filename, url });
 
-      uploadedFiles.push({
-        filename: att.filename,
-        url: publicUrl,
-      });
-
-      console.log(`✅ Succesvol geüpload: ${att.filename}`);
+      console.log(`✅ Upload: ${att.filename}`);
     } catch (err) {
-      console.error(`💥 Fout bij upload van ${att.filename}:`, err.message || err);
+      console.error(`💥 Exception bij upload van ${att.filename}:`, err.message);
     }
   }
 
-  console.log(`📤 Totaal succesvol geüpload: ${uploadedFiles.length}`);
   return uploadedFiles;
 }
