@@ -1,8 +1,7 @@
 import pdf from 'pdf-parse';
 
 export async function parsePdfToEasyFile(pdfBuffer) {
-  const result = await pdf(pdfBuffer); // <– GEEN { text } destructuring!
-
+  const result = await pdf(pdfBuffer); // ✅ GEEN destructuring
   const text = result.text;
 
   const get = (label) => {
@@ -24,7 +23,6 @@ export async function parsePdfToEasyFile(pdfBuffer) {
   const unNumber = get('UN');
   const gewicht = get('Weight');
   const volume = get('Volume');
-
   const locatieLaden = get('Pick-up terminal');
   const locatieLossen = get('Drop-off terminal');
 
