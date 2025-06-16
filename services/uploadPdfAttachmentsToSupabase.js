@@ -2,7 +2,6 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// ✅ Supabase setup
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -16,27 +15,32 @@ const supabase = createClient(
 export async function uploadPdfAttachmentsToSupabase(attachments) {
   const uploadedFiles = [];
 
+  console.log('🚀 Start upload');
   console.log('🔐 KEY lengte:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
+  console.log('🪣 Bucket:', process.env.SUPABASE_BUCKET);
   console.log('📦 Aantal attachments:', attachments.length);
 
   for (const att of attachments) {
-    if (!att.filename?.toLowerCase().endsWith('.pdf')) {
-      console.log(`⏭️ Skip (geen pdf): ${att.filename}`);
+    console.log(`\n🧪 Upload attempt: ${att.filename} | Type: ${att.contentType} | UID: ${att.uid}`);
+
+    if (!att.filename) {
+      console.warn(`❌ Skip: geen bestandsnaam (UID ${att.uid})`);
       continue;
     }
 
-    // ✅ Buffer veilig converteren
     const contentBuffer = Buffer.isBuffer(att.content)
       ? att.content
       : Buffer.from(att.content);
 
-    if (!contentBuffer || !contentBuffer.length) {
-      console.warn(`⛔ Ongeldige buffer voor ${att.filename}`);
+    if (!contentBuffer || contentBuffer.length < 500) {
+      console.warn(`⛔ Buffer ongeldig of te klein (${contentBuffer?.length} bytes) voor ${att.filename}`);
       continue;
     }
 
     try {
-      const { error } = await supabase.storage
+      console.log(`📤 Uploaden naar Supabase: ${att.filename} (${contentBuffer.length} bytes)`);
+
+      const { data, error } = await supabase.storage
         .from(process.env.SUPABASE_BUCKET)
         .upload(att.filename, contentBuffer, {
           contentType: att.contentType || 'application/pdf',
@@ -45,19 +49,23 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
         });
 
       if (error) {
-        console.error(`❌ Uploadfout (${att.filename}):`, error.message);
+        console.error(`❌ Uploadfout (${att.filename}):`, {
+          message: error.message,
+          name: error.name,
+          stack: error.stack,
+        });
         continue;
       }
 
       const url = `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${att.filename}`;
       uploadedFiles.push({ filename: att.filename, url });
 
-      console.log(`✅ Upload: ${att.filename}`);
+      console.log(`✅ Succesvol geüpload: ${att.filename}`);
     } catch (err) {
-      console.error(`💥 Exception bij upload van ${att.filename}:`, err.message);
+      console.error(`💥 Exception bij upload van ${att.filename}:`, err.message || err);
     }
   }
 
-  console.log(`📤 Totaal succesvol geüpload: ${uploadedFiles.length}`);
+  console.log(`📤 Upload klaar. Succesvol geüpload: ${uploadedFiles.length} bestand(en)`);
   return uploadedFiles;
 }
