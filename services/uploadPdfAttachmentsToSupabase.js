@@ -1,4 +1,5 @@
-// services/supabaseStorageService.js
+// 📁 automatinglogistics-api/services/uploadPdfAttachmentsToSupabase.js
+
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -7,30 +8,38 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-export async function uploadPdfAttachmentsToSupabase(client, mails) {
+/**
+ * Uploadt PDF-bestanden naar Supabase Storage uit een array met attachments.
+ * @param {Array} attachments - Een array van objecten met { uid, filename, contentType, content }
+ * @returns {Array} uploadedFiles - Met filename en publieke URL
+ */
+export async function uploadPdfAttachmentsToSupabase(attachments) {
   const uploadedFiles = [];
 
-  for (const mail of mails) {
-    for (const part of mail.pdfParts) {
-      const attachment = await client.download(mail.uid, part);
-      const filename = `pdf-${mail.uid}-${part}.pdf`;
+  for (const att of attachments) {
+    if (!att.filename?.endsWith('.pdf')) continue;
 
-      // Upload naar Supabase Storage
-      const { data, error } = await supabase.storage
-        .from('pdf-attachments')
-        .upload(filename, attachment, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: 'application/pdf',
-        });
+    console.log(`➡️ Uploaden: ${att.filename} (${att.content?.length} bytes)`);
 
-      if (error) {
-        console.error('Upload error:', error);
-        continue;
-      }
+    const { data, error } = await supabase.storage
+      .from('inboxpdf')
+      .upload(att.filename, att.content, {
+        contentType: att.contentType || 'application/pdf',
+        cacheControl: '3600',
+        upsert: true,
+      });
 
-      uploadedFiles.push({ filename, url: data?.path });
+    if (error) {
+      console.error(`❌ Uploadfout (${att.filename}):`, error.message);
+      continue;
     }
+
+    uploadedFiles.push({
+      filename: att.filename,
+      url: `${supabaseUrl}/storage/v1/object/public/inboxpdf/${att.filename}`
+    });
+
+    console.log(`✅ Succesvol geüpload: ${att.filename}`);
   }
 
   return uploadedFiles;
