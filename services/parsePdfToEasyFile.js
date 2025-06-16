@@ -1,8 +1,7 @@
 export async function parsePdfToEasyFile(pdfBuffer) {
-  const pdfParse = (await import('@wmfs/pdf-parse')).default;
+const pdfParse = (await import('pdf-parse')).default;
 
-  const result = await pdfParse(pdfBuffer); // ✅ geen destructuring
-  const text = result.text;
+  const { text } = await pdfParse(pdfBuffer);
 
   const get = (label) => {
     const match = text.match(new RegExp(`${label}:?\\s*(.+)`, 'i'));
