@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { parsePdfToEasyFile } from '../../services/parsePdfToEasyFile.js';
+import { parsePdfToEasyFile } from '../services/parsePdfToEasyFile.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
