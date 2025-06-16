@@ -1,49 +1,28 @@
 // 📁 automatinglogistics-api/services/attachmentService.js
 
+import { simpleParser } from 'mailparser';
+
 export async function findAttachmentsAndUpload(client, uids, supabase) {
   const mails = [];
   const uploadedFiles = [];
 
-  for await (const message of client.fetch(uids, { envelope: true, bodyStructure: true })) {
-    const attachments = [];
+  for await (const message of client.fetch(uids, { envelope: true, source: true })) {
+    try {
+      const parsed = await simpleParser(message.source);
+      const attachments = parsed.attachments || [];
 
-    function findAllAttachments(structure) {
-      if (
-        structure.disposition?.type?.toUpperCase() === 'ATTACHMENT' &&
-        structure.part && structure.subtype && structure.type
-      ) {
-        attachments.push({
-          part: structure.part,
-          contentType: `${structure.type}/${structure.subtype}`,
-          filename: structure.params?.name || `attachment-${structure.part}`
-        });
-      }
-      if (structure.childNodes) structure.childNodes.forEach(findAllAttachments);
-      if (structure.parts) structure.parts.forEach(findAllAttachments);
-    }
+      mails.push({
+        uid: message.uid,
+        subject: message.envelope.subject || '(geen onderwerp)',
+        from: message.envelope.from.map(f => `${f.name ?? ''} <${f.address}>`.trim()).join(', '),
+        date: message.envelope.date,
+        attachments: attachments.map(att => ({ filename: att.filename, contentType: att.contentType }))
+      });
 
-    if (message.bodyStructure) findAllAttachments(message.bodyStructure);
-
-    mails.push({
-      uid: message.uid,
-      subject: message.envelope.subject || '(geen onderwerp)',
-      from: message.envelope.from.map(f => `${f.name ?? ''} <${f.address}>`.trim()).join(', '),
-      date: message.envelope.date,
-      attachments: attachments.map(att => ({ part: att.part, contentType: att.contentType, filename: att.filename }))
-    });
-
-    for (const att of attachments) {
-      try {
-        const downloadStream = await client.download(message.uid, att.part);
-        const chunks = [];
-        for await (const chunk of downloadStream.content) {
-          chunks.push(chunk);
-        }
-        const contentBuffer = Buffer.concat(chunks);
-
+      for (const att of attachments) {
         const { error } = await supabase.storage
           .from('inboxpdf')
-          .upload(att.filename, contentBuffer, {
+          .upload(att.filename, att.content, {
             contentType: att.contentType,
             cacheControl: '3600',
             upsert: true,
@@ -57,9 +36,9 @@ export async function findAttachmentsAndUpload(client, uids, supabase) {
             url: `${process.env.SUPABASE_URL}/storage/v1/object/public/inboxpdf/${att.filename}`
           });
         }
-      } catch (err) {
-        console.error(`❌ Fout bij verwerken van bijlage ${att.filename}:`, err);
       }
+    } catch (err) {
+      console.error(`❌ Fout bij verwerken van UID ${message.uid}:`, err);
     }
   }
 
