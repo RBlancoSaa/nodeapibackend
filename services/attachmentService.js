@@ -1,47 +1,58 @@
-// 📁 services/attachmentService.js
+// 📁 automatinglogistics-api/services/attachmentService.js
 
-export async function findAttachments(structure, client, uid, attachments = []) {
-  if (!structure) return attachments;
+export async function findAttachmentsAndUpload(client, uids, supabase) {
+  const mails = [];
+  const uploadedFiles = [];
 
-  const disposition = structure.disposition?.type?.toUpperCase() || '';
-  const isAttachment = disposition === 'ATTACHMENT' || disposition === 'INLINE' || disposition === '';
+  for await (const message of client.fetch(uids, { envelope: true, bodyStructure: true })) {
+    const attachments = [];
 
-  const filename =
-    structure.disposition?.params?.filename ||
-    structure.params?.name ||
-    `attachment-${uid}-${structure.part.replace(/\s+/g, '_')}`;
-
-  const isDownloadable = structure.part && structure.size > 0 && isAttachment;
-
-  if (isDownloadable) {
-    try {
-      const download = await client.download(uid, structure.part);
-      const chunks = [];
-      for await (const chunk of download.content) {
-        chunks.push(chunk);
+    function findAllAttachments(structure) {
+      if (
+        structure.disposition?.type?.toUpperCase() === 'ATTACHMENT' &&
+        structure.part && structure.subtype && structure.type
+      ) {
+        attachments.push({
+          part: structure.part,
+          contentType: `${structure.type}/${structure.subtype}`,
+          filename: structure.params?.name || `attachment-${structure.part}`
+        });
       }
+      if (structure.childNodes) structure.childNodes.forEach(findAllAttachments);
+      if (structure.parts) structure.parts.forEach(findAllAttachments);
+    }
 
-      attachments.push({
-        part: filename,
-        buffer: Buffer.concat(chunks),
-        contentType: structure.type + '/' + structure.subtype,
-      });
-    } catch (error) {
-      console.error(`❌ Fout bij downloaden bijlage ${filename}:`, error.message);
+    if (message.bodyStructure) findAllAttachments(message.bodyStructure);
+
+    mails.push({
+      uid: message.uid,
+      subject: message.envelope.subject || '(geen onderwerp)',
+      from: message.envelope.from.map(f => `${f.name ?? ''} <${f.address}>`.trim()).join(', '),
+      date: message.envelope.date,
+      attachments: attachments.map(att => ({ part: att.part, contentType: att.contentType, filename: att.filename }))
+    });
+
+    for (const att of attachments) {
+      const content = await client.download(message.uid, att.part);
+
+      const { error } = await supabase.storage
+        .from('inboxpdf')
+        .upload(att.filename, content, {
+          contentType: att.contentType,
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (error) {
+        console.error('Uploadfout:', error.message);
+      } else {
+        uploadedFiles.push({
+          filename: att.filename,
+          url: `${process.env.SUPABASE_URL}/storage/v1/object/public/inboxpdf/${att.filename}`
+        });
+      }
     }
   }
 
-  if (structure.childNodes) {
-    for (const child of structure.childNodes) {
-      await findAttachments(child, client, uid, attachments);
-    }
-  }
-
-  if (structure.parts) {
-    for (const part of structure.parts) {
-      await findAttachments(part, client, uid, attachments);
-    }
-  }
-
-  return attachments;
+  return { mails, uploadedFiles };
 }
