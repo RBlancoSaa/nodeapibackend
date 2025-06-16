@@ -7,20 +7,31 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   try {
-    // 📥 Haal lijst van PDF-bestanden op uit 'inboxpdf'
+    // 📥 Haal lijst van bestanden op
     const { data: files, error: listError } = await supabase.storage
       .from('inboxpdf')
-      .list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+      .list('', {
+        limit: 100,
+        sortBy: { column: 'created_at', order: 'desc' }
+      });
 
     if (listError) throw new Error('Fout bij ophalen bestandslijst: ' + listError.message);
-    if (!files || files.length === 0) return res.status(200).json({ success: true, message: 'Geen PDF-bestanden gevonden.' });
+    if (!files || files.length === 0) {
+      return res.status(200).json({ success: true, message: 'Geen PDF-bestanden gevonden.' });
+    }
+
+    // 🧼 Filter alleen echte PDF-bestanden
+    const pdfFiles = files.filter(f => f.name && f.name.toLowerCase().endsWith('.pdf'));
+    console.log('📄 Te verwerken bestanden:', pdfFiles.map(f => f.name));
 
     const generatedFiles = [];
 
-    for (const file of files) {
+    for (const file of pdfFiles) {
       const { data: fileData, error: downloadError } = await supabase.storage
         .from('inboxpdf')
         .download(file.name);
@@ -34,13 +45,13 @@ export default async function handler(req, res) {
 
       let easyContent;
       try {
-        easyContent = await parsePdfToEasyFile(Buffer.from(pdfBuffer));
+        easyContent = await parsePdfToEasyFile(pdfBuffer);
       } catch (err) {
         console.error(`❌ Parserfout voor ${file.name}:`, err.message);
         continue;
       }
 
-      const easyFilename = file.name.replace(/\.pdf$/, '.easy');
+      const easyFilename = file.name.replace(/\.pdf$/i, '.easy');
       const { error: uploadError } = await supabase.storage
         .from('easyfiles')
         .upload(easyFilename, easyContent, {
@@ -59,7 +70,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      total: files.length,
+      total: pdfFiles.length,
       generated: generatedFiles.length,
       easyFiles: generatedFiles,
     });
