@@ -28,12 +28,18 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       continue;
     }
 
-    const contentBuffer = Buffer.isBuffer(att.content)
-      ? att.content
-      : Buffer.from(att.content);
+    let contentBuffer;
+    try {
+      contentBuffer = Buffer.isBuffer(att.content)
+        ? att.content
+        : Buffer.from(att.content?.data || att.content);
+    } catch (err) {
+      console.error(`💥 Buffer conversie gefaald voor ${att.filename}:`, err.message);
+      continue;
+    }
 
     if (!contentBuffer || contentBuffer.length < 500) {
-      console.warn(`⛔ Buffer ongeldig of te klein (${contentBuffer?.length} bytes) voor ${att.filename}`);
+      console.warn(`⛔ Ongeldige of te kleine buffer (${contentBuffer?.length} bytes) voor ${att.filename}`);
       continue;
     }
 
@@ -66,6 +72,6 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
     }
   }
 
-  console.log(`📤 Upload klaar. Succesvol geüpload: ${uploadedFiles.length} bestand(en)`);
+  console.log(`📤 Upload afgerond. Aantal successen: ${uploadedFiles.length}`);
   return uploadedFiles;
 }
