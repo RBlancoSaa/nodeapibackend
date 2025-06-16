@@ -15,13 +15,20 @@ const supabase = createClient(
 export async function uploadPdfAttachmentsToSupabase(attachments) {
   const uploadedFiles = [];
 
-  console.log('🚀 Start upload');
-  console.log('🔐 KEY lengte:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
+  console.log('🚀 Start upload naar Supabase');
+  console.log('🔑 KEY lengte:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
   console.log('🪣 Bucket:', process.env.SUPABASE_BUCKET);
-  console.log('📦 Aantal attachments:', attachments.length);
+  console.log('📦 Aantal attachments ontvangen:', attachments?.length ?? 'undefined');
+
+  if (!attachments || attachments.length === 0) {
+    console.error('❌ Geen attachments ontvangen in uploadfunctie');
+    return [];
+  }
 
   for (const att of attachments) {
     console.log(`\n🧪 Upload attempt: ${att.filename} | Type: ${att.contentType} | UID: ${att.uid}`);
+    console.log('🔍 typeof content:', typeof att.content);
+    console.log('🔍 constructor:', att.content?.constructor?.name);
 
     if (!att.filename) {
       console.warn(`❌ Skip: geen bestandsnaam (UID ${att.uid})`);
@@ -30,9 +37,20 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
 
     let contentBuffer;
     try {
-      contentBuffer = Buffer.isBuffer(att.content)
-        ? att.content
-        : Buffer.from(att.content?.data || att.content);
+      if (Buffer.isBuffer(att.content)) {
+        contentBuffer = att.content;
+      } else if (att.content?.constructor?.name === 'Uint8Array') {
+        contentBuffer = Buffer.from(att.content);
+      } else if (typeof att.content === 'string' && /^[A-Za-z0-9+/=]+$/.test(att.content)) {
+        contentBuffer = Buffer.from(att.content, 'base64');
+        console.log('⚠️ base64 fallback gebruikt voor', att.filename);
+      } else if (att.content?.data) {
+        contentBuffer = Buffer.from(att.content.data);
+      } else {
+        throw new Error('Onbekend contentformaat');
+      }
+
+      console.log('📏 Buffer lengte:', contentBuffer.length);
     } catch (err) {
       console.error(`💥 Buffer conversie gefaald voor ${att.filename}:`, err.message);
       continue;
@@ -44,9 +62,9 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
     }
 
     try {
-      console.log(`📤 Uploaden naar Supabase: ${att.filename} (${contentBuffer.length} bytes)`);
+      console.log(`📤 Uploaden naar Supabase: ${att.filename}`);
 
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from(process.env.SUPABASE_BUCKET)
         .upload(att.filename, contentBuffer, {
           contentType: att.contentType || 'application/pdf',
