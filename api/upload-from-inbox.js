@@ -1,4 +1,4 @@
-// 📁 automatinglogistics-api/pages/api/upload-from-inbox.js
+// 📁 nodeapibackend/pages/api/upload-from-inbox.js
 
 import { parseAttachmentsFromEmails } from '../services/parseAttachments.js';
 import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
@@ -8,7 +8,6 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    // ✅ 1. Verbind met IMAP
     const client = new ImapFlow({
       host: process.env.IMAP_HOST,
       port: Number(process.env.IMAP_PORT),
@@ -25,32 +24,25 @@ export default async function handler(req, res) {
     const uids = await client.search({ seen: false });
     if (uids.length === 0) {
       await client.logout();
-      return res.status(200).json({
-  success: true,
-  uploadedFiles,
-  mailCount: mails.length,
-  filenames: mails.map(m => m.attachments?.[0]?.filename)
-});
-
+      return res.status(200).json({ message: 'Geen ongelezen mails' });
     }
 
-    // ✅ 2. Parse bijlagen uit e-mails
     const { mails, allAttachments } = await parseAttachmentsFromEmails(client, uids);
 
-    // ✅ 3. Debug logging
-    console.log('📥 Totaal bijlagen:', allAttachments.length);
-    console.log('🪣 SUPABASE_BUCKET:', process.env.SUPABASE_BUCKET);
-    console.log('🔑 SUPABASE_API_KEY:', process.env.SUPABASE_API_KEY?.slice(0, 10) + '...');
+    console.log('📦 Aantal bijlagen:', allAttachments.length);
+    console.log('🔑 API key lengte:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
+    console.log('🪣 Bucket:', process.env.SUPABASE_BUCKET);
 
-    // ✅ 4. Upload alle PDF-bijlagen
     const uploadedFiles = await uploadPdfAttachmentsToSupabase(allAttachments);
 
     await client.logout();
 
     return res.status(200).json({
       success: true,
-      mails,
-      uploadedFiles,
+      mailCount: mails.length,
+      attachmentCount: allAttachments.length,
+      uploadedCount: uploadedFiles.length,
+      filenames: uploadedFiles.map(f => f.filename),
     });
   } catch (error) {
     console.error('💥 Upload-fout:', error);
