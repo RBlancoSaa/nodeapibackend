@@ -1,10 +1,9 @@
-import pdfParse from 'pdf-parse';
-
 export async function parsePdfToEasyFile(pdfBuffer) {
-  const { text } = await pdfParse(pdfBuffer);
+  const pdfParse = await import('pdf-parse');
+  const { text } = await pdfParse.default(pdfBuffer);
 
-  // 🧠 Extract relevante velden uit de tekst
-  const get = (label) => text.match(new RegExp(`${label}:?\\s*(.+)`, 'i'))?.[1]?.trim() || '';
+  const get = (label) =>
+    text.match(new RegExp(`${label}:?\\s*(.+)`, 'i'))?.[1]?.trim() || '';
 
   const referentie = get('Our reference');
   const remark = get('Remark');
@@ -20,7 +19,6 @@ export async function parsePdfToEasyFile(pdfBuffer) {
   const unNumber = get('UN');
   const gewicht = get('Weight');
   const volume = get('Volume');
-
   const locatieLaden = get('Pick-up terminal');
   const locatieLossen = get('Drop-off terminal');
 
