@@ -33,23 +33,32 @@ export async function findAttachmentsAndUpload(client, uids, supabase) {
     });
 
     for (const att of attachments) {
-      const content = await client.download(message.uid, att.part);
+      try {
+        const downloadStream = await client.download(message.uid, att.part);
+        const chunks = [];
+        for await (const chunk of downloadStream.content) {
+          chunks.push(chunk);
+        }
+        const contentBuffer = Buffer.concat(chunks);
 
-      const { error } = await supabase.storage
-        .from('inboxpdf')
-        .upload(att.filename, content, {
-          contentType: att.contentType,
-          cacheControl: '3600',
-          upsert: true,
-        });
+        const { error } = await supabase.storage
+          .from('inboxpdf')
+          .upload(att.filename, contentBuffer, {
+            contentType: att.contentType,
+            cacheControl: '3600',
+            upsert: true,
+          });
 
-      if (error) {
-        console.error('Uploadfout:', error.message);
-      } else {
-        uploadedFiles.push({
-          filename: att.filename,
-          url: `${process.env.SUPABASE_URL}/storage/v1/object/public/inboxpdf/${att.filename}`
-        });
+        if (error) {
+          console.error('Uploadfout:', error.message);
+        } else {
+          uploadedFiles.push({
+            filename: att.filename,
+            url: `${process.env.SUPABASE_URL}/storage/v1/object/public/inboxpdf/${att.filename}`
+          });
+        }
+      } catch (err) {
+        console.error(`❌ Fout bij verwerken van bijlage ${att.filename}:`, err);
       }
     }
   }
