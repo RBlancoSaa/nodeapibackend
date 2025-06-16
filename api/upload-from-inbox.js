@@ -29,14 +29,11 @@ export default async function handler(req, res) {
 
     const { mails, allAttachments } = await parseAttachmentsFromEmails(client, uids);
 
-    console.log('📦 Aantal bijlagen:', allAttachments.length);
-    console.log('🔑 API key lengte:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
-    console.log('🪣 Bucket:', process.env.SUPABASE_BUCKET);
-
     const uploadedFiles = await uploadPdfAttachmentsToSupabase(allAttachments);
 
     await client.logout();
 
+    // ❗ Strikte response - alleen strings/nummers
     return res.status(200).json({
       success: true,
       mailCount: mails.length,
@@ -48,7 +45,7 @@ export default async function handler(req, res) {
     console.error('💥 Upload-fout:', error);
     return res.status(500).json({
       success: false,
-      error: error.message || 'Onbekende serverfout tijdens upload',
+      error: error.message || 'Onbekende fout bij upload',
     });
   }
 }
