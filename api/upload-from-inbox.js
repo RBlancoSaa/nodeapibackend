@@ -1,66 +1,58 @@
-// 📁 nodeapibackend/services/uploadPdfAttachmentsToSupabase.js
+import { parseAttachmentsFromEmails } from '../services/parseAttachments.js';
+import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
+import { ImapFlow } from 'imapflow';
 
-import { createClient } from '@supabase/supabase-js';
+export default async function handler(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-// ✅ Supabase setup
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+  let client;
+  try {
+    client = new ImapFlow({
+      host: process.env.IMAP_HOST,
+      port: Number(process.env.IMAP_PORT),
+      secure: process.env.IMAP_SECURE === 'true',
+      auth: {
+        user: process.env.IMAP_USER,
+        pass: process.env.IMAP_PASS,
+      },
+    });
 
-/**
- * Uploadt PDF-bestanden naar Supabase Storage vanuit een lijst met bijlagen.
- * @param {Array} attachments - [{ uid, filename, contentType, content }]
- * @returns {Array} uploadedFiles - Lijst met { filename, url }
- */
-export async function uploadPdfAttachmentsToSupabase(attachments) {
-  const uploadedFiles = [];
+    await client.connect();
+    await client.mailboxOpen('INBOX');
 
-  console.log('🚀 Start upload');
-  console.log('🔑 KEY lengte:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
-  console.log('📦 Aantal attachments:', attachments.length);
-
-  for (const att of attachments) {
-    console.log(`🔍 Bestand: ${att.filename} | Type: ${att.contentType} | UID: ${att.uid}`);
-
-    if (!att.filename) {
-      console.log(`❌ Skip: geen bestandsnaam (UID ${att.uid})`);
-      continue;
+    let uids = await client.search({ seen: false });
+    if (uids.length === 0) {
+      await client.logout();
+      return res.status(200).json({ message: 'Geen ongelezen mails' });
     }
 
-    // ✅ Forceer Buffer conversie
-    const contentBuffer = Buffer.isBuffer(att.content)
-      ? att.content
-      : Buffer.from(att.content);
+    // Beperk het aantal te verwerken e-mails
+    uids = uids.slice(-10);
 
-    if (!contentBuffer || contentBuffer.length < 500) {
-      console.warn(`⛔ Buffer ongeldig of te klein (${contentBuffer?.length} bytes) voor ${att.filename}`);
-      continue;
-    }
+    const { mails, allAttachments } = await parseAttachmentsFromEmails(client, uids);
 
-    try {
-      const { error } = await supabase.storage
-        .from(process.env.SUPABASE_BUCKET)
-        .upload(att.filename, contentBuffer, {
-          contentType: att.contentType || 'application/pdf',
-          cacheControl: '3600',
-          upsert: true,
-        });
+    // Filter alleen PDF's
+    const pdfAttachments = allAttachments.filter(att =>
+      att.filename && att.filename.toLowerCase().endsWith('.pdf')
+    );
 
-      if (error) {
-        console.error(`❌ Uploadfout (${att.filename}):`, error.message);
-        continue;
-      }
+    const uploadedFiles = await uploadPdfAttachmentsToSupabase(pdfAttachments);
 
-      const url = `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${att.filename}`;
-      uploadedFiles.push({ filename: att.filename, url });
+    await client.logout();
 
-      console.log(`✅ Succesvol geüpload: ${att.filename}`);
-    } catch (err) {
-      console.error(`💥 Exception bij upload van ${att.filename}:`, err.message || err);
-    }
+    return res.status(200).json({
+      success: true,
+      mailCount: mails.length,
+      attachmentCount: allAttachments.length,
+      uploadedCount: uploadedFiles.length,
+      filenames: uploadedFiles.map(f => f.filename),
+    });
+  } catch (error) {
+    if (client) await client.logout().catch(() => {});
+    console.error('💥 Upload-fout:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Onbekende serverfout tijdens upload',
+    });
   }
-
-  console.log(`📤 Totaal succesvol geüpload: ${uploadedFiles.length}`);
-  return uploadedFiles;
 }
