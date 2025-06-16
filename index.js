@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
-import { uploadPdfAttachmentsToSupabase } from './services/supabaseStorageService.js';
+import { uploadPdfAttachmentsToSupabase } from './services/uploadPdfAttachmentsToSupabase.js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // of anon key als je wilt
