@@ -31,6 +31,8 @@ export async function findAttachmentsAndUpload(client, uids, supabase) {
       });
 
       for (const att of attachments) {
+        console.log(`➡️ Uploaden: ${att.filename} (${att.content?.length} bytes)`);
+
         const { error } = await supabase.storage
           .from('inboxpdf')
           .upload(att.filename, att.content, {
@@ -40,8 +42,9 @@ export async function findAttachmentsAndUpload(client, uids, supabase) {
           });
 
         if (error) {
-          console.error('Uploadfout:', error.message);
+          console.error('❌ Uploadfout:', error.message);
         } else {
+          console.log(`✅ Succesvol geüpload: ${att.filename}`);
           uploadedFiles.push({
             filename: att.filename,
             url: `${process.env.SUPABASE_URL}/storage/v1/object/public/inboxpdf/${att.filename}`
