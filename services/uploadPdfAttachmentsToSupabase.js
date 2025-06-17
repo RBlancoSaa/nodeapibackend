@@ -16,6 +16,9 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       continue;
     }
 
+    // ✅ Sanitize bestandsnaam (alleen veilige tekens)
+    const safeFilename = att.filename.replace(/[^\w\d\-_.]/g, '_');
+
     let contentBuffer;
     try {
       if (Buffer.isBuffer(att.content)) {
@@ -28,30 +31,39 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
         throw new Error('Attachment content is not een buffer');
       }
     } catch (err) {
-      console.error(`❌ Buffer error (${att.filename}):`, err.message);
+      console.error(`❌ Buffer error (${safeFilename}):`, err.message);
       continue;
     }
 
     if (!contentBuffer?.length) {
-      console.error(`⛔ Lege buffer voor ${att.filename}`);
+      console.error(`⛔ Lege buffer voor ${safeFilename}`);
       continue;
     }
 
     try {
       const { error } = await supabase.storage
         .from(process.env.SUPABASE_BUCKET)
-        .upload(att.filename, contentBuffer, {
+        .upload(safeFilename, contentBuffer, {
           contentType: att.contentType || 'application/pdf',
           cacheControl: '3600',
           upsert: true,
         });
 
       if (error) {
-        console.error(`❌ Uploadfout (${att.filename}):`, error.message);
+        console.error(`❌ Uploadfout: Invalid key: ${safeFilename}`);
         continue;
       }
 
-      const parsedData = await parsePdfToEasyFile(contentBuffer);
+      console.log(`✅ Upload gelukt: ${safeFilename}`);
+
+      let parsedData;
+      try {
+        parsedData = await parsePdfToEasyFile(contentBuffer);
+      } catch (err) {
+        console.error(`⚠️ Parserfout voor ${safeFilename}:`, err.message);
+        continue;
+      }
+
       const laadplaats = parsedData.laadplaats || 'Onbekend';
 
       const payload = {
@@ -60,7 +72,7 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
         laadplaats
       };
 
-      console.log("📤 Versturen naar generate-easy-files met body:", JSON.stringify(payload));
+      console.log("📤 Versturen naar generate-easy-files met body:", JSON.stringify(payload, null, 2));
 
       const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
         method: 'POST',
@@ -69,7 +81,6 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       });
 
       const responseText = await resp.text();
-
       console.log("📥 Response van generate-easy-files:", responseText);
 
       let result;
@@ -80,17 +91,17 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       }
 
       if (!result.success) {
-        console.error(`⚠️ .easy genereren mislukt voor ${att.filename}:`, result.message);
+        console.error(`⚠️ .easy genereren mislukt voor ${safeFilename}:`, result.message);
       } else {
-        console.log(`✅ .easy gegenereerd voor ${att.filename}:`, result.fileName);
+        console.log(`✅ .easy gegenereerd voor ${safeFilename}:`, result.fileName);
       }
 
       uploadedFiles.push({
-        filename: att.filename,
-        url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${att.filename}`
+        filename: safeFilename,
+        url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${safeFilename}`
       });
     } catch (err) {
-      console.error(`💥 Upload/parsing fout voor ${att.filename}:`, err.message || err);
+      console.error(`💥 Upload/parsing fout voor ${safeFilename}:`, err.message || err);
     }
   }
 
