@@ -1,25 +1,58 @@
 import { createClient } from '@supabase/supabase-js';
 import { parsePdfToEasyFile } from './parsePdfToEasyFile.js';
 import fetch from 'node-fetch';
+import nodemailer from 'nodemailer';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT),
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
+  }
+});
+
+async function notifyError(att, reason) {
+  const meta = att.emailMeta || {};
+  const subject = `🚨 Fout bij verwerken van ${att.filename}`;
+  const body = `Bestand: ${att.filename}
+Afzender: ${meta.from || 'Onbekend'}
+Onderwerp: ${meta.subject || 'Onbekend'}
+Binnenkomst: ${meta.received || 'Onbekend'}
+
+Bijlagen in e-mail:
+${(meta.attachments || []).join('\n')}
+
+Foutmelding:
+${reason}`;
+
+  await transporter.sendMail({
+    from: process.env.FROM_EMAIL,
+    to: process.env.FROM_EMAIL,
+    subject,
+    text: body
+  });
+}
+
 export async function uploadPdfAttachmentsToSupabase(attachments) {
   const uploadedFiles = [];
 
-  // 🔐 Bestandsnamen standaard opschonen vóór verwerking
   const sanitizedAttachments = attachments.map(att => ({
-    ...att,
-    originalFilename: att.filename,
-    filename: att.filename
-      .normalize('NFKD')
-      .replace(/[^\x00-\x7F]/g, '')      // verwijder niet-ASCII
-      .replace(/[^\w\d\-_.]/g, '_')      // vervang ongewenste tekens
-      .replace(/_+/g, '_')               // meerdere underscores → één
-  }));
+  ...att,
+  originalFilename: att.filename,
+  filename: att.filename
+    .normalize('NFKD')
+    .replace(/[^\x00-\x7F]/g, '')      // verwijder ALLE niet-ASCII tekens
+    .replace(/[^\w\d\-_.]/g, '_')      // vervang ongewenste tekens
+    .replace(/_+/g, '_')               // meerdere underscores naar één
+    .replace(/^_+|_+$/g, '')           // underscores aan begin/eind weg
+}));
 
   for (const att of sanitizedAttachments) {
     if (!att.filename?.toLowerCase().endsWith('.pdf')) {
@@ -41,12 +74,16 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
         throw new Error('Attachment content is not een buffer');
       }
     } catch (err) {
-      console.error(`❌ Buffer error (${att.filename}):`, err.message);
+      const msg = `Buffer error: ${err.message}`;
+      console.error(`❌ ${msg}`);
+      await notifyError(att, msg);
       continue;
     }
 
     if (!contentBuffer?.length) {
-      console.error(`⛔ Lege buffer voor ${att.filename}`);
+      const msg = `Lege buffer voor ${att.filename}`;
+      console.error(`⛔ ${msg}`);
+      await notifyError(att, msg);
       continue;
     }
 
@@ -60,7 +97,9 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
         });
 
       if (error) {
-        console.error(`❌ Uploadfout: Invalid key: ${att.filename}`);
+        const msg = `Uploadfout: ${error.message}`;
+        console.error(`❌ ${msg}`);
+        await notifyError(att, msg);
         continue;
       }
 
@@ -70,7 +109,9 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       try {
         xml = await parsePdfToEasyFile(contentBuffer);
       } catch (err) {
-        console.error(`⚠️ Parserfout voor ${att.filename}:`, err.message);
+        const msg = `Parserfout: ${err.message}`;
+        console.error(`⚠️ ${msg}`);
+        await notifyError(att, msg);
         continue;
       }
 
@@ -80,12 +121,7 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       const reference = referenceMatch?.[1] || 'Onbekend';
       const laadplaats = laadplaatsMatch?.[1] || 'Onbekend';
 
-      const payload = {
-        xml,
-        reference,
-        laadplaats
-      };
-
+      const payload = { xml, reference, laadplaats };
       console.log("📤 Versturen naar generate-easy-files met body:", JSON.stringify(payload, null, 2));
 
       const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
@@ -105,9 +141,11 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       }
 
       if (!result.success) {
-        console.error(`⚠️ .easy genereren mislukt voor ${att.filename}:`, result.message);
+        const msg = `generate-easy-files response: ${result.message}`;
+        console.error(`⚠️ ${msg}`);
+        await notifyError(att, msg);
       } else {
-        console.log(`✅ .easy gegenereerd voor ${att.filename}:`, result.fileName);
+        console.log(`✅ .easy gegenereerd: ${result.fileName}`);
       }
 
       uploadedFiles.push({
@@ -115,7 +153,9 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
         url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${att.filename}`
       });
     } catch (err) {
-      console.error(`💥 Upload/parsing fout voor ${att.filename}:`, err.message || err);
+      const msg = `Upload/parsing fout: ${err.message || err}`;
+      console.error(`💥 ${msg}`);
+      await notifyError(att, msg);
     }
   }
 
