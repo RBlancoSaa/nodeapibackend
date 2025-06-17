@@ -54,18 +54,31 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       const parsedData = await parsePdfToEasyFile(contentBuffer);
       const laadplaats = parsedData.laadplaats || 'Onbekend';
 
-      // Post naar generate-easy-files
+      const payload = {
+        pdfData: parsedData,
+        reference: parsedData.klantreferentie,
+        laadplaats
+      };
+
+      console.log("📤 Versturen naar generate-easy-files met body:", JSON.stringify(payload));
+
       const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pdfData: parsedData,
-          reference: parsedData.klantreferentie,
-          laadplaats
-        })
+        body: JSON.stringify(payload)
       });
 
-      const result = await resp.json();
+      const responseText = await resp.text();
+
+      console.log("📥 Response van generate-easy-files:", responseText);
+
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        result = { success: false, message: 'Kon response niet parsen als JSON' };
+      }
+
       if (!result.success) {
         console.error(`⚠️ .easy genereren mislukt voor ${att.filename}:`, result.message);
       } else {
