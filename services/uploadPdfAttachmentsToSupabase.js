@@ -1,24 +1,23 @@
-import { createClient } from '@supabase/supabase-js';
-import { parsePdfToEasyFile } from './parsePdfToEasyFile.js';
-import fetch from 'node-fetch';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 export async function uploadPdfAttachmentsToSupabase(attachments) {
   const uploadedFiles = [];
 
-  for (const att of attachments) {
+  const sanitizedAttachments = attachments.map(att => ({
+    ...att,
+    originalFilename: att.filename,
+    filename: att.filename
+      .normalize('NFKD')
+      .replace(/[^\w\d\-_.]/g, '_')
+      .replace(/_+/g, '_')
+  }));
+
+  for (const att of sanitizedAttachments) {
     if (!att.filename?.toLowerCase().endsWith('.pdf')) {
       console.log(`⏭️ Bestand overgeslagen (geen .pdf): ${att.filename}`);
       continue;
     }
 
-    const safeFilename = Buffer.from(att.filename, 'utf8')
-  .toString('ascii')
-  .replace(/[^\w\d\-_.]/g, '_');
+    // ⛔️ safeFilename is overbodig — att.filename is al sanitized
+    // const safeFilename = ...  ← WEGLATEN
 
     let contentBuffer;
     try {
