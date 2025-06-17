@@ -8,64 +8,50 @@ export default async function handler(req, res) {
   console.log("🕒 Tijdstip:", new Date().toISOString());
 
   try {
-    // Logging inkomende data
-    console.log("📦 Volledige req.body:", req.body);
-if (!req.body) {
-  console.warn("⚠️ Request zonder body ontvangen");
-  return res.status(400).json({ success: false, message: 'Ontbrekende body' });
-}
-    const { pdfData, reference, laadplaats } = req.body;
+    // 🧠 Vercel serverless: body moet handmatig ingelezen worden
+    const buffers = [];
+    for await (const chunk of req) buffers.push(chunk);
+    const rawBody = Buffer.concat(buffers).toString();
 
-    console.log("🔍 Ontvangen waarden:");
-    console.log("    - reference:", reference);
-    console.log("    - laadplaats:", laadplaats);
-    console.log("    - pdfData type:", typeof pdfData);
-    if (pdfData && typeof pdfData === 'string') {
-      console.log("    - pdfData lengte:", pdfData.length);
-      console.log("    - eerste 100 tekens:", pdfData.slice(0, 100));
+    let body;
+    try {
+      body = JSON.parse(rawBody);
+    } catch (err) {
+      console.warn("⚠️ Ongeldige JSON ontvangen:", rawBody);
+      return res.status(400).json({ success: false, message: 'Body is geen geldige JSON' });
     }
 
-    // Controleren op ontbrekende velden
+    console.log("📦 Volledige body ontvangen:", body);
+
+    if (!body) {
+      console.warn("⚠️ Request zonder body ontvangen");
+      return res.status(400).json({ success: false, message: 'Ontbrekende body' });
+    }
+
+    const { pdfData, reference, laadplaats } = body;
+
     if (!pdfData || !reference || !laadplaats) {
-      console.error("❌ Ontbrekende velden:", { pdfData, reference, laadplaats });
+      console.warn("❌ Verplichte velden ontbreken:", { pdfData, reference, laadplaats });
       return res.status(400).json({ success: false, message: 'pdfData, reference of laadplaats ontbreekt.' });
     }
 
-    // .env check
-    console.log("🌍 SUPABASE_URL:", process.env.SUPABASE_URL || '⚠️ NIET GEDEFINIEERD');
-    console.log("🔐 SUPABASE_SERVICE_ROLE_KEY aanwezig:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
-
-    // Aanroepen van generator
-    const easyContent = generateEasyXML(pdfData);
-    console.log("🧠 EasyXML gegenereerd");
-    if (!easyContent || typeof easyContent !== 'string') {
-      console.error("❌ gegenereerd easyContent is ongeldig of leeg");
-      return res.status(500).json({ success: false, message: 'Leeg of ongeldig .easy bestand gegenereerd.' });
-    }
-
-    console.log("📄 EasyXML preview:", easyContent.slice(0, 300));
-
-    // Uploaden naar Supabase
+    const xml = generateEasyXML(pdfData);
     const fileName = `Order_${reference}_${laadplaats}.easy`;
-    const fileBuffer = Buffer.from(easyContent, 'utf-8');
 
-    console.log("💾 Voorbereid voor upload:");
-    console.log("    - bestandsnaam:", fileName);
-    console.log("    - grootte (bytes):", fileBuffer.length);
-
-    const { error: uploadError } = await supabase.storage
+    const { error } = await supabase.storage
       .from('easyfiles')
-      .upload(fileName, fileBuffer, {
+      .upload(fileName, xml, {
         contentType: 'text/plain',
+        cacheControl: '3600',
         upsert: true
       });
 
-    if (uploadError) {
-      console.error("🚨 Upload naar Supabase mislukt:", uploadError.message);
-      return res.status(500).json({ success: false, message: 'Upload naar Supabase mislukt.', error: uploadError.message });
+    if (error) {
+      console.error("❌ Fout bij uploaden naar Supabase:", error.message);
+      return res.status(500).json({ success: false, message: 'Upload naar Supabase mislukt' });
     }
 
-    console.log(`✅ Upload succesvol: ${fileName}`);
+    console.log("✅ Easy file succesvol geüpload:", fileName);
     return res.status(200).json({ success: true, fileName });
   } catch (err) {
     console.error("🧨 Onverwachte fout in generate-easy-files.js:", err);
