@@ -1,82 +1,43 @@
-import { createClient } from '@supabase/supabase-js';
-import { parsePdfToEasyFile } from '../services/parsePdfToEasyFile.js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import fs from 'fs';
+import path from 'path';
+import { supabase } from '../services/supabaseClient.js';
+import { generateEasyXML } from '../services/easyFileService.js';
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
   try {
-    // 📥 Haal lijst van bestanden op
-    const { data: files, error: listError } = await supabase.storage
-      .from('inboxpdf')
-      .list('', {
-        limit: 100,
-        sortBy: { column: 'created_at', order: 'desc' }
+    const { pdfData, reference, laadplaats } = req.body;
+
+    console.log("🚀 .easy generator aangeroepen");
+    if (!pdfData || !reference || !laadplaats) {
+      console.error("❌ Verplichte velden ontbreken:", { pdfData, reference, laadplaats });
+      return res.status(400).json({ success: false, message: 'pdfData, reference of laadplaats ontbreekt.' });
+    }
+
+    const easyContent = generateEasyXML(pdfData);
+    if (!easyContent || typeof easyContent !== 'string') {
+      console.error("❌ .easy bestand is leeg of ongeldig.");
+      return res.status(500).json({ success: false, message: 'Leeg .easy bestand gegenereerd.' });
+    }
+
+    const fileName = `Order_${reference}_${laadplaats}.easy`;
+    const fileBuffer = Buffer.from(easyContent, 'utf-8');
+
+    const { error: uploadError } = await supabase.storage
+      .from('easyfiles')
+      .upload(fileName, fileBuffer, {
+        contentType: 'text/plain',
+        upsert: true
       });
 
-    if (listError) throw new Error('Fout bij ophalen bestandslijst: ' + listError.message);
-    if (!files || files.length === 0) {
-      return res.status(200).json({ success: true, message: 'Geen PDF-bestanden gevonden.' });
+    if (uploadError) {
+      console.error("❌ Upload naar Supabase mislukt:", uploadError.message);
+      return res.status(500).json({ success: false, message: 'Upload naar Supabase mislukt.', error: uploadError.message });
     }
 
-    // 🧼 Filter alleen echte PDF-bestanden
-    const pdfFiles = files.filter(f => f.name && f.name.toLowerCase().endsWith('.pdf'));
-    console.log('📄 Te verwerken bestanden:', pdfFiles.map(f => f.name));
-
-    const generatedFiles = [];
-
-    for (const file of pdfFiles) {
-      const { data: fileData, error: downloadError } = await supabase.storage
-        .from('inboxpdf')
-        .download(file.name);
-
-      if (downloadError) {
-        console.error(`❌ Download mislukt voor ${file.name}:`, downloadError.message);
-        continue;
-      }
-
-      const pdfBuffer = Buffer.from(await fileData.arrayBuffer());
-
-      let easyContent;
-      try {
-        easyContent = await parsePdfToEasyFile(pdfBuffer);
-      } catch (err) {
-        console.error(`❌ Parserfout voor ${file.name}:`, err.message);
-        continue;
-      }
-
-      const easyFilename = file.name.replace(/\.pdf$/i, '.easy');
-      const { error: uploadError } = await supabase.storage
-        .from('easyfiles')
-        .upload(easyFilename, easyContent, {
-          contentType: 'text/plain',
-          upsert: true,
-        });
-
-      if (uploadError) {
-        console.error(`❌ Upload .easy mislukt voor ${easyFilename}:`, uploadError.message);
-        continue;
-      }
-
-      console.log(`✅ Easy file gegenereerd: ${easyFilename}`);
-      generatedFiles.push(easyFilename);
-    }
-
-    return res.status(200).json({
-      success: true,
-      total: pdfFiles.length,
-      generated: generatedFiles.length,
-      easyFiles: generatedFiles,
-    });
-
-  } catch (error) {
-    console.error('💥 Serverfout:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
+    console.log(`✅ .easy bestand succesvol opgeslagen als ${fileName}`);
+    return res.status(200).json({ success: true, fileName });
+  } catch (err) {
+    console.error("❌ Interne fout in generate-easy-files.js:", err);
+    return res.status(500).json({ success: false, message: 'Interne fout in .easy generator.' });
   }
 }
