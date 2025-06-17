@@ -130,28 +130,25 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
         continue;
       }
 
-      const referenceMatch = xml.match(/<Klantreferentie>(.*?)<\/Klantreferentie>/);
-      const laadplaatsMatch = xml.match(/<Naam>(.*?)<\/Naam>/);
-      const reference = referenceMatch?.[1] || 'Onbekend';
-      const laadplaats = laadplaatsMatch?.[1] || 'Onbekend';
+const referenceMatch = xml.match(/<Klantreferentie>(.*?)<\/Klantreferentie>/);
+const laadplaatsMatch = xml.match(/<Naam>(.*?)<\/Naam>/);
+const reference = referenceMatch?.[1] || 'Onbekend';
+const laadplaats = laadplaatsMatch?.[1] || 'Onbekend';
 
-      const payload = {
+const payload = {
   xmlBase64: Buffer.from(xml).toString('base64'),
   reference,
   laadplaats
 };
-      console.log("📤 Versturen naar generate-easy-files met body:", JSON.stringify(payload, null, 2));
 
-      const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
+console.log("📤 Versturen naar generate-easy-files met body:", JSON.stringify(payload, null, 2));
+
+const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
   },
-  body: JSON.stringify({
-    xml,
-    reference,
-    laadplaats
-  })
+  body: JSON.stringify(payload)
 });
 
       const responseText = await resp.text();
