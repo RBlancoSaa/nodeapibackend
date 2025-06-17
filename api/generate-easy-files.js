@@ -4,6 +4,10 @@ import { supabase } from '../services/supabaseClient.js';
 import { generateEasyXML } from '../services/easyFileService.js';
 
 export default async function handler(req, res) {
+  console.log("✅ API route /api/generate-easy-files wordt aangeroepen");
+  console.log("📦 Inhoud van req.body:", req.body);
+  console.log("🌍 SUPABASE_URL:", process.env.SUPABASE_URL);
+
   try {
     const { pdfData, reference, laadplaats } = req.body;
 
