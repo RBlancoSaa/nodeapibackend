@@ -1,7 +1,3 @@
-
-js
-Kopiëren
-Bewerken
 import { createClient } from '@supabase/supabase-js';
 import { parsePdfToEasyFile } from './parsePdfToEasyFile.js';
 import fetch from 'node-fetch';
@@ -25,7 +21,8 @@ const transporter = nodemailer.createTransport({
 async function notifyError(att, reason) {
   const meta = att.emailMeta || {};
   const subject = `🚨 Fout bij verwerken van ${att.filename || 'onbekend bestand'}`;
-  const body = `Bestand: ${att.filename || 'geen naam'}
+  const body = `Bestand: ${att.originalFilename || att.filename || 'Onbekend'}
+Gesanitized: ${att.filename || 'Onbekend'}
 Afzender: ${meta.from || 'Onbekend'}
 Onderwerp: ${meta.subject || 'Onbekend'}
 Binnenkomst: ${meta.received || 'Onbekend'}
@@ -47,31 +44,32 @@ ${reason}`;
 export async function uploadPdfAttachmentsToSupabase(attachments) {
   const uploadedFiles = [];
 
-  const sanitizedAttachments = attachments.map(att => {
-    let safe = att.filename || 'bijlage.pdf';
-    if (Buffer.isBuffer(safe)) safe = safe.toString('utf8');
-    safe = safe.normalize('NFKD').replace(/[^\x00-\x7F]/g, '');
-    safe = safe.replace(/[^\w\d\-_.]/g, '_');
-    safe = safe.replace(/_+/g, '_');
-    safe = safe.replace(/^_+|_+$/g, '');
-    if (!safe) safe = 'bijlage.pdf';
-    return {
-      ...att,
-      originalFilename: att.filename,
-      filename: safe
-    };
-  });
+  const sanitizedAttachments = attachments.map(att => ({
+    ...att,
+    originalFilename: att.filename,
+    filename: att.filename
+      .normalize('NFKD')
+      .replace(/[^\x00-\x7F]/g, '') // verwijder niet-ASCII
+      .replace(/[^\w\d\-_.]/g, '_') // ongewenste tekens vervangen
+      .replace(/_+/g, '_')          // meerdere underscores naar één
+      .replace(/^_+|_+$/g, '')      // underscores begin/eind verwijderen
+  }));
 
   for (const att of sanitizedAttachments) {
-    if (!att.filename?.toLowerCase().endsWith('.pdf')) {
-      console.log(`⏭️ Bestand overgeslagen (geen .pdf): ${att.filename}`);
+    console.log(`📥 Start verwerking voor: ${att.originalFilename}`);
+
+    if (!att.filename) {
+      console.error(`⛔ Ongeldige bestandsnaam:`, {
+        origineleNaam: att.originalFilename,
+        gesanitizedNaam: att.filename
+      });
+      const msg = `Lege bestandsnaam na sanitizen!`;
+      await notifyError(att, msg);
       continue;
     }
 
-    if (!att.filename) {
-      const msg = `Lege bestandsnaam na sanitizen!`;
-      console.error(`⛔ ${msg}`);
-      await notifyError(att, msg);
+    if (!att.filename.toLowerCase().endsWith('.pdf')) {
+      console.log(`⏭️ Bestand overgeslagen (geen .pdf): ${att.filename}`);
       continue;
     }
 
@@ -103,6 +101,7 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
     }
 
     try {
+      console.log(`📤 Upload naar Supabase gestart: ${att.filename}`);
       const { error } = await supabase.storage
         .from(process.env.SUPABASE_BUCKET)
         .upload(att.filename, contentBuffer, {
@@ -119,6 +118,7 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       }
 
       console.log(`✅ Upload gelukt: ${att.filename}`);
+      console.log(`🧠 Parser gestart voor: ${att.filename}`);
 
       let xml;
       try {
@@ -132,23 +132,23 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
 
       const referenceMatch = xml.match(/<Klantreferentie>(.*?)<\/Klantreferentie>/);
       const laadplaatsMatch = xml.match(/<Naam>(.*?)<\/Naam>/);
-
       const reference = referenceMatch?.[1] || 'Onbekend';
       const laadplaats = laadplaatsMatch?.[1] || 'Onbekend';
 
-      const payload = {
-        xmlBase64: Buffer.from(xml).toString('base64'),
-        reference,
-        laadplaats
-      };
-
+      const payload = { xml, reference, laadplaats };
       console.log("📤 Versturen naar generate-easy-files met body:", JSON.stringify(payload, null, 2));
 
       const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    xml,
+    reference,
+    laadplaats
+  })
+});
 
       const responseText = await resp.text();
       console.log("📥 Response van generate-easy-files:", responseText);
@@ -172,7 +172,6 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
         filename: att.filename,
         url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${att.filename}`
       });
-
     } catch (err) {
       const msg = `Upload/parsing fout: ${err.message || err}`;
       console.error(`💥 ${msg}`);
