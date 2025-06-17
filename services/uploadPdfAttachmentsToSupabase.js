@@ -16,10 +16,9 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       continue;
     }
 
-    const safeFilename = att.filename
-  .normalize('NFKD')
-  .replace(/[^\w\d\-_.]/g, '_')
-  .replace(/_+/g, '_');
+    const safeFilename = Buffer.from(att.filename, 'utf8')
+  .toString('ascii')
+  .replace(/[^\w\d\-_.]/g, '_');
 
     let contentBuffer;
     try {
