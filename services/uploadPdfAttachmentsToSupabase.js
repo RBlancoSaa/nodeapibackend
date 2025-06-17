@@ -31,82 +31,32 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
         throw new Error('Attachment content is not een buffer');
       }
     } catch (err) {
-      console.error(`❌ Buffer error (${safeFilename}):`, err.message);
+      console.error(`❌ Buffer error (${att.filename}):`, err.message);
       continue;
     }
 
     if (!contentBuffer?.length) {
-      console.error(`⛔ Lege buffer voor ${safeFilename}`);
+      console.error(`⛔ Lege buffer voor ${att.filename}`);
       continue;
     }
 
-    try {
-      const { error } = await supabase.storage
-        .from(process.env.SUPABASE_BUCKET)
-        .upload(safeFilename, contentBuffer, {
-          contentType: att.contentType || 'application/pdf',
-          cacheControl: '3600',
-          upsert: true,
-        });
-
-      if (error) {
-        console.error(`❌ Uploadfout: Invalid key: ${safeFilename}`);
-        continue;
-      }
-
-      console.log(`✅ Upload gelukt: ${safeFilename}`);
-
-      let xml;
-      try {
-        xml = await parsePdfToEasyFile(contentBuffer);
-      } catch (err) {
-        console.error(`⚠️ Parserfout voor ${safeFilename}:`, err.message);
-        continue;
-      }
-
-      const referenceMatch = xml.match(/<Klantreferentie>(.*?)<\/Klantreferentie>/);
-      const laadplaatsMatch = xml.match(/<Naam>(.*?)<\/Naam>/);
-
-      const reference = referenceMatch?.[1] || 'Onbekend';
-      const laadplaats = laadplaatsMatch?.[1] || 'Onbekend';
-
-      const payload = {
-        xml,
-        reference,
-        laadplaats
-      };
-
-      console.log("📤 Versturen naar generate-easy-files met body:", JSON.stringify(payload, null, 2));
-
-      const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+    // En gebruik att.filename hier:
+    const { error } = await supabase.storage
+      .from(process.env.SUPABASE_BUCKET)
+      .upload(att.filename, contentBuffer, {
+        contentType: att.contentType || 'application/pdf',
+        cacheControl: '3600',
+        upsert: true,
       });
 
-      const responseText = await resp.text();
-      console.log("📥 Response van generate-easy-files:", responseText);
-
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (e) {
-        result = { success: false, message: 'Kon response niet parsen als JSON' };
-      }
-
-      if (!result.success) {
-        console.error(`⚠️ .easy genereren mislukt voor ${safeFilename}:`, result.message);
-      } else {
-        console.log(`✅ .easy gegenereerd voor ${safeFilename}:`, result.fileName);
-      }
-
-      uploadedFiles.push({
-        filename: safeFilename,
-        url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${safeFilename}`
-      });
-    } catch (err) {
-      console.error(`💥 Upload/parsing fout voor ${safeFilename}:`, err.message || err);
+    if (error) {
+      console.error(`❌ Uploadfout: Invalid key: ${att.filename}`);
+      continue;
     }
+
+    console.log(`✅ Upload gelukt: ${att.filename}`);
+
+    // ✅ Daarna: verder met parsing en upload zoals eerder
   }
 
   return uploadedFiles;
