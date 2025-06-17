@@ -10,7 +10,10 @@ export default async function handler(req, res) {
   try {
     // Logging inkomende data
     console.log("📦 Volledige req.body:", req.body);
-
+if (!req.body) {
+  console.warn("⚠️ Request zonder body ontvangen");
+  return res.status(400).json({ success: false, message: 'Ontbrekende body' });
+}
     const { pdfData, reference, laadplaats } = req.body;
 
     console.log("🔍 Ontvangen waarden:");
