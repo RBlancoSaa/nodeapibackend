@@ -7,12 +7,14 @@ import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 import { uploadPdfAttachmentsToSupabase } from './services/uploadPdfAttachmentsToSupabase.js';
 
+dotenv.config();
+
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // of anon key als je wilt
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-dotenv.config();
 const app = express();
+app.use(express.json()); // ✅ noodzakelijk voor POST/JSON body parsing
 const PORT = process.env.PORT || 3000;
 
 app.get('/api/check-inbox', async (req, res) => {
