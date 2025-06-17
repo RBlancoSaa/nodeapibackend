@@ -135,7 +135,11 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       const reference = referenceMatch?.[1] || 'Onbekend';
       const laadplaats = laadplaatsMatch?.[1] || 'Onbekend';
 
-      const payload = { xml, reference, laadplaats };
+      const payload = {
+  xmlBase64: Buffer.from(xml).toString('base64'),
+  reference,
+  laadplaats
+};
       console.log("📤 Versturen naar generate-easy-files met body:", JSON.stringify(payload, null, 2));
 
       const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
