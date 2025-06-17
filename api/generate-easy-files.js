@@ -1,14 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import { supabase } from '../services/supabaseClient.js';
-import { generateEasyXML } from '../services/easyFileService.js';
 
 export default async function handler(req, res) {
   console.log("✅ API route /api/generate-easy-files wordt aangeroepen");
   console.log("🕒 Tijdstip:", new Date().toISOString());
 
   try {
-    // 🧠 Vercel serverless: body moet handmatig ingelezen worden
     const buffers = [];
     for await (const chunk of req) buffers.push(chunk);
     const rawBody = Buffer.concat(buffers).toString();
@@ -23,19 +21,13 @@ export default async function handler(req, res) {
 
     console.log("📦 Volledige body ontvangen:", body);
 
-    if (!body) {
-      console.warn("⚠️ Request zonder body ontvangen");
-      return res.status(400).json({ success: false, message: 'Ontbrekende body' });
+    const { xml, reference, laadplaats } = body;
+
+    if (!xml || !reference || !laadplaats) {
+      console.warn("❌ Verplichte velden ontbreken:", { xml, reference, laadplaats });
+      return res.status(400).json({ success: false, message: 'xml, reference of laadplaats ontbreekt.' });
     }
 
-    const { pdfData, reference, laadplaats } = body;
-
-    if (!pdfData || !reference || !laadplaats) {
-      console.warn("❌ Verplichte velden ontbreken:", { pdfData, reference, laadplaats });
-      return res.status(400).json({ success: false, message: 'pdfData, reference of laadplaats ontbreekt.' });
-    }
-
-    const xml = generateEasyXML(pdfData);
     const fileName = `Order_${reference}_${laadplaats}.easy`;
 
     const { error } = await supabase.storage

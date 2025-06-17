@@ -16,7 +16,6 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       continue;
     }
 
-    // ✅ Veilige bestandsnaam maken
     const safeFilename = att.filename.replace(/[^\w\d\-_.]/g, '_');
 
     let contentBuffer;
@@ -56,19 +55,23 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
 
       console.log(`✅ Upload gelukt: ${safeFilename}`);
 
-      let parsedData;
+      let xml;
       try {
-        parsedData = await parsePdfToEasyFile(contentBuffer);
+        xml = await parsePdfToEasyFile(contentBuffer);
       } catch (err) {
         console.error(`⚠️ Parserfout voor ${safeFilename}:`, err.message);
         continue;
       }
 
-      const laadplaats = parsedData.laadplaats || 'Onbekend';
+      const referenceMatch = xml.match(/<Klantreferentie>(.*?)<\/Klantreferentie>/);
+      const laadplaatsMatch = xml.match(/<Naam>(.*?)<\/Naam>/);
+
+      const reference = referenceMatch?.[1] || 'Onbekend';
+      const laadplaats = laadplaatsMatch?.[1] || 'Onbekend';
 
       const payload = {
-        pdfData: parsedData,
-        reference: parsedData.klantreferentie,
+        xml,
+        reference,
         laadplaats
       };
 
