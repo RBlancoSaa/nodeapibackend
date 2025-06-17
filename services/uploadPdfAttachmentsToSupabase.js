@@ -55,6 +55,13 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
 }));
 
   for (const att of sanitizedAttachments) {
+    if (!att.filename) {
+  const msg = `Lege bestandsnaam na sanitizen!`;
+  console.error(`⛔ ${msg}`);
+  await notifyError(att, msg);
+  continue;
+}
+
     if (!att.filename?.toLowerCase().endsWith('.pdf')) {
       console.log(`⏭️ Bestand overgeslagen (geen .pdf): ${att.filename}`);
       continue;
