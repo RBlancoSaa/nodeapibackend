@@ -1,4 +1,3 @@
-
 import fs from 'fs';
 import path from 'path';
 import { createClient } from '@supabase/supabase-js';
@@ -25,21 +24,32 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log("📥 Binnengekomen request op /api/generate-easy-files");
+    console.log("🔎 Headers:", req.headers);
+    console.log("📦 Body ontvangen:", JSON.stringify(req.body, null, 2));
+
     const { xmlBase64, reference, laadplaats } = req.body;
 
     if (!xmlBase64 || !reference || !laadplaats) {
+      console.warn("⚠️ Ontbrekende gegevens:", { xmlBase64, reference, laadplaats });
       return res.status(400).json({
         success: false,
         message: 'Vereiste gegevens ontbreken (xmlBase64, reference, laadplaats)'
       });
     }
 
+    console.log("📦 xmlBase64 ontvangen:", xmlBase64.substring(0, 80) + '...');
     const xml = Buffer.from(xmlBase64, 'base64').toString('utf8');
+    console.log("📄 Gedecodeerde XML:", xml.substring(0, 200) + '...');
+
     const filename = `Order_${reference}_${laadplaats}.easy`;
     const tempDir = '/tmp';
     const filePath = path.join(tempDir, filename);
 
     fs.writeFileSync(filePath, xml);
+
+    console.log("💾 Klaar om op te slaan:", filename);
+    console.log("📁 Bestandspad:", filePath);
 
     const { error } = await supabase.storage
       .from(process.env.SUPABASE_EASY_BUCKET)
@@ -50,19 +60,20 @@ export default async function handler(req, res) {
 
     if (error) {
       console.error('❌ Uploadfout:', error.message);
+
       await transporter.sendMail({
         from: process.env.FROM_EMAIL,
         to: process.env.FROM_EMAIL,
         subject: `FOUT: .easy upload voor ${filename}`,
         text: `Er ging iets mis bij het uploaden van ${filename}:\n\n${error.message}`
       });
+
       return res.status(500).json({ success: false, message: 'Upload naar Supabase mislukt' });
     }
 
     const downloadUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_EASY_BUCKET}/${filename}`;
     console.log(`✅ .easy bestand opgeslagen als: ${filename}`);
 
-    // Stuur e-mail met originele PDF en gegenereerde .easy als bijlage
     const mailOptions = {
       from: process.env.FROM_EMAIL,
       to: process.env.FROM_EMAIL,
@@ -76,11 +87,20 @@ export default async function handler(req, res) {
       ]
     };
 
+    console.log("✉️ Verstuur e-mail met bijlage:", filename);
     await transporter.sendMail(mailOptions);
 
-    return res.status(200).json({ success: true, fileName: filename, downloadUrl });
+    return res.status(200).json({
+      success: true,
+      fileName: filename,
+      downloadUrl
+    });
+
   } catch (err) {
-    console.error('💥 Onverwachte fout:', err.message || err);
-    return res.status(500).json({ success: false, message: err.message || 'Serverfout' });
+    console.error('💥 Onverwachte fout in generate-easy-files:', err.message || err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Serverfout'
+    });
   }
 }
