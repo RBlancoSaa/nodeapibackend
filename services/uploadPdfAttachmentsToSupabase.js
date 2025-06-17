@@ -16,7 +16,7 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       continue;
     }
 
-    // ✅ Sanitize bestandsnaam (alleen veilige tekens)
+    // ✅ Veilige bestandsnaam maken
     const safeFilename = att.filename.replace(/[^\w\d\-_.]/g, '_');
 
     let contentBuffer;
