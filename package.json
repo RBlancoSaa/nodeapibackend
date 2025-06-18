@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "type": "module",
-  "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "postinstall": "rimraf node_modules/pdf-parse/test"
-  },
+"scripts": {
+  "start": "node index.js",
+  "dev": "nodemon index.js",
+  "postinstall": "npx rimraf node_modules/pdf-parse/test && powershell -Command \"(Get-Content node_modules/pdf-parse/index.js) -notmatch '05-versions-space.pdf' | Set-Content node_modules/pdf-parse/index.js\""
+},
+
   "repository": {
     "type": "git",
     "url": "git+https://github.com/RBlancoSaa/nodeapibackend.git"
