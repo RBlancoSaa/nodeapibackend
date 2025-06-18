@@ -1,7 +1,10 @@
+// nodeapibackend/api/generate-easy-files.js
+
 import fs from 'fs';
 import path from 'path';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
+import generateXmlFromJson from '../services/generateXmlFromJson.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -18,26 +21,17 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// nodeapibackend/api/generate-easy-files.js
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
   try {
-    // haal JSON data uit req.body of Supabase file
-    const jsonData = req.body;
+    const { xmlBase64, reference, laadplaats } = req.body;
 
-    // roep parser aan
-    const xmlString = await generateXmlFromJson(jsonData); // of de juiste service
-    // evt. upload .easy naar Supabase
-
-    return res.status(200).json({ success: true, xml: xmlString });
-  } catch (error) {
-    console.error("❌ Fout bij XML generatie:", error);
-    return res.status(500).json({ success: false, message: 'XML generatie mislukt' });
-  }
-}
+    if (!xmlBase64 || !reference || !laadplaats) {
+      return res.status(400).json({ success: false, message: 'Ontbrekende velden in request body' });
+    }
 
     console.log("📦 xmlBase64 ontvangen:", xmlBase64.substring(0, 80) + '...');
     const xml = Buffer.from(xmlBase64, 'base64').toString('utf8');
@@ -48,9 +42,7 @@ export default async function handler(req, res) {
     const filePath = path.join(tempDir, filename);
 
     fs.writeFileSync(filePath, xml);
-
-    console.log("💾 Klaar om op te slaan:", filename);
-    console.log("📁 Bestandspad:", filePath);
+    console.log("💾 Bestand opgeslagen:", filePath);
 
     const { error } = await supabase.storage
       .from(process.env.SUPABASE_EASY_BUCKET)
@@ -75,21 +67,13 @@ export default async function handler(req, res) {
     const downloadUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_EASY_BUCKET}/${filename}`;
     console.log(`✅ .easy bestand opgeslagen als: ${filename}`);
 
-    const mailOptions = {
+    await transporter.sendMail({
       from: process.env.FROM_EMAIL,
       to: process.env.FROM_EMAIL,
       subject: `easytrip file - automatisch gegenereerd - ${reference}`,
       text: `In de bijlage vind je het gegenereerde Easytrip-bestand voor referentie: ${reference}`,
-      attachments: [
-        {
-          filename,
-          content: fs.readFileSync(filePath)
-        }
-      ]
-    };
-
-    console.log("✉️ Verstuur e-mail met bijlage:", filename);
-    await transporter.sendMail(mailOptions);
+      attachments: [{ filename, content: fs.readFileSync(filePath) }]
+    });
 
     return res.status(200).json({
       success: true,
