@@ -6,8 +6,7 @@
  "scripts": {
   "start": "node index.js",
   "dev": "nodemon index.js",
-  "postinstall": "npx rimraf node_modules/pdf-parse/test"
-},
+  },
 
   "repository": {
     "type": "git",
