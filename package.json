@@ -3,12 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "type": "module",
- "scripts": {
-  "start": "node index.js",
-  "dev": "nodemon index.js",
-  "vercel-build": "echo '✅ Vercel build, testmap wordt genegeerd'"
-},
-
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "vercel-build": "echo '✅ Vercel build, testmap wordt genegeerd'"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/RBlancoSaa/nodeapibackend.git"
@@ -28,8 +27,7 @@
     "imapflow": "^1.0.188",
     "mailparser": "^3.7.3",
     "node-fetch": "^3.3.2",
-    "nodemailer": "^7.0.3",
-    "pdf-parse": "^1.1.1"
+    "nodemailer": "^7.0.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
