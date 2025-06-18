@@ -6,6 +6,9 @@
  "scripts": {
   "start": "node index.js",
   "dev": "nodemon index.js"
+ "vercel-build": "echo '✅ Vercel build, testmap wordt genegeerd'",
+  "postinstall": "rimraf node_modules/pdf-parse/test node_modules/pdf-parse/QUICKSTART.js"
+}
   },
 
   "repository": {
