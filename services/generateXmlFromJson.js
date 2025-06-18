@@ -28,22 +28,23 @@ export async function generateXmlFromJson(data) {
     fetchList('terminals')
   ]);
 
-  const locatiesXml = (data.locaties || []).map(loc => `
-  <Locatie>
-    <Volgorde>${safe(loc.volgorde)}</Volgorde>
-    <Actie>${safe(loc.actie)}</Actie>
-    <Naam>${safe(loc.naam)}</Naam>
-    <Adres>${safe(loc.adres)}</Adres>
-    <Postcode>${safe(loc.postcode)}</Postcode>
-    <Plaats>${safe(loc.plaats)}</Plaats>
-    <Land>${safe(loc.land)}</Land>
-    <Voorgemeld>${safe(loc.voorgemeld)}</Voorgemeld>
-    <Aankomst_verw>${safe(loc.aankomst_verw)}</Aankomst_verw>
-    <Tijslot_van>${safe(loc.tijslot_van)}</Tijslot_van>
-    <Tijslot_tm>${safe(loc.tijslot_tm)}</Tijslot_tm>
-    <Portbase_code>${safe(loc.portbase_code)}</Portbase_code>
-    <bicsCode>${safe(loc.bicsCode)}</bicsCode>
-  </Locatie>`).join('\n');
+  const locaties = data.locaties || [];
+  while (locaties.length < 3) {
+    locaties.push({
+      actie: '',
+      naam: '',
+      adres: '',
+      postcode: '',
+      plaats: '',
+      land: '',
+      voorgemeld: '',
+      aankomst_verw: '',
+      tijslot_van: '',
+      tijslot_tm: '',
+      portbase_code: '',
+      bicsCode: ''
+    });
+  }
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Order>
@@ -94,7 +95,22 @@ export async function generateXmlFromJson(data) {
   <Instructies>${safe(data.instructies)}</Instructies>
 </Container>
 <Locaties>
-${locatiesXml}
+  ${locaties.map(loc => `
+  <Locatie>
+    <Volgorde>0</Volgorde>
+    <Actie>${safe(loc.actie)}</Actie>
+    <Naam>${safe(loc.naam)}</Naam>
+    <Adres>${safe(loc.adres)}</Adres>
+    <Postcode>${safe(loc.postcode)}</Postcode>
+    <Plaats>${safe(loc.plaats)}</Plaats>
+    <Land>${safe(loc.land)}</Land>
+    <Voorgemeld>${safe(loc.voorgemeld)}</Voorgemeld>
+    <Aankomst_verw>${safe(loc.aankomst_verw)}</Aankomst_verw>
+    <Tijslot_van>${safe(loc.tijslot_van)}</Tijslot_van>
+    <Tijslot_tm>${safe(loc.tijslot_tm)}</Tijslot_tm>
+    <Portbase_code>${safe(loc.portbase_code)}</Portbase_code>
+    <bicsCode>${safe(loc.bicsCode)}</bicsCode>
+  </Locatie>`).join('\n')}
 </Locaties>
 <Financieel>
   <Tarief>0</Tarief>
