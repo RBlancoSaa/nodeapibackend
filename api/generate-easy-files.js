@@ -27,15 +27,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { xmlBase64, reference, laadplaats } = req.body;
-
-    if (!xmlBase64 || !reference || !laadplaats) {
-      return res.status(400).json({ success: false, message: 'Ontbrekende velden in request body' });
-    }
-
-    console.log("📦 xmlBase64 ontvangen:", xmlBase64.substring(0, 80) + '...');
-    const xml = Buffer.from(xmlBase64, 'base64').toString('utf8');
-    console.log("📄 Gedecodeerde XML:", xml.substring(0, 200) + '...');
+    const json = req.body;
+    const xml = generateXmlFromJson(json);
+    const reference = json.klantreferentie || 'GeenReferentie';
+    const laadplaats = json.laadplaats || 'GeenPlaats';
 
     const filename = `Order_${reference}_${laadplaats}.easy`;
     const tempDir = '/tmp';
@@ -53,12 +48,13 @@ export default async function handler(req, res) {
 
     if (error) {
       console.error('❌ Uploadfout:', error.message);
-
       await transporter.sendMail({
         from: process.env.FROM_EMAIL,
         to: process.env.FROM_EMAIL,
         subject: `FOUT: .easy upload voor ${filename}`,
-        text: `Er ging iets mis bij het uploaden van ${filename}:\n\n${error.message}`
+        text: `Er ging iets mis bij het uploaden van ${filename}:
+
+${error.message}`
       });
 
       return res.status(500).json({ success: false, message: 'Upload naar Supabase mislukt' });
