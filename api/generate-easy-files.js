@@ -28,9 +28,13 @@ export default async function handler(req, res) {
 
   try {
     const json = req.body;
-    const xml = generateXmlFromJson(json);
     const reference = json.klantreferentie || 'GeenReferentie';
     const laadplaats = json.laadplaats || 'GeenPlaats';
+
+    const xml = await generateXmlFromJson(json);
+    if (!xml || typeof xml !== 'string') {
+      throw new Error('Parser gaf geen geldig XML-bestand terug');
+    }
 
     const filename = `Order_${reference}_${laadplaats}.easy`;
     const tempDir = '/tmp';
@@ -39,8 +43,14 @@ export default async function handler(req, res) {
     fs.writeFileSync(filePath, xml);
     console.log("💾 Bestand opgeslagen:", filePath);
 
+    const bucketName = process.env.SUPABASE_EASY_BUCKET;
+    if (!bucketName || bucketName.trim() === '') {
+      console.error('❌ Geen geldige bucketnaam ingesteld in .env (SUPABASE_EASY_BUCKET)');
+      return res.status(500).json({ success: false, message: 'SUPABASE_EASY_BUCKET ontbreekt of is leeg' });
+    }
+
     const { error } = await supabase.storage
-      .from(process.env.SUPABASE_EASY_BUCKET)
+      .from(bucketName)
       .upload(filename, fs.readFileSync(filePath), {
         contentType: 'text/plain',
         upsert: true
@@ -60,7 +70,7 @@ ${error.message}`
       return res.status(500).json({ success: false, message: 'Upload naar Supabase mislukt' });
     }
 
-    const downloadUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_EASY_BUCKET}/${filename}`;
+    const downloadUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/${bucketName}/${filename}`;
     console.log(`✅ .easy bestand opgeslagen als: ${filename}`);
 
     await transporter.sendMail({
