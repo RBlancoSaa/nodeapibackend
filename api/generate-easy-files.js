@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
-import generateXmlFromJson from '../services/generateXmlFromJson.js';
+import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
