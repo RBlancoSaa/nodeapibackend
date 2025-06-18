@@ -18,25 +18,26 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// nodeapibackend/api/generate-easy-files.js
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
   try {
-    console.log("📥 Binnengekomen request op /api/generate-easy-files");
-    console.log("🔎 Headers:", req.headers);
-    console.log("📦 Body ontvangen:", JSON.stringify(req.body, null, 2));
+    // haal JSON data uit req.body of Supabase file
+    const jsonData = req.body;
 
-    const { xmlBase64, reference, laadplaats } = req.body;
+    // roep parser aan
+    const xmlString = await generateXmlFromJson(jsonData); // of de juiste service
+    // evt. upload .easy naar Supabase
 
-    if (!xmlBase64 || !reference || !laadplaats) {
-      console.warn("⚠️ Ontbrekende gegevens:", { xmlBase64, reference, laadplaats });
-      return res.status(400).json({
-        success: false,
-        message: 'Vereiste gegevens ontbreken (xmlBase64, reference, laadplaats)'
-      });
-    }
+    return res.status(200).json({ success: true, xml: xmlString });
+  } catch (error) {
+    console.error("❌ Fout bij XML generatie:", error);
+    return res.status(500).json({ success: false, message: 'XML generatie mislukt' });
+  }
+}
 
     console.log("📦 xmlBase64 ontvangen:", xmlBase64.substring(0, 80) + '...');
     const xml = Buffer.from(xmlBase64, 'base64').toString('utf8');
