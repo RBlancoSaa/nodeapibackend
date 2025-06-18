@@ -4,11 +4,10 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-  "start": "node index.js",
-  "dev": "nodemon index.js",
-  "vercel-build": "echo '✅ Vercel build zonder testmap actief'"
-},
-
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "vercel-build": "echo '✅ Vercel build zonder testmap actief'"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/RBlancoSaa/nodeapibackend.git"
