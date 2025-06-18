@@ -11,7 +11,8 @@ async function fetchList(name) {
 }
 
 function safe(value) {
-  return value ? String(value).trim() : '';
+  const cleaned = typeof value === 'string' ? value.trim() : '';
+  return cleaned !== '' ? cleaned : '0';
 }
 
 function match(value, list) {
