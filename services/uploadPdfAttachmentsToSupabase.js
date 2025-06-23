@@ -49,31 +49,26 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
     originalFilename: att.filename,
     filename: att.filename
       .normalize('NFKD')
-      .replace(/[^\x00-\x7F]/g, '') // verwijder niet-ASCII
-      .replace(/[^\w\d\-_.]/g, '_') // ongewenste tekens vervangen
-      .replace(/_+/g, '_')          // meerdere underscores naar één
-      .replace(/^_+|_+$/g, '')      // underscores begin/eind verwijderen
+      .replace(/[^\x00-\x7F]/g, '')
+      .replace(/[^\w\d\-_.]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
   }));
 
   for (const att of sanitizedAttachments) {
-    console.log(`📥 Start verwerking voor: ${att.originalFilename}`);
+    console.log(`\n📥 Verwerken gestart voor: ${att.originalFilename}`);
 
     if (!att.filename) {
-      console.error(`⛔ Ongeldige bestandsnaam:`, {
-        origineleNaam: att.originalFilename,
-        gesanitizedNaam: att.filename
-      });
-      const msg = `Lege bestandsnaam na sanitizen!`;
+      const msg = `⛔ Ongeldige bestandsnaam`;
+      console.error(msg);
       await notifyError(att, msg);
       continue;
     }
 
     if (!att.filename.toLowerCase().endsWith('.pdf')) {
-      console.log(`⏭️ Bestand overgeslagen (geen .pdf): ${att.filename}`);
+      console.log(`⏭️ Niet geüpload (geen .pdf): ${att.filename}`);
       continue;
     }
-
-    console.log(`🧾 Bestandsnaam: ${att.originalFilename} → ${att.filename}`);
 
     let contentBuffer;
     try {
@@ -84,98 +79,100 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       } else if (att.content instanceof ArrayBuffer) {
         contentBuffer = Buffer.from(new Uint8Array(att.content));
       } else {
-        throw new Error('Attachment content is not een buffer');
+        throw new Error('Attachment is geen geldige buffer');
       }
     } catch (err) {
-      const msg = `Buffer error: ${err.message}`;
-      console.error(`❌ ${msg}`);
+      const msg = `❌ Buffer fout: ${err.message}`;
+      console.error(msg);
       await notifyError(att, msg);
       continue;
     }
 
     if (!contentBuffer?.length) {
-      const msg = `Lege buffer voor ${att.filename}`;
-      console.error(`⛔ ${msg}`);
+      const msg = `⛔ Lege buffer`;
+      console.error(msg);
       await notifyError(att, msg);
       continue;
     }
 
+    // Upload naar Supabase
     try {
-      console.log(`📤 Upload naar Supabase gestart: ${att.filename}`);
+      console.log(`📤 Upload naar Supabase: ${att.filename}`);
       const { error } = await supabase.storage
         .from(process.env.SUPABASE_BUCKET)
         .upload(att.filename, contentBuffer, {
           contentType: att.contentType || 'application/pdf',
           cacheControl: '3600',
-          upsert: true,
+          upsert: true
         });
 
       if (error) {
-        const msg = `Uploadfout: ${error.message}`;
-        console.error(`❌ ${msg}`);
+        const msg = `❌ Uploadfout: ${error.message}`;
+        console.error(msg);
         await notifyError(att, msg);
         continue;
       }
 
       console.log(`✅ Upload gelukt: ${att.filename}`);
-      console.log(`🧠 Parser gestart voor: ${att.filename}`);
 
+      // PDF -> .easy genereren
       let xml;
       try {
+        console.log(`📘 Start parser`);
         xml = await parsePdfToEasyFile(contentBuffer);
       } catch (err) {
-        const msg = `Parserfout: ${err.message}`;
-        console.error(`⚠️ ${msg}`);
+        const msg = `⚠️ Parserfout: ${err.message}`;
+        console.error(msg);
         await notifyError(att, msg);
         continue;
       }
 
-const referenceMatch = xml.match(/<Klantreferentie>(.*?)<\/Klantreferentie>/);
-const laadplaatsMatch = xml.match(/<Naam>(.*?)<\/Naam>/);
-const reference = referenceMatch?.[1] || 'Onbekend';
-const laadplaats = laadplaatsMatch?.[1] || 'Onbekend';
+      // xml → generate-easy-files POST
+      const referenceMatch = xml.match(/<Klantreferentie>(.*?)<\/Klantreferentie>/);
+      const laadplaatsMatch = xml.match(/<Naam>(.*?)<\/Naam>/);
+      const reference = referenceMatch?.[1] || 'Onbekend';
+      const laadplaats = laadplaatsMatch?.[1] || 'Onbekend';
 
-const payload = {
-  xmlBase64: Buffer.from(xml).toString('base64'),
-  reference,
-  laadplaats
-};
+      const payload = {
+        xmlBase64: Buffer.from(xml).toString('base64'),
+        reference,
+        laadplaats
+      };
 
-console.log("📤 Versturen naar generate-easy-files met body:", JSON.stringify(payload, null, 2));
+      console.log(`📡 Versturen naar generate-easy-files`, payload);
 
-const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify(payload)
-});
+      const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
       const responseText = await resp.text();
-      console.log("📥 Response van generate-easy-files:", responseText);
+      console.log("📥 Antwoord van endpoint:", responseText);
 
       let result;
       try {
         result = JSON.parse(responseText);
-      } catch (e) {
+      } catch {
         result = { success: false, message: 'Kon response niet parsen als JSON' };
       }
 
       if (!result.success) {
-        const msg = `generate-easy-files response: ${result.message}`;
-        console.error(`⚠️ ${msg}`);
+        const msg = `⚠️ Easy-bestand fout: ${result.message}`;
+        console.error(msg);
         await notifyError(att, msg);
       } else {
-        console.log(`✅ .easy gegenereerd: ${result.fileName}`);
+        console.log(`✅ Easy-bestand succesvol: ${result.fileName}`);
       }
 
       uploadedFiles.push({
         filename: att.filename,
         url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${att.filename}`
       });
+
     } catch (err) {
-      const msg = `Upload/parsing fout: ${err.message || err}`;
-      console.error(`💥 ${msg}`);
+      const msg = `💥 Upload/parsing crash: ${err.message || err}`;
+      console.error(msg);
       await notifyError(att, msg);
     }
   }
