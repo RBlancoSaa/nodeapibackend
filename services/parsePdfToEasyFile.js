@@ -2,7 +2,7 @@ import fs from 'fs';
 
 // Monkey patch: blokkeer toegang tot testbestand in pdf-parse
 const originalReadFileSync = fs.readFileSync;
-fs.readFileSync = function(path, ...args) {
+fs.readFileSync = function (path, ...args) {
   if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
     console.warn('⛔️ Testbestand geblokkeerd:', path);
     return Buffer.from('');
@@ -27,10 +27,10 @@ export async function parsePdfToEasyFile(pdfBuffer) {
   };
 
   const klantreferentie = get('Our reference');
-  const bootnaam = get('Vessel');
-  const rederij = get('Carrier');
   const containernummer = get('Container');
   const containertype = get('Type');
+  const bootnaam = get('Vessel');
+  const rederij = get('Carrier');
   const laadreferentie = get('Pick-up reference');
   const inleverreferentie = get('Drop-off reference');
   const temperatuur = get('Temperature');
@@ -40,23 +40,12 @@ export async function parsePdfToEasyFile(pdfBuffer) {
   const laadplaats = get('Pick-up terminal');
   const losplaats = get('Drop-off terminal');
 
-  // Extra controle op verplichte velden
-  const verplichteVelden = {
-    'Our reference': klantreferentie,
-    'Container': containernummer,
-    'Pick-up terminal': laadplaats,
-    'Drop-off terminal': losplaats
-  };
+  // ⚠️ Dummy values — voeg jouw echte mapping toe op basis van PDF!
+  const datum = '2025-06-23';
+  const tijdVan = '08:00';
+  const tijdTM = '17:00';
 
-  const ontbrekend = Object.entries(verplichteVelden)
-    .filter(([label, value]) => !value)
-    .map(([label]) => label);
-
-  if (ontbrekend.length > 0) {
-    throw new Error(`Onvoldoende gegevens in PDF. Ontbrekend: ${ontbrekend.join(', ')}`);
-  }
-
-const xml = ` <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Order>
 <Dossiers>
 <Dossier>
@@ -176,4 +165,5 @@ const xml = ` <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 </Dossier>
 </Dossiers>
 </Order>
-return xml;
+  return xml;
+}
