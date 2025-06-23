@@ -13,8 +13,8 @@ export default async function handler(req, res) {
       secure: process.env.IMAP_SECURE === 'true',
       auth: {
         user: process.env.IMAP_USER,
-        pass: process.env.IMAP_PASS,
-      },
+        pass: process.env.IMAP_PASS
+      }
     });
 
     await client.connect();
@@ -26,12 +26,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ message: 'Geen ongelezen mails' });
     }
 
-    // Beperk het aantal te verwerken e-mails
-    uids = uids.slice(-10);
-
     const { mails, allAttachments } = await parseAttachmentsFromEmails(client, uids);
 
-    // Filter alleen PDF's
     const pdfAttachments = allAttachments.filter(att =>
       att.filename && att.filename.toLowerCase().endsWith('.pdf')
     );
@@ -45,14 +41,14 @@ export default async function handler(req, res) {
       mailCount: mails.length,
       attachmentCount: allAttachments.length,
       uploadedCount: uploadedFiles.length,
-      filenames: uploadedFiles.map(f => f.filename),
+      filenames: uploadedFiles.map(f => f.filename)
     });
   } catch (error) {
     if (client) await client.logout().catch(() => {});
     console.error('💥 Upload-fout:', error);
     return res.status(500).json({
       success: false,
-      error: error.message || 'Onbekende serverfout tijdens upload',
+      error: error.message || 'Onbekende serverfout tijdens upload'
     });
   }
 }
