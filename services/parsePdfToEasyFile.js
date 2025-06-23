@@ -34,9 +34,16 @@ export async function parsePdfToEasyFile(pdfBuffer) { // [1]
   const laadplaats = get('Pick-up terminal'); // [19]
   const losplaats = get('Drop-off terminal'); // [20]
 
-  if (!klantreferentie || !containernummer || !laadplaats || !losplaats) { // [21]
-    throw new Error('Onvoldoende gegevens in PDF voor Easyfile'); // [22]
-  } // [23]
+  const missing = [];
+if (!klantreferentie) missing.push('Our reference');
+if (!containernummer) missing.push('Container');
+if (!laadplaats) missing.push('Pick-up terminal');
+if (!losplaats) missing.push('Drop-off terminal');
+
+if (missing.length) {
+  throw new Error(`Onvoldoende gegevens in PDF. Ontbrekend: ${missing.join(', ')}`);
+}
+
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?> // [24]
 <EasyTrip> // [25]
