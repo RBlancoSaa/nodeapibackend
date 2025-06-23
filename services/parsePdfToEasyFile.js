@@ -1,90 +1,101 @@
 import fs from 'fs';
 
-// Monkey patch: blokkeer toegang tot 05-versions-space.pdf
+// Monkey patch: blokkeer toegang tot testbestand in pdf-parse
 const originalReadFileSync = fs.readFileSync;
 fs.readFileSync = function(path, ...args) {
   if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
     console.warn('⛔️ Testbestand geblokkeerd:', path);
-    return Buffer.from(''); // geef lege buffer terug
+    return Buffer.from('');
   }
   return originalReadFileSync.call(this, path, ...args);
 };
 
-export async function parsePdfToEasyFile(pdfBuffer) { // [1]
-  
-  const pdfParse = (await import('pdf-parse')).default; // [2]
-  const { text } = await pdfParse(pdfBuffer); // [3]
+export async function parsePdfToEasyFile(pdfBuffer) {
+  const pdfParse = (await import('pdf-parse')).default;
+  const { text } = await pdfParse(pdfBuffer);
 
-  const get = (label) => { // [4]
-    const match = text.match(new RegExp(`${label}:?\\s*(.+)`, 'i')); // [5]
-    return match ? match[1].trim() : ''; // [6]
-  }; // [7]
+  // Check of het waarschijnlijk een transportopdracht is
+  const requiredLabels = ['Our reference', 'Container', 'Pick-up terminal', 'Drop-off terminal'];
+  const missingLabels = requiredLabels.filter(label => !text.includes(label));
+  if (missingLabels.length > 0) {
+    throw new Error(`PDF lijkt geen transportopdracht. Ontbrekend: ${missingLabels.join(', ')}`);
+  }
 
-  const klantreferentie = get('Our reference'); // [8]
-  const bootnaam = get('Vessel'); // [9]
-  const rederij = get('Carrier'); // [10]
-  const containernummer = get('Container'); // [11]
-  const containertype = get('Type'); // [12]
-  const laadreferentie = get('Pick-up reference'); // [13]
-  const inleverreferentie = get('Drop-off reference'); // [14]
-  const temperatuur = get('Temperature'); // [15]
-  const imo = get('UN'); // [16]
-  const gewicht = get('Weight'); // [17]
-  const volume = get('Volume'); // [18]
-  const laadplaats = get('Pick-up terminal'); // [19]
-  const losplaats = get('Drop-off terminal'); // [20]
+  const get = (label) => {
+    const match = text.match(new RegExp(`${label}:?\\s*(.+)`, 'i'));
+    return match ? match[1].trim() : '';
+  };
 
-  const missing = [];
-if (!klantreferentie) missing.push('Our reference');
-if (!containernummer) missing.push('Container');
-if (!laadplaats) missing.push('Pick-up terminal');
-if (!losplaats) missing.push('Drop-off terminal');
+  const klantreferentie = get('Our reference');
+  const bootnaam = get('Vessel');
+  const rederij = get('Carrier');
+  const containernummer = get('Container');
+  const containertype = get('Type');
+  const laadreferentie = get('Pick-up reference');
+  const inleverreferentie = get('Drop-off reference');
+  const temperatuur = get('Temperature');
+  const imo = get('UN');
+  const gewicht = get('Weight');
+  const volume = get('Volume');
+  const laadplaats = get('Pick-up terminal');
+  const losplaats = get('Drop-off terminal');
 
-if (missing.length) {
-  throw new Error(`Onvoldoende gegevens in PDF. Ontbrekend: ${missing.join(', ')}`);
+  // Extra controle op verplichte velden
+  const verplichteVelden = {
+    'Our reference': klantreferentie,
+    'Container': containernummer,
+    'Pick-up terminal': laadplaats,
+    'Drop-off terminal': losplaats
+  };
+
+  const ontbrekend = Object.entries(verplichteVelden)
+    .filter(([label, value]) => !value)
+    .map(([label]) => label);
+
+  if (ontbrekend.length > 0) {
+    throw new Error(`Onvoldoende gegevens in PDF. Ontbrekend: ${ontbrekend.join(', ')}`);
+  }
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<EasyTrip>
+  <Klantreferentie>${klantreferentie}</Klantreferentie>
+  <Bootnaam>${bootnaam}</Bootnaam>
+  <Rederij>${rederij}</Rederij>
+  <Container>
+    <Nummer>${containernummer}</Nummer>
+    <Type>${containertype}</Type>
+    <Uithaalreferentie>${laadreferentie}</Uithaalreferentie>
+    <Inleverreferentie>${inleverreferentie}</Inleverreferentie>
+    <Temperatuur>${temperatuur}</Temperatuur>
+    <UN>${imo}</UN>
+    <Gewicht>${gewicht}</Gewicht>
+    <Volume>${volume}</Volume>
+  </Container>
+  <Locaties>
+    <Locatie>
+      <Volgorde>0</Volgorde>
+      <Actie>Laden</Actie>
+      <Naam>${laadplaats}</Naam>
+      <Adres></Adres>
+      <Postcode></Postcode>
+      <Plaats>${laadplaats}</Plaats>
+    </Locatie>
+    <Locatie>
+      <Volgorde>0</Volgorde>
+      <Actie>Inleveren</Actie>
+      <Naam>${losplaats}</Naam>
+      <Adres></Adres>
+      <Postcode></Postcode>
+      <Plaats>${losplaats}</Plaats>
+    </Locatie>
+  </Locaties>
+  <Financieel>
+    <Vracht>0</Vracht>
+    <Wachturen>0</Wachturen>
+    <Kostprijs>0</Kostprijs>
+    <BetaaldDoor>klant</BetaaldDoor>
+  </Financieel>
+</EasyTrip>`;
+
+  return xml;
 }
-
-
-  const xml = `<?xml version="1.0" encoding="UTF-8"?> // [24]
-<EasyTrip> // [25]
-  <Klantreferentie>${klantreferentie}</Klantreferentie> // [26]
-  <Bootnaam>${bootnaam}</Bootnaam> // [27]
-  <Rederij>${rederij}</Rederij> // [28]
-  <Container> // [29]
-    <Nummer>${containernummer}</Nummer> // [30]
-    <Type>${containertype}</Type> // [31]
-    <Uithaalreferentie>${laadreferentie}</Uithaalreferentie> // [32]
-    <Inleverreferentie>${inleverreferentie}</Inleverreferentie> // [33]
-    <Temperatuur>${temperatuur}</Temperatuur> // [34]
-    <UN>${imo}</UN> // [35]
-    <Gewicht>${gewicht}</Gewicht> // [36]
-    <Volume>${volume}</Volume> // [37]
-  </Container> // [38]
-  <Locaties> // [39]
-    <Locatie> // [40]
-      <Volgorde>0</Volgorde> // [41]
-      <Actie>Laden</Actie> // [42]
-      <Naam>${laadplaats}</Naam> // [43]
-      <Adres></Adres> // [44]
-      <Postcode></Postcode> // [45]
-      <Plaats>${laadplaats}</Plaats> // [46]
-    </Locatie> // [47]
-    <Locatie> // [48]
-      <Volgorde>0</Volgorde> // [49]
-      <Actie>Inleveren</Actie> // [50]
-      <Naam>${losplaats}</Naam> // [51]
-      <Adres></Adres> // [52]
-      <Postcode></Postcode> // [53]
-      <Plaats>${losplaats}</Plaats> // [54]
-    </Locatie> // [55]
-  </Locaties> // [56]
-  <Financieel> // [57]
-    <Vracht>0</Vracht> // [58]
-    <Wachturen>0</Wachturen> // [59]
-    <Kostprijs>0</Kostprijs> // [60]
-    <BetaaldDoor>klant</BetaaldDoor> // [61]
-  </Financieel> // [62]
-</EasyTrip>`; // [63]
-
-  return xml; // [64]
-} // [65]
