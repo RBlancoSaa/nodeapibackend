@@ -1,4 +1,17 @@
+import fs from 'fs';
+
+// Monkey patch: blokkeer toegang tot 05-versions-space.pdf
+const originalReadFileSync = fs.readFileSync;
+fs.readFileSync = function(path, ...args) {
+  if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
+    console.warn('⛔️ Testbestand geblokkeerd:', path);
+    return Buffer.from(''); // geef lege buffer terug
+  }
+  return originalReadFileSync.call(this, path, ...args);
+};
+
 export async function parsePdfToEasyFile(pdfBuffer) { // [1]
+  
   const pdfParse = (await import('pdf-parse')).default; // [2]
   const { text } = await pdfParse(pdfBuffer); // [3]
 
