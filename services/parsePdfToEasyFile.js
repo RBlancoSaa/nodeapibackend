@@ -164,6 +164,7 @@ export async function parsePdfToEasyFile(pdfBuffer) {
 </Financieel>
 </Dossier>
 </Dossiers>
-</Order>
+</Order>`;
+
   return xml;
 }
