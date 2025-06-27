@@ -1,4 +1,3 @@
-// nodeapibackend/services/generateXmlFromJson.js
 
 import fetch from 'node-fetch';
 
@@ -50,48 +49,48 @@ export async function generateXmlFromJson(data) {
 <Order>
 <Dossiers><Dossier>
 <Opdrachtgever>
-  <Opdrachtgever>${safe(data.opdrachtgever)}</Opdrachtgever>
-  <Opdrachtgever_Adres>${safe(data.opdrachtgever_adres)}</Opdrachtgever_Adres>
-  <Opdrachtgever_Postcode>${safe(data.opdrachtgever_postcode)}</Opdrachtgever_Postcode>
-  <Opdrachtgever_Plaats>${safe(data.opdrachtgever_plaats)}</Opdrachtgever_Plaats>
-  <Opdrachtgever_TelefoonNummer>${safe(data.opdrachtgever_telefoon)}</Opdrachtgever_TelefoonNummer>
-  <Opdrachtgever_Email>${safe(data.opdrachtgever_email)}</Opdrachtgever_Email>
-  <Opdrachtgever_BTW>${safe(data.opdrachtgever_btw)}</Opdrachtgever_BTW>
-  <Opdrachtgever_KVK>${safe(data.opdrachtgever_kvk)}</Opdrachtgever_KVK>
+  <Opdrachtgever>${safe(data.opdrachtgeverNaam)}</Opdrachtgever>
+  <Opdrachtgever_Adres>${safe(data.opdrachtgeverAdres)}</Opdrachtgever_Adres>
+  <Opdrachtgever_Postcode>${safe(data.opdrachtgeverPostcode)}</Opdrachtgever_Postcode>
+  <Opdrachtgever_Plaats>${safe(data.opdrachtgeverPlaats)}</Opdrachtgever_Plaats>
+  <Opdrachtgever_TelefoonNummer>${safe(data.opdrachtgeverTelefoon)}</Opdrachtgever_TelefoonNummer>
+  <Opdrachtgever_Email>${safe(data.opdrachtgeverEmail)}</Opdrachtgever_Email>
+  <Opdrachtgever_BTW>${safe(data.opdrachtgeverBTW)}</Opdrachtgever_BTW>
+  <Opdrachtgever_KVK>${safe(data.opdrachtgeverKVK)}</Opdrachtgever_KVK>
 </Opdrachtgever>
 <Container>
-  <Ritnr>${safe(data.ritnr)}</Ritnr>
-  <Laden_Lossen>${safe(data.laden_lossen)}</Laden_Lossen>
+  <Ritnr>${safe(data.ritnummer)}</Ritnr>
+  <Laden_Lossen>${safe(data.ladenOfLossen)}</Laden_Lossen>
   <Type>${safe(data.type)}</Type>
   <Datum>${safe(data.datum)}</Datum>
-  <TijdVan>${safe(data.tijd_van)}</TijdVan>
-  <TijdTM>${safe(data.tijd_tm)}</TijdTM>
+  <TijdVan>${safe(data.tijdVan)}</TijdVan>
+  <TijdTM>${safe(data.tijdTM)}</TijdTM>
   <Container>${safe(data.containernummer)}</Container>
   <ContainerType>${match(data.containertype, containers)}</ContainerType>
   <Lading>${safe(data.lading)}</Lading>
   <ADR>${safe(data.adr)}</ADR>
   <Tarra>${safe(data.tarra)}</Tarra>
-  <GeladenGewicht>${safe(data.geladen_gewicht)}</GeladenGewicht>
-  <Brutogewicht>${safe(data.bruto_gewicht)}</Brutogewicht>
+  <GeladenGewicht>${safe(data.geladenGewicht)}</GeladenGewicht>
+  <Brutogewicht>${safe(data.brutogewicht)}</Brutogewicht>
   <Colli>${safe(data.colli)}</Colli>
   <Zegel>${safe(data.zegel)}</Zegel>
   <Temp>${safe(data.temperatuur)}</Temp>
   <CBM>${safe(data.cbm)}</CBM>
   <Brix>${safe(data.brix)}</Brix>
-  <Referentie>${safe(data.klantreferentie)}</Referentie>
+  <Referentie>${safe(data.referentie)}</Referentie>
   <Bootnaam>${safe(data.bootnaam)}</Bootnaam>
   <Rederij>${match(data.rederij, rederijen)}</Rederij>
   <Documentatie>${safe(data.documentatie)}</Documentatie>
   <TAR>${safe(data.tar)}</TAR>
-  <Laadreferentie>${safe(data.laadreferentie)}</Laadreferentie>
+  <Laadrefentie>${safe(data.laadreferentie)}</Laadrefentie>
   <Meldtijd>${safe(data.meldtijd)}</Meldtijd>
   <Inleverrefentie>${safe(data.inleverreferentie)}</Inleverrefentie>
-  <InleverBootnaam>${safe(data.inleverbootnaam)}</InleverBootnaam>
-  <InleverBestemming>${safe(data.inleverbestemming)}</InleverBestemming>
-  <InleverRederij>${safe(data.inleverrederij)}</InleverRederij>
-  <Inlever_TAR>${safe(data.inlever_tar)}</Inlever_TAR>
-  <Closing_datum>${safe(data.closing_datum)}</Closing_datum>
-  <Closing_tijd>${safe(data.closing_tijd)}</Closing_tijd>
+  <InleverBootnaam>${safe(data.inleverBootnaam)}</InleverBootnaam>
+  <InleverBestemming>${safe(data.inleverBestemming)}</InleverBestemming>
+  <InleverRederij>${safe(data.inleverRederij)}</InleverRederij>
+  <Inlever_TAR>${safe(data.inleverTAR)}</Inlever_TAR>
+  <Closing_datum>${safe(data.closingDatum)}</Closing_datum>
+  <Closing_tijd>${safe(data.closingTijd)}</Closing_tijd>
   <Instructies>${safe(data.instructies)}</Instructies>
 </Container>
 <Locaties>
@@ -113,31 +112,31 @@ export async function generateXmlFromJson(data) {
   </Locatie>`).join('\n')}
 </Locaties>
 <Financieel>
-  <Tarief>0</Tarief>
-  <BTW>0</BTW>
-  <ADR_toeslag_Chart>0</ADR_toeslag_Chart>
-  <ADR_bedrag_Chart>0</ADR_bedrag_Chart>
-  <Botlek_Chart>0</Botlek_Chart>
-  <Chassishuur_Bedrag_chart>0</Chassishuur_Bedrag_chart>
-  <Delta_Chart>0</Delta_Chart>
-  <Diesel_toeslag_Chart>0</Diesel_toeslag_Chart>
-  <Euromax_Chart>0</Euromax_Chart>
-  <ExtraStop_Chart>0</ExtraStop_Chart>
-  <GasMeten_Chart>0</GasMeten_Chart>
-  <Gen_Chart>0</Gen_Chart>
-  <Handrail_Bedrag_chart>0</Handrail_Bedrag_chart>
-  <Keuren_Chart>0</Keuren_Chart>
-  <Kilometers_Chart>0</Kilometers_Chart>
-  <LOever_Chart>0</LOever_Chart>
-  <Loods_Chart>0</Loods_Chart>
-  <Maut_Chart>0</Maut_Chart>
-  <MV2_Chart>0</MV2_Chart>
-  <Scannen_Chart>0</Scannen_Chart>
-  <Tol_Chart>0</Tol_Chart>
-  <Blanco1_Chart>0</Blanco1_Chart>
-  <Blanco1_Text></Blanco1_Text>
-  <Blanco2_Chart>0</Blanco2_Chart>
-  <Blanco2_Text></Blanco2_Text>
+  <Tarief>${safe(data.tarief)}</Tarief>
+  <BTW>${safe(data.btw)}</BTW>
+  <ADR_toeslag_Chart>${safe(data.adrToeslagChart)}</ADR_toeslag_Chart>
+  <ADR_bedrag_Chart>${safe(data.adrBedragChart)}</ADR_bedrag_Chart>
+  <Botlek_Chart>${safe(data.botlekChart)}</Botlek_Chart>
+  <Chassishuur_Bedrag_chart>${safe(data.chassishuurChart)}</Chassishuur_Bedrag_chart>
+  <Delta_Chart>${safe(data.deltaChart)}</Delta_Chart>
+  <Diesel_toeslag_Chart>${safe(data.dieselChart)}</Diesel_toeslag_Chart>
+  <Euromax_Chart>${safe(data.euromaxChart)}</Euromax_Chart>
+  <ExtraStop_Chart>${safe(data.extraStopChart)}</ExtraStop_Chart>
+  <GasMeten_Chart>${safe(data.gasMetenChart)}</GasMeten_Chart>
+  <Gen_Chart>${safe(data.genChart)}</Gen_Chart>
+  <Handrail_Bedrag_chart>${safe(data.handrailChart)}</Handrail_Bedrag_chart>
+  <Keuren_Chart>${safe(data.keurenChart)}</Keuren_Chart>
+  <Kilometers_Chart>${safe(data.kilometersChart)}</Kilometers_Chart>
+  <LOever_Chart>${safe(data.loeverChart)}</LOever_Chart>
+  <Loods_Chart>${safe(data.loodsChart)}</Loods_Chart>
+  <Maut_Chart>${safe(data.mautChart)}</Maut_Chart>
+  <MV2_Chart>${safe(data.mv2Chart)}</MV2_Chart>
+  <Scannen_Chart>${safe(data.scannenChart)}</Scannen_Chart>
+  <Tol_Chart>${safe(data.tolChart)}</Tol_Chart>
+  <Blanco1_Chart>${safe(data.blanco1Chart)}</Blanco1_Chart>
+  <Blanco1_Text>${safe(data.blanco1Text)}</Blanco1_Text>
+  <Blanco2_Chart>${safe(data.blanco2Chart)}</Blanco2_Chart>
+  <Blanco2_Text>${safe(data.blanco2Text)}</Blanco2_Text>
 </Financieel>
 </Dossier></Dossiers>
 </Order>`;
