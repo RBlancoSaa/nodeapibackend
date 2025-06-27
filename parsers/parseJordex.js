@@ -1,10 +1,6 @@
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
-import pdfParse from 'pdf-parse'; // ✅ Echte PDF parser
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-
-// Blokkeer testbestand
 const originalReadFileSync = fs.readFileSync;
 fs.readFileSync = function (path, ...args) {
   if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
@@ -13,6 +9,8 @@ fs.readFileSync = function (path, ...args) {
   }
   return originalReadFileSync.call(this, path, ...args);
 };
+
+import pdfParse from 'pdf-parse'; // ✅ pas na override importeren!
 
 export default async function parseJordex(pdfBuffer) {
   try {
