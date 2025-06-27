@@ -1,16 +1,7 @@
-
+// 📁 /services/generateXmlFromJson.js
 import fetch from 'node-fetch';
 
-const SUPABASE_LIST_URL = process.env.SUPABASE_LIST_PUBLIC_URL;
-
-async function fetchList(name) {
-  const res = await fetch(`${SUPABASE_LIST_URL}/${name}.json`);
-  if (!res.ok) {
-    console.error(`❌ Kan lijst niet ophalen: ${name}.json`, await res.text());
-    return [];
-  }
-  return await res.json();
-}
+const SUPABASE_LIST_URL = (process.env.SUPABASE_LIST_PUBLIC_URL || '').replace(/\/$/, '');
 
 function safe(value) {
   const cleaned = typeof value === 'string' ? value.trim() : '';
@@ -19,6 +10,19 @@ function safe(value) {
 
 function match(value, list) {
   return list.includes(safe(value)) ? safe(value) : '0';
+}
+
+async function fetchList(name) {
+  const url = `${SUPABASE_LIST_URL}/${name}.json`;
+  console.log('🌍 Ophalen van lijst:', url);
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    console.error(`❌ Kan lijst niet ophalen: ${name}.json`, await res.text());
+    return [];
+  }
+
+  return await res.json();
 }
 
 export async function generateXmlFromJson(data) {
