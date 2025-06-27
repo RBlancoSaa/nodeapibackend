@@ -1,10 +1,9 @@
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
+import { parseJordex } from './parsers/parseJordex.js';
 
-// Supabase client
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-// 🛡️ Monkey patch: blokkeer toegang tot testbestand in pdf-parse
 const originalReadFileSync = fs.readFileSync;
 fs.readFileSync = function (path, ...args) {
   if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
@@ -14,90 +13,119 @@ fs.readFileSync = function (path, ...args) {
   return originalReadFileSync.call(this, path, ...args);
 };
 
-export async function parseJordex(pdfBuffer) {
-  const pdfParse = (await import('pdf-parse')).default;
-  const { text } = await pdfParse(pdfBuffer);
+export async function parsePdfToEasyFile(pdfBuffer) {
+  const parsed = await parseJordex(pdfBuffer);
 
-  const get = (label) => {
-    const match = text.match(new RegExp(`${label}:?\s*(.+)`, 'i'));
-    return match ? match[1].trim() : '';
-  };
-
-  // 📥 Basisgegevens uit PDF
-  const klantreferentie = get('Our reference');
-  const containernummer = get('Container');
-  const containertype = get('Type');
-  const bootnaam = get('Vessel');
-  const rederij = get('Carrier');
-  const laadreferentie = get('Pick-up reference');
-  const inleverreferentie = get('Drop-off reference');
-  const temperatuur = get('Temperature');
-  const imo = get('UN');
-  const gewicht = get('Weight');
-  const volume = get('Volume');
-  const laadplaats = get('Pick-up terminal');
-  const losplaats = get('Drop-off terminal');
-
-  const datum = '';
-  const tijdVan = '';
-  const tijdTM = '';
-
-  const referentie = klantreferentie;
-  const ritnummer = 'AUTO';
-  const ladenOfLossen = containernummer ? 'Lossen' : 'Laden';
-  const type = 'Container';
-  const lading = '';
-  const adr = imo;
-  const tarra = '';
-  const geladenGewicht = gewicht;
-  const brutogewicht = gewicht;
-  const colli = '';
-  const zegel = '';
-  const cbm = volume;
-  const brix = '';
-  const documentatie = '';
-  const tar = '';
-  const meldtijd = '';
-  const inleverBootnaam = bootnaam;
-  const inleverBestemming = losplaats;
-  const inleverRederij = rederij;
-  const inleverTAR = '';
-  const closingDatum = '';
-  const closingTijd = '';
-  const instructies = '';
-
-  const opdrachtgeverNaam = get('Opdrachtgever') || '';
-  const opdrachtgeverAdres = get('Opdrachtgever adres') || '';
-  const opdrachtgeverPostcode = get('Opdrachtgever postcode') || '';
-  const opdrachtgeverPlaats = get('Opdrachtgever plaats') || '';
-  const opdrachtgeverTelefoon = get('Opdrachtgever telefoon') || '';
-  const opdrachtgeverEmail = get('Opdrachtgever email') || '';
-  const opdrachtgeverBTW = get('Opdrachtgever btw') || '';
-  const opdrachtgeverKVK = get('Opdrachtgever kvk') || '';
-
-  const naam1 = laadplaats;
-  const naam2 = 'Onderweg';
-  const naam3 = losplaats;
-
-  const locatieResult1 = await supabase.from('locaties').select('*').eq('naam', laadplaats).maybeSingle();
-  const locatieResult3 = await supabase.from('locaties').select('*').eq('naam', losplaats).maybeSingle();
-
-  const locatie1 = locatieResult1.data || {};
-  const locatie3 = locatieResult3.data || {};
+  const {
+    opdrachtgever,
+    ritnummer,
+    ladenOfLossen,
+    type,
+    datum,
+    tijdVan,
+    tijdTM,
+    containernummer,
+    containertype,
+    lading,
+    adr,
+    tarra,
+    geladenGewicht,
+    brutogewicht,
+    colli,
+    zegel,
+    temperatuur,
+    cbm,
+    brix,
+    referentie,
+    bootnaam,
+    rederij,
+    documentatie,
+    tar,
+    laadreferentie,
+    meldtijd,
+    inleverreferentie,
+    inleverBootnaam,
+    inleverBestemming,
+    inleverRederij,
+    inleverTAR,
+    closingDatum,
+    closingTijd,
+    instructies,
+    naam1,
+    naam2,
+    naam3,
+    locatie1,
+    locatie3,
+    volgorde1,
+    actie1,
+    adres1,
+    postcode1,
+    plaats1,
+    land1,
+    voorgemeld1,
+    aankomstVerw1,
+    tijslotVan1,
+    tijslotTm1,
+    portbaseCode1,
+    bicsCode1,
+    volgorde2,
+    actie2,
+    adres2,
+    postcode2,
+    plaats2,
+    land2,
+    volgorde3,
+    actie3,
+    adres3,
+    postcode3,
+    plaats3,
+    land3,
+    voorgemeld3,
+    aankomstVerw3,
+    tijslotVan3,
+    tijslotTm3,
+    portbaseCode3,
+    bicsCode3,
+    tarief,
+    btw,
+    adrToeslagChart,
+    adrBedragChart,
+    botlekChart,
+    chassishuurChart,
+    deltaChart,
+    dieselChart,
+    euromaxChart,
+    extraStopChart,
+    gasMetenChart,
+    genChart,
+    handrailChart,
+    keurenChart,
+    kilometersChart,
+    loeverChart,
+    loodsChart,
+    mautChart,
+    mv2Chart,
+    scannenChart,
+    tolChart,
+    blanco1Chart,
+    blanco1Text,
+    blanco2Chart,
+    blanco2Text
+  } = parsed;
 
   const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Order>
 <Dossiers>
 <Dossier>
 <Opdrachtgever>
-<Opdrachtgever>${opdrachtgeverNaam}</Opdrachtgever>
-<Opdrachtgever_Adres>${opdrachtgeverAdres}</Opdrachtgever_Adres>
-<Opdrachtgever_Postcode>${opdrachtgeverPostcode}</Opdrachtgever_Postcode>
-<Opdrachtgever_Plaats>${opdrachtgeverPlaats}</Opdrachtgever_Plaats>
-<Opdrachtgever_TelefoonNummer>${opdrachtgeverTelefoon}</Opdrachtgever_TelefoonNummer>
-<Opdrachtgever_Email>${opdrachtgeverEmail}</Opdrachtgever_Email>
-<Opdrachtgever_BTW>${opdrachtgeverBTW}</Opdrachtgever_BTW>
-<Opdrachtgever_KVK>${opdrachtgeverKVK}</Opdrachtgever_KVK>
+<Opdrachtgever>${opdrachtgever.naam}</Opdrachtgever>
+<Opdrachtgever_Adres>${opdrachtgever.adres}</Opdrachtgever_Adres>
+<Opdrachtgever_Postcode>${opdrachtgever.postcode}</Opdrachtgever_Postcode>
+<Opdrachtgever_Plaats>${opdrachtgever.plaats}</Opdrachtgever_Plaats>
+<Opdrachtgever_TelefoonNummer>${opdrachtgever.telefoon}</Opdrachtgever_TelefoonNummer>
+<Opdrachtgever_Email>${opdrachtgever.email}</Opdrachtgever_Email>
+<Opdrachtgever_BTW>${opdrachtgever.btw}</Opdrachtgever_BTW>
+<Opdrachtgever_KVK>${opdrachtgever.kvk}</Opdrachtgever_KVK>
 </Opdrachtgever>
 <Container>
 <Ritnr>${ritnummer}</Ritnr>
@@ -136,48 +164,71 @@ export async function parseJordex(pdfBuffer) {
 </Container>
 <Locaties>
 <Locatie>
-<Volgorde>0</Volgorde>
-<Actie>${ladenOfLossen}</Actie>
+<Volgorde>${volgorde1}</Volgorde>
+<Actie>${actie1}</Actie>
 <Naam>${naam1}</Naam>
-<Adres>${locatie1.adres || ''}</Adres>
-<Postcode>${locatie1.postcode || ''}</Postcode>
-<Plaats>${locatie1.plaats || ''}</Plaats>
-<Land>${locatie1.land || 'NL'}</Land>
-<Voorgemeld>${locatie1.voorgemeld || ''}</Voorgemeld>
-<Aankomst_verw></Aankomst_verw>
-<Tijslot_van></Tijslot_van>
-<Tijslot_tm></Tijslot_tm>
-<Portbase_code>${locatie1.portbase || ''}</Portbase_code>
-<bicsCode>${locatie1.bics || ''}</bicsCode>
+<Adres>${adres1}</Adres>
+<Postcode>${postcode1}</Postcode>
+<Plaats>${plaats1}</Plaats>
+<Land>${land1}</Land>
+<Voorgemeld>${voorgemeld1}</Voorgemeld>
+<Aankomst_verw>${aankomstVerw1}</Aankomst_verw>
+<Tijslot_van>${tijslotVan1}</Tijslot_van>
+<Tijslot_tm>${tijslotTm1}</Tijslot_tm>
+<Portbase_code>${portbaseCode1}</Portbase_code>
+<bicsCode>${bicsCode1}</bicsCode>
 </Locatie>
 <Locatie>
-<Volgorde>0</Volgorde>
-<Actie>Rijden</Actie>
+<Volgorde>${volgorde2}</Volgorde>
+<Actie>${actie2}</Actie>
 <Naam>${naam2}</Naam>
-<Adres></Adres>
-<Postcode></Postcode>
-<Plaats></Plaats>
-<Land>NL</Land>
+<Adres>${adres2}</Adres>
+<Postcode>${postcode2}</Postcode>
+<Plaats>${plaats2}</Plaats>
+<Land>${land2}</Land>
 </Locatie>
 <Locatie>
-<Volgorde>0</Volgorde>
-<Actie>Inleveren</Actie>
+<Volgorde>${volgorde3}</Volgorde>
+<Actie>${actie3}</Actie>
 <Naam>${naam3}</Naam>
-<Adres>${locatie3.adres || ''}</Adres>
-<Postcode>${locatie3.postcode || ''}</Postcode>
-<Plaats>${locatie3.plaats || ''}</Plaats>
-<Land>${locatie3.land || 'NL'}</Land>
-<Voorgemeld>${locatie3.voorgemeld || ''}</Voorgemeld>
-<Aankomst_verw></Aankomst_verw>
-<Tijslot_van></Tijslot_van>
-<Tijslot_tm></Tijslot_tm>
-<Portbase_code>${locatie3.portbase || ''}</Portbase_code>
-<bicsCode>${locatie3.bics || ''}</bicsCode>
+<Adres>${adres3}</Adres>
+<Postcode>${postcode3}</Postcode>
+<Plaats>${plaats3}</Plaats>
+<Land>${land3}</Land>
+<Voorgemeld>${voorgemeld3}</Voorgemeld>
+<Aankomst_verw>${aankomstVerw3}</Aankomst_verw>
+<Tijslot_van>${tijslotVan3}</Tijslot_van>
+<Tijslot_tm>${tijslotTm3}</Tijslot_tm>
+<Portbase_code>${portbaseCode3}</Portbase_code>
+<bicsCode>${bicsCode3}</bicsCode>
 </Locatie>
 </Locaties>
 <Financieel>
-<Tarief></Tarief>
-<BTW>21</BTW>
+<Tarief>${tarief}</Tarief>
+<BTW>${btw}</BTW>
+<ADR_toeslag_Chart>${adrToeslagChart}</ADR_toeslag_Chart>
+<ADR_bedrag_Chart>${adrBedragChart}</ADR_bedrag_Chart>
+<Botlek_Chart>${botlekChart}</Botlek_Chart>
+<Chassishuur_Bedrag_chart>${chassishuurChart}</Chassishuur_Bedrag_chart>
+<Delta_Chart>${deltaChart}</Delta_Chart>
+<Diesel_toeslag_Chart>${dieselChart}</Diesel_toeslag_Chart>
+<Euromax_Chart>${euromaxChart}</Euromax_Chart>
+<ExtraStop_Chart>${extraStopChart}</ExtraStop_Chart>
+<GasMeten_Chart>${gasMetenChart}</GasMeten_Chart>
+<Gen_Chart>${genChart}</Gen_Chart>
+<Handrail_Bedrag_chart>${handrailChart}</Handrail_Bedrag_chart>
+<Keuren_Chart>${keurenChart}</Keuren_Chart>
+<Kilometers_Chart>${kilometersChart}</Kilometers_Chart>
+<LOever_Chart>${loeverChart}</LOever_Chart>
+<Loods_Chart>${loodsChart}</Loods_Chart>
+<Maut_Chart>${mautChart}</Maut_Chart>
+<MV2_Chart>${mv2Chart}</MV2_Chart>
+<Scannen_Chart>${scannenChart}</Scannen_Chart>
+<Tol_Chart>${tolChart}</Tol_Chart>
+<Blanco1_Chart>${blanco1Chart}</Blanco1_Chart>
+<Blanco1_Text>${blanco1Text}</Blanco1_Text>
+<Blanco2_Chart>${blanco2Chart}</Blanco2_Chart>
+<Blanco2_Text>${blanco2Text}</Blanco2_Text>
 </Financieel>
 </Dossier>
 </Dossiers>
