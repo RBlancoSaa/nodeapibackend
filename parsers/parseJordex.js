@@ -14,11 +14,62 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 
 export default async function parseJordex(pdfBuffer) {
   try {
-    const { default: pdfParse } = await import('pdf-parse'); // ✅ juiste manier
+    const { default: pdfParse } = await import('pdf-parse');
     const parsed = await pdfParse(pdfBuffer);
     const text = parsed.text;
 
-    // 🔍 Regex voorbeeld: simpele parse van opdrachtgevergegevens
+    let dropoffMatch = null;
+    let pickupMatch = null;
+    let containertypeMatch = null;
+    let rederijMatch = null;
+    let bestemmingMatch = null;
+
+    const rawDropoffTerminal = (text.match(/Drop-off terminal\s+Address:\s*(.*)/i) || [])[1] || '';
+    const rawPickupTerminal = (text.match(/Pick-up terminal\s+Address:\s*(.*)/i) || [])[1] || '';
+    const rawContainertype = (text.match(/(\d{2})['’]?\s+high\s+cube\s+reefer/i) || [])[0] || '';
+    const rawRederij = (text.match(/Carrier:\s*(.*)/i) || [])[1] || '';
+    const rawInleverBestemming = (text.match(/To:\s*(.*)/i) || [])[1] || '';
+
+    const dropoffResult = await supabase
+      .from('terminals')
+      .select('naam, adres, postcode, plaats, portbase_code, bics_code, voorgemeld, aankomst_verwacht, tijslot_van, tijslot_tm')
+      .eq('naam', rawDropoffTerminal)
+      .maybeSingle();
+    dropoffMatch = dropoffResult?.data || null;
+    if (!dropoffMatch) console.warn('⚠️ Geen match voor drop-off terminal:', rawDropoffTerminal);
+
+    const pickupResult = await supabase
+      .from('terminals')
+      .select('naam, adres, postcode, plaats, portbase_code, bics_code, voorgemeld, aankomst_verwacht, tijslot_van, tijslot_tm')
+      .eq('naam', rawPickupTerminal)
+      .maybeSingle();
+    pickupMatch = pickupResult?.data || null;
+    if (!pickupMatch) console.warn('⚠️ Geen match voor pick-up terminal:', rawPickupTerminal);
+
+    const containertypeResult = await supabase
+      .from('containertypes')
+      .select('naam')
+      .eq('naam', rawContainertype)
+      .maybeSingle();
+    containertypeMatch = containertypeResult?.data || null;
+    if (!containertypeMatch) console.warn('⚠️ Geen match voor containertype:', rawContainertype);
+
+    const rederijResult = await supabase
+      .from('rederijen')
+      .select('naam')
+      .eq('naam', rawRederij)
+      .maybeSingle();
+    rederijMatch = rederijResult?.data || null;
+    if (!rederijMatch) console.warn('⚠️ Geen match voor rederij:', rawRederij);
+
+    const bestemmingResult = await supabase
+      .from('inleverlocaties')
+      .select('naam')
+      .eq('naam', rawInleverBestemming)
+      .maybeSingle();
+    bestemmingMatch = bestemmingResult?.data || null;
+    if (!bestemmingMatch) console.warn('⚠️ Geen match voor inleverbestemming:', rawInleverBestemming);
+
 const opdrachtgeverNaam = (text.match(/Opdrachtgever:\s*(.*)/i) || [])[1] || '';
 const opdrachtgeverAdres = (text.match(/Adres:\s*(.*)/i) || [])[1] || '';
 const opdrachtgeverPostcode = (text.match(/Postcode:\s*(\d{4}\s?[A-Z]{2})/i) || [])[1] || '';
