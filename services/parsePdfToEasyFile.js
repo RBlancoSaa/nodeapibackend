@@ -1,6 +1,8 @@
+//.parsePdfToEasyFile.js
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
 import parseJordex from '../parsers/parseJordex.js';
+import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 
 console.log('✅ SUPABASE_URL in parsePdfToEasyFile:', process.env.SUPABASE_URL); // Debug
 
@@ -15,6 +17,12 @@ fs.readFileSync = function (path, ...args) {
   return originalReadFileSync.call(this, path, ...args);
 };
 
-export async function parsePdfToEasyFile(pdfBuffer) {
-  return await parseJordex(pdfBuffer);
+export default async function parsePdfToEasyFile(pdfBuffer) {
+  console.log('📥 Start parser...');
+  
+  const parsedData = await parseJordex(pdfBuffer); // geeft een object
+  const xml = await generateXmlFromJson(parsedData); // genereert string
+
+  console.log('📦 XML gegenereerd');
+  return xml;
 }
