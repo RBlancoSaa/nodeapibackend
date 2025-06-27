@@ -1,0 +1,177 @@
+==============================
+📁 PROJECT OVERVIEW: EASYTRIP AUTOMATOR
+==============================
+
+🗂 MAPSTRUCTUUR (excl. node_modules)
+--------------------------------------
+nodeapibackend/
+├── api/
+│   ├── check-inbox.js              → Haalt nieuwe e-mails op uit de mailbox (catch-all of directe inbox).
+│   ├── generate-easy-files.js      → POST endpoint: ontvangt JSON, maakt XML, converteert naar .easy en uploadt + mailt.
+│   ├── generate-xml.js             → Alternatieve route om enkel XML uit JSON te genereren.
+│   ├── parse-uploaded-pdf.js       → Upload route: ontvangt PDF, voert parser uit, genereert .easy-bestand.
+│   ├── send-final-email.js         → E-mailservice: verzendt definitieve bestanden of foutmeldingen.
+│   ├── upload-from-inbox.js        → Upload route: haalt ongelezen inbox-PDF’s op en verwerkt ze.
+│   └── upload-pdf-attachments.js   → Upload route: verwerkt los geüploade bijlagen vanuit front-end.
+│
+├── controllers/
+│   └── mailController.js           → Centrale controller voor e-mailgerelateerde functies (nog basic).
+│
+├── downloads/
+│   └── voorbeeld.easy              → Testbestand of template voor referentie (.easy output).
+│
+├── parsers/
+│   ├── parseB2L.js
+│   ├── parseDFDS.js
+│   ├── parseEasyfresh.js
+│   ├── parseJordex.js              → Parser voor Jordex PDF-transportopdrachten (productierijpe versie).
+│   ├── parseKWE.js
+│   ├── parseNeelevat.js
+│   └── parseRitra.js
+│       ⤷ Al deze bestanden zijn klant-specifieke PDF-parsers.
+│
+├── routes/
+│   └── mailRoutes.js               → Routes voor e-mailinteractie (aangeroepen door controller).
+│
+├── services/
+│   ├── attachmentService.js        → Logica voor het verwerken van bijlagen in mails.
+│   ├── convertXmlToEasyfile.js     → Zet XML string om naar .easy-bestand (bestandsnaam + pad).
+│   ├── easyFileService.js          → Centrale logicaverwerker van .easy-files (oud / basic).
+│   ├── emailService.js             → Custom emailfunctie met fallback en foutdetectie.
+│   ├── generateXmlFromJson.js      → Genereert correcte XML uit een JSON input op basis van Easytrip structuur.
+│   ├── imapService.js              → Leest e-mailinboxen uit via IMAP (met PDF-parser integratie).
+│   ├── mailService.js              → Initieert verbinding met Mijndomein SMTP server.
+│   ├── parseAttachments.js         → Extraheert PDF-bijlagen uit mailbody of headers.
+│   ├── parsePdfToEasyFile.js       → Roept parser aan en verwerkt tot .easy formaat.
+│   ├── parsePdfToJson.js           → Zet PDF om naar JSON structuur op basis van specifieke klantparser.
+│   ├── pdfService.js               → Algemene helper voor pdf-buffer logica.
+│   ├── sendEmailWithAttachments.js → Stuurt e-mails met gegenereerde .easy-bestanden.
+│   └── uploadPdfAttachmentsToSupabase.js → Uploadt PDF’s naar Supabase bucket.
+│
+├── tmp/
+│   ⤷ Tijdelijke opslaglocatie voor gegenereerde bestanden (voor verzending of upload).
+│
+├── utils/
+│   ├── log.js                      → Logging helper (optioneel / onder constructie).
+│   ├── smtpTransport.js            → Nodemailer transportconfiguratie (gebaseerd op Mijndomein SMTP).
+│   └── supabaseClient.js           → Instantie van Supabase client, gebruikt in de hele backend.
+│
+├── .env                            → Bevat alle secrets zoals SMTP gegevens, Supabase keys, etc.
+├── index.js                        → Entry point voor backend als node-script (niet server).
+├── package.json                    → Project dependencies en scripts.
+├── package-lock.json               → Exacte dependency lock.
+├── README.md                       → (leeg of nog te schrijven)
+└── PROJECT_OVERVIEW.txt            → DIT BESTAND
+
+
+🔗 GEBRUIKTE TECH STACK
+------------------------
+- JavaScript (Node.js)
+- Supabase (PostgreSQL + Storage)
+- Nodemailer (voor SMTP e-mailverzending)
+- pdf-parse (voor PDF-tekst extractie)
+- dotenv (voor config uit .env)
+- fetch (voor JSON-lijstverificatie)
+- Vercel (deployment)
+
+
+📦 GEBRUIKTE PACKAGES
+------------------------
+- @supabase/supabase-js
+- nodemailer
+- pdf-parse
+- dotenv
+- node-fetch (optioneel polyfill voor fetch)
+
+
+📤 EMAIL
+---------
+- SMTP is ingesteld via **Mijndomein**, met custom SMTP_HOST, SMTP_USER en SMTP_PASS.
+- Er wordt **géén Mailgun** gebruikt, ondanks eerdere testcode.
+- E-mail wordt verstuurd met nodemailer in:
+  - generate-easy-files.js
+  - sendEmailWithAttachments.js
+
+
+💾 OPSLAG & LOGICA
+------------------------
+- Alle gegenereerde PDF's en .easy-bestanden worden tijdelijk opgeslagen in `/tmp`.
+- Upload naar Supabase bucket (public) gebeurt met contentType `text/plain`.
+- XML-bestanden worden exact gegenereerd op basis van het Easytrip vereiste formaat.
+
+
+✅ ROUTEOVERZICHT
+------------------------
+| Methode | Route                        | Beschrijving
+|---------|------------------------------|-------------------------------
+| POST    | /api/generate-easy-files     | Verwerkt JSON naar XML/.easy, uploadt en mailt
+| POST    | /api/generate-xml            | Alleen XML-generatie uit JSON
+| POST    | /api/parse-uploaded-pdf      | Upload en parser van PDF direct
+| POST    | /api/upload-pdf-attachments  | Upload PDF's vanuit frontend (bijlage)
+| GET     | /api/check-inbox             | Haalt nieuwe inboxmails op en verwerkt PDF's
+| GET     | /api/upload-from-inbox       | Zelfde als check-inbox, triggert volledige flow
+| POST    | /api/send-final-email        | Handmatige e-mailtrigger voor bestand
+
+
+🧼 CLI EN ONTWIKKELINGSTIPS
+---------------------------
+- `rm -rf` werkt niet standaard in Windows PowerShell → gebruik `rd /s /q` of `rimraf` package.
+- Bestanden in `/tmp` worden bij iedere Vercel-executie tijdelijk aangemaakt (niet persistent).
+- Supabase Edge Functions zijn optioneel via `supabase/functions/` maar nog niet actief.
+- JSON-lijsten voor dropdownvalidatie staan in `supabase/lists/` (publieke endpoint via Supabase hosting).
+
+
+🧠 PARSERSTRATEGIE
+---------------------------
+- Iedere klant heeft een eigen parser in `/parsers`
+- Deze parser extract alle relevante info uit PDF (zoals container type, rederij, referentie etc.)
+- Deze JSON wordt doorgestuurd naar `generateXmlFromJson()`
+- Die functie valideert + construeert correcte XML
+- XML wordt opgeslagen via `convertXmlToEasyfile.js`
+
+
+🛠 TODO / NEXT STEPS
+---------------------------
+- Logging systeem uitbreiden in log.js
+- Upload-fallback met retry bij Supabase errors
+- Parser fallback voor missende velden of foutformaat
+- Meer parsers (voor overige klanten zoals Maersk, CMA CGM, etc)
+- Frontend upload dashboard integratie
+
+
+---
+
+## ✅ Werkende onderdelen
+- 📬 Emails ophalen met PDF-bijlage (extern script)
+- 🧠 Parser Jordex PDF → JSON (inclusief terminal lookups)
+- 🔀 generateXmlFromJson → correct Easytrip XML-formaat
+- ☁️ Upload naar Supabase
+- 📩 E-mail met bijlage (Mailgun / SMTP werkt)
+
+---
+
+## 🔑 .env variabelen
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_LIST_PUBLIC_URL`
+- `SUPABASE_EASY_BUCKET`
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `FROM_EMAIL`
+
+---
+
+## 🔁 Routes
+- **POST** `/api/generate-easy-files` → ontvangt JSON → maakt en uploadt .easy
+
+---
+
+## 📌 Belangrijk
+- Parser mag *nooit* zelf interpreteren. Alleen data overnemen of leeg laten.
+- Alleen exacte terminalnamen worden geaccepteerd uit Supabase.
+- Easytrip vereist `<Volgorde>0</Volgorde>` voor alle locaties.
+- De `.easy`-bestanden moeten aan een vaste XML-structuur voldoen.
+
+Laatste update: 2025-06-27
