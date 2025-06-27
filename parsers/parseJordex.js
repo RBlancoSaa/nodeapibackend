@@ -139,3 +139,6 @@ export async function parsePdfToEasyFile(pdfBuffer) {
 
   return xml;
 }
+export async function parseJordex(pdfBuffer) {
+  // jouw code
+}
