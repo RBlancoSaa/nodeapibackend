@@ -16,12 +16,6 @@ function match(value, list) {
   return list.includes(safe(value)) ? safe(value) : '0';
 }
 
-async function fetchList(name) {
-  const res = await fetch(`${SUPABASE_LIST_URL}/${name}.json`);
-  if (!res.ok) return [];
-  return await res.json();
-}
-
 export async function generateXmlFromJson(data) {
   const [rederijen, containers, klanten, charters, terminals] = await Promise.all([
     fetchList('rederijen'),
