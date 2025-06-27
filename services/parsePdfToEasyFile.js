@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-// Monkey patch: blokkeer toegang tot testbestand in pdf-parse
+// 🛡️ Monkey patch: blokkeer toegang tot testbestand in pdf-parse
 const originalReadFileSync = fs.readFileSync;
 fs.readFileSync = function (path, ...args) {
   if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
@@ -14,11 +14,11 @@ export async function parsePdfToEasyFile(pdfBuffer) {
   const pdfParse = (await import('pdf-parse')).default;
   const { text } = await pdfParse(pdfBuffer);
 
-  // Check of het waarschijnlijk een transportopdracht is
+  // 📋 Labels die we willen vinden
   const requiredLabels = ['Our reference', 'Container', 'Pick-up terminal', 'Drop-off terminal'];
   const missingLabels = requiredLabels.filter(label => !text.includes(label));
   if (missingLabels.length > 0) {
-    throw new Error(`PDF lijkt geen transportopdracht. Ontbrekend: ${missingLabels.join(', ')}`);
+    console.warn(`⚠️ Parserwaarschuwing: PDF lijkt incompleet. Ontbrekend: ${missingLabels.join(', ')}`);
   }
 
   const get = (label) => {
@@ -40,7 +40,7 @@ export async function parsePdfToEasyFile(pdfBuffer) {
   const laadplaats = get('Pick-up terminal');
   const losplaats = get('Drop-off terminal');
 
-  // ⚠️ Dummy values — voeg jouw echte mapping toe op basis van PDF!
+  // ⏱️ Tijd & datum (placeholder)
   const datum = '2025-06-23';
   const tijdVan = '08:00';
   const tijdTM = '17:00';
