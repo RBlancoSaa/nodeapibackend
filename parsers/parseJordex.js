@@ -14,7 +14,9 @@ import pdfParse from 'pdf-parse'; // ✅ pas na override importeren!
 
 export default async function parseJordex(pdfBuffer) {
   try {
-    const parsed = await pdfParse(pdfBuffer); // ✅ PDF uitlezen
+    // ✅ Lazy import zodat fs-override op tijd actief is
+    const { default: pdfParse } = await import('pdf-parse');
+    const parsed = await pdfParse(pdfBuffer);
     const text = parsed.text;
 
     // 🔍 Regex voorbeeld: simpele parse van opdrachtgevergegevens
