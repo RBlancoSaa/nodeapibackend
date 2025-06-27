@@ -1,6 +1,8 @@
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
-import { parseJordex } from '../parsers/parseJordex.js';
+import { parseJordex } from './parsers/parseJordex.js';
+
+console.log('✅ SUPABASE_URL in parsePdfToEasyFile:', process.env.SUPABASE_URL); // Debug
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
