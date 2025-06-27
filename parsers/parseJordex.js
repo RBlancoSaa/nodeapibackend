@@ -1,8 +1,10 @@
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
+import pdfParse from 'pdf-parse'; // ✅ Echte PDF parser
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
+// Blokkeer testbestand
 const originalReadFileSync = fs.readFileSync;
 fs.readFileSync = function (path, ...args) {
   if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
@@ -12,10 +14,140 @@ fs.readFileSync = function (path, ...args) {
   return originalReadFileSync.call(this, path, ...args);
 };
 
-export async function parsePdfToEasyFile(pdfBuffer) {
-  const parsed = await parseJordex(pdfBuffer);
+export default async function parseJordex(pdfBuffer) {
+  try {
+    const parsed = await pdfParse(pdfBuffer); // ✅ PDF uitlezen
+    const text = parsed.text;
 
-  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+    // 🔍 Regex voorbeeld: simpele parse van opdrachtgevergegevens
+    const opdrachtgeverNaam = (text.match(/Opdrachtgever:\s*(.*)/i) || [])[1] || '';
+const opdrachtgeverAdres = (text.match(/Adres:\s*(.*)/i) || [])[1] || '';
+const opdrachtgeverPostcode = (text.match(/Postcode:\s*(\d{4}\s?[A-Z]{2})/i) || [])[1] || '';
+const opdrachtgeverPlaats = (text.match(/Plaats:\s*(.*)/i) || [])[1] || '';
+const opdrachtgeverTelefoon = (text.match(/Tel(?:ef)?(?:oonnummer)?:\s*([\d\-+() ]{6,})/i) || [])[1] || '';
+const opdrachtgeverEmail = (text.match(/E-?mail:\s*([\w.-]+@[\w.-]+\.\w+)/i) || [])[1] || '';
+const opdrachtgeverBTW = (text.match(/BTW(?:-nummer)?:\s*([\w\d.-]+)/i) || [])[1] || '';
+const opdrachtgeverKVK = (text.match(/K\.?v\.?K\.?:?\s*(\d{8})/i) || [])[1] || '';
+
+const referentie = (text.match(/Our reference:\s*(\S+)/i) || [])[1] || '';
+const type = (text.match(/(\d{2})['’]?\s+high\s+cube\s+reefer/i) || [])[0] || '';
+const lading = (text.match(/Description\s*\n(.*)/i) || [])[1] || 'FROZEN PORK';
+const temperatuur = (text.match(/Temperature:\s*(-?\d+)[°º]C/i) || [])[1] || '';
+const cbm = (text.match(/(\d{2,5})m³/i) || [])[1] || '';
+const gewicht = (text.match(/(\d{2,5})\s?kg/i) || [])[1] || '';
+const colli = (text.match(/Colli\s*(\d+)/i) || [])[1] || '';
+const bootnaam = (text.match(/Vessel:\s*(.*)/i) || [])[1] || '';
+const closingDatum = (text.match(/Document closing:\s*(\d{2}\s\w{3}\s\d{4})/i) || [])[1] || '';
+const closingTijd = (text.match(/Document closing:\s*\d{2}\s\w{3}\s\d{4}\s+(\d{2}:\d{2})/i) || [])[1] || '';
+const laadreferentie = (text.match(/Pick-up[\s\S]*?Reference\(s\):\s*(\d+)/i) || [])[1] || '';
+const inleverreferentie = (text.match(/Drop-off terminal[\s\S]*?Reference\(s\):\s*(\d+)/i) || [])[1] || '';
+const documentatie = (text.match(/Document closing:\s*(.*)/i) || [])[1] || '';
+
+// 📍 Klant (Pick-up) = locatie 1
+const portbaseCode1 = '';
+const bicsCode1 = '';
+const voorgemeld1 = '';
+const aankomstVerw1 = '';
+const tijslotVan1 = '';
+const tijslotTm1 = '';
+const naam1 = (text.match(/Pick-up\s+Address:\s*(.*)/i) || [])[1] || '';
+const adres1 = (text.match(/Pick-up\s+Address:[\s\S]*?\n(.*)/i) || [])[1] || '';
+const postcode1 = (text.match(/Pick-up\s+Address:[\s\S]*?\n.*\n(\d{4}\s?[A-Z]{2})/i) || [])[1] || '';
+const plaats1 = (text.match(/Pick-up\s+Address:[\s\S]*?\n.*\n\d{4}\s?[A-Z]{2}\s*(.*)/i) || [])[1] || '';
+const land1 = 'NL';
+const actie1 = 'Laden';
+const volgorde1 = '0';
+
+// 📍 Drop-off terminal (locatie 2)
+const naam2 = dropoffMatch?.naam || '';
+const adres2 = dropoffMatch?.adres || '';
+const postcode2 = dropoffMatch?.postcode || '';
+const plaats2 = dropoffMatch?.plaats || '';
+const land2 = 'NL';
+const actie2 = 'Inleveren';
+const volgorde2 = '0';
+
+// 📍 Pick-up terminal (locatie 3)
+const naam3 = pickupMatch?.naam || '';
+const adres3 = pickupMatch?.adres || '';
+const postcode3 = pickupMatch?.postcode || '';
+const plaats3 = pickupMatch?.plaats || '';
+const land3 = 'NL';
+const actie3 = 'Uithalen';
+const volgorde3 = '0';
+
+// 🔍 Uit PDF gehaald
+const rawContainertype = (text.match(/(\d{2})['’]?\s+high\s+cube\s+reefer/i) || [])[0] || '';
+const rawRederij = (text.match(/Carrier:\s*(.*)/i) || [])[1] || '';
+const rawInleverBestemming = (text.match(/To:\s*(.*)/i) || [])[1] || '';
+
+// ✅ Valideer containertype exact
+const { data: containertypeMatch } = await supabase
+  .from('containertypes')
+  .select('naam')
+  .eq('naam', rawContainertype)
+  .maybeSingle();
+
+const containertype = containertypeMatch?.naam || '';
+if (!containertype) console.warn('⚠️ Geen match voor containertype:', rawContainertype);
+
+// ✅ Valideer rederij exact
+const { data: rederijMatch } = await supabase
+  .from('rederijen')
+  .select('naam')
+  .eq('naam', rawRederij)
+  .maybeSingle();
+
+const rederij = rederijMatch?.naam || '';
+if (!rederij) console.warn('⚠️ Geen match voor rederij:', rawRederij);
+
+// ✅ Valideer inleverbestemming exact
+const { data: bestemmingMatch } = await supabase
+  .from('inleverlocaties')
+  .select('naam')
+  .eq('naam', rawInleverBestemming)
+  .maybeSingle();
+
+const inleverBestemming = bestemmingMatch?.naam || '';
+if (!inleverBestemming) console.warn('⚠️ Geen match voor inleverbestemming:', rawInleverBestemming);
+
+// 🔍 Haal ruwe terminalnamen uit PDF
+const rawDropoffTerminal = (text.match(/Drop-off terminal\s+Address:\s*(.*)/i) || [])[1] || '';
+const rawPickupTerminal = (text.match(/Pick-up terminal\s+Address:\s*(.*)/i) || [])[1] || '';
+
+// ✅ Supabase lookup drop-off terminal
+const { data: dropoffMatch } = await supabase
+  .from('terminals')
+  .select('naam, adres, postcode, plaats, portbase_code, bics_code, voorgemeld, aankomst_verwacht, tijslot_van, tijslot_tm')
+  .eq('naam', rawDropoffTerminal)
+  .maybeSingle();
+
+if (!dropoffMatch) console.warn('⚠️ Geen match voor drop-off terminal:', rawDropoffTerminal);
+
+const portbaseCode2 = dropoffMatch?.portbase_code || '';
+const bicsCode2 = dropoffMatch?.bics_code || '';
+const voorgemeld2 = dropoffMatch?.voorgemeld || '';
+const aankomstVerw2 = dropoffMatch?.aankomst_verwacht || '';
+const tijslotVan2 = dropoffMatch?.tijslot_van || '';
+const tijslotTm2 = dropoffMatch?.tijslot_tm || '';
+
+// ✅ Supabase lookup pick-up terminal
+const { data: pickupMatch } = await supabase
+  .from('terminals')
+  .select('naam, adres, postcode, plaats, portbase_code, bics_code, voorgemeld, aankomst_verwacht, tijslot_van, tijslot_tm')
+  .eq('naam', rawPickupTerminal)
+  .maybeSingle();
+
+if (!pickupMatch) console.warn('⚠️ Geen match voor pick-up terminal:', rawPickupTerminal);
+
+const portbaseCode3 = pickupMatch?.portbase_code || '';
+const bicsCode3 = pickupMatch?.bics_code || '';
+const voorgemeld3 = pickupMatch?.voorgemeld || '';
+const aankomstVerw3 = pickupMatch?.aankomst_verwacht || '';
+const tijslotVan3 = pickupMatch?.tijslot_van || '';
+const tijslotTm3 = pickupMatch?.tijslot_tm || '';
+
+const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Order>
 <Dossiers>
 <Dossier>
@@ -65,45 +197,51 @@ export async function parsePdfToEasyFile(pdfBuffer) {
 <Instructies>${parsed.instructies}</Instructies>
 </Container>
 <Locaties>
-<Locatie>
-<Volgorde>${parsed.volgorde1}</Volgorde>
-<Actie>${parsed.actie1}</Actie>
-<Naam>${parsed.naam1}</Naam>
-<Adres>${parsed.adres1}</Adres>
-<Postcode>${parsed.postcode1}</Postcode>
-<Plaats>${parsed.plaats1}</Plaats>
-<Land>${parsed.land1}</Land>
-<Voorgemeld>${parsed.voorgemeld1}</Voorgemeld>
-<Aankomst_verw>${parsed.aankomstVerw1}</Aankomst_verw>
-<Tijslot_van>${parsed.tijslotVan1}</Tijslot_van>
-<Tijslot_tm>${parsed.tijslotTm1}</Tijslot_tm>
-<Portbase_code>${parsed.portbaseCode1}</Portbase_code>
-<bicsCode>${parsed.bicsCode1}</bicsCode>
-</Locatie>
-<Locatie>
-<Volgorde>${parsed.volgorde2}</Volgorde>
-<Actie>${parsed.actie2}</Actie>
-<Naam>${parsed.naam2}</Naam>
-<Adres>${parsed.adres2}</Adres>
-<Postcode>${parsed.postcode2}</Postcode>
-<Plaats>${parsed.plaats2}</Plaats>
-<Land>${parsed.land2}</Land>
-</Locatie>
-<Locatie>
-<Volgorde>${parsed.volgorde3}</Volgorde>
-<Actie>${parsed.actie3}</Actie>
-<Naam>${parsed.naam3}</Naam>
-<Adres>${parsed.adres3}</Adres>
-<Postcode>${parsed.postcode3}</Postcode>
-<Plaats>${parsed.plaats3}</Plaats>
-<Land>${parsed.land3}</Land>
-<Voorgemeld>${parsed.voorgemeld3}</Voorgemeld>
-<Aankomst_verw>${parsed.aankomstVerw3}</Aankomst_verw>
-<Tijslot_van>${parsed.tijslotVan3}</Tijslot_van>
-<Tijslot_tm>${parsed.tijslotTm3}</Tijslot_tm>
-<Portbase_code>${parsed.portbaseCode3}</Portbase_code>
-<bicsCode>${parsed.bicsCode3}</bicsCode>
-</Locatie>
+  <Locatie>
+    <Volgorde>${volgorde1}</Volgorde>
+    <Actie>${actie1}</Actie>
+    <Naam>${naam1}</Naam>
+    <Adres>${adres1}</Adres>
+    <Postcode>${postcode1}</Postcode>
+    <Plaats>${plaats1}</Plaats>
+    <Land>${land1}</Land>
+    <Voorgemeld>${voorgemeld1}</Voorgemeld>
+    <Aankomst_verw>${aankomstVerw1}</Aankomst_verw>
+    <Tijslot_van>${tijslotVan1}</Tijslot_van>
+    <Tijslot_tm>${tijslotTm1}</Tijslot_tm>
+    <Portbase_code>${portbaseCode1}</Portbase_code>
+    <bicsCode>${bicsCode1}</bicsCode>
+  </Locatie>
+  <Locatie>
+    <Volgorde>${volgorde2}</Volgorde>
+    <Actie>${actie2}</Actie>
+    <Naam>${naam2}</Naam>
+    <Adres>${adres2}</Adres>
+    <Postcode>${postcode2}</Postcode>
+    <Plaats>${plaats2}</Plaats>
+    <Land>${land2}</Land>
+    <Voorgemeld>${voorgemeld2}</Voorgemeld>
+    <Aankomst_verw>${aankomstVerw2}</Aankomst_verw>
+    <Tijslot_van>${tijslotVan2}</Tijslot_van>
+    <Tijslot_tm>${tijslotTm2}</Tijslot_tm>
+    <Portbase_code>${portbaseCode2}</Portbase_code>
+    <bicsCode>${bicsCode2}</bicsCode>
+  </Locatie>
+  <Locatie>
+    <Volgorde>${volgorde3}</Volgorde>
+    <Actie>${actie3}</Actie>
+    <Naam>${naam3}</Naam>
+    <Adres>${adres3}</Adres>
+    <Postcode>${postcode3}</Postcode>
+    <Plaats>${plaats3}</Plaats>
+    <Land>${land3}</Land>
+    <Voorgemeld>${voorgemeld3}</Voorgemeld>
+    <Aankomst_verw>${aankomstVerw3}</Aankomst_verw>
+    <Tijslot_van>${tijslotVan3}</Tijslot_van>
+    <Tijslot_tm>${tijslotTm3}</Tijslot_tm>
+    <Portbase_code>${portbaseCode3}</Portbase_code>
+    <bicsCode>${bicsCode3}</bicsCode>
+  </Locatie>
 </Locaties>
 <Financieel>
 <Tarief>${parsed.tarief}</Tarief>
@@ -136,5 +274,9 @@ export async function parsePdfToEasyFile(pdfBuffer) {
 </Dossiers>
 </Order>`;
 
-  return xml;
+    return xml; // ✅ binnen try
+  } catch (err) {
+    console.error('❌ Fout in parseJordex:', err.message);
+    throw err;
+  }
 }
