@@ -14,15 +14,21 @@ function match(value, list) {
 
 async function fetchList(name) {
   const url = `${SUPABASE_LIST_URL}/${name}.json`;
-  console.log('🌍 Ophalen van lijst:', url);
+  console.log(`🌍 Ophalen lijst: ${url}`); // ✅ logt de URL die wordt aangeroepen
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    console.error(`❌ Kan lijst niet ophalen: ${name}.json`, await res.text());
-    return [];
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`❌ Fout bij ophalen van ${name}.json:`, errorText);
+      throw new Error(`❌ ${name}.json is niet bereikbaar: ${res.status} - ${errorText}`);
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error(`💥 Fout bij fetchList(${name}): ${err.message}`);
+    throw err; // gooi opnieuw om parse flow te stoppen
   }
-
-  return await res.json();
 }
 
 export async function generateXmlFromJson(data) {
