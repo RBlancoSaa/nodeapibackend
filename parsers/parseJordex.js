@@ -10,8 +10,6 @@ fs.readFileSync = function (path, ...args) {
   return originalReadFileSync.call(this, path, ...args);
 };
 
-import pdfParse from 'pdf-parse'; // ✅ pas na override importeren!
-
 export default async function parseJordex(pdfBuffer) {
   try {
     // ✅ Lazy import zodat fs-override op tijd actief is
