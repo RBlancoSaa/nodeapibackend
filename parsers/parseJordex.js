@@ -1,6 +1,5 @@
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
-import { parseJordex } from '../parsers/parseJordex.js';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -138,7 +137,4 @@ export async function parsePdfToEasyFile(pdfBuffer) {
 </Order>`;
 
   return xml;
-}
-export async function parseJordex(pdfBuffer) {
-  // jouw code
 }
