@@ -10,15 +10,16 @@ fs.readFileSync = function (path, ...args) {
   return originalReadFileSync.call(this, path, ...args);
 };
 
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
 export default async function parseJordex(pdfBuffer) {
   try {
-    // ✅ Lazy import zodat fs-override op tijd actief is
-    const { default: pdfParse } = await import('pdf-parse');
+    const { default: pdfParse } = await import('pdf-parse'); // ✅ juiste manier
     const parsed = await pdfParse(pdfBuffer);
     const text = parsed.text;
 
     // 🔍 Regex voorbeeld: simpele parse van opdrachtgevergegevens
-    const opdrachtgeverNaam = (text.match(/Opdrachtgever:\s*(.*)/i) || [])[1] || '';
+const opdrachtgeverNaam = (text.match(/Opdrachtgever:\s*(.*)/i) || [])[1] || '';
 const opdrachtgeverAdres = (text.match(/Adres:\s*(.*)/i) || [])[1] || '';
 const opdrachtgeverPostcode = (text.match(/Postcode:\s*(\d{4}\s?[A-Z]{2})/i) || [])[1] || '';
 const opdrachtgeverPlaats = (text.match(/Plaats:\s*(.*)/i) || [])[1] || '';
