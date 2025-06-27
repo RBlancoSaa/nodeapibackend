@@ -14,7 +14,7 @@ function match(value, list) {
 
 async function fetchList(name) {
   const url = `${SUPABASE_LIST_URL}/${name}.json`;
-  console.log(`🌍 Ophalen lijst: ${url}`); // ✅ logt de URL die wordt aangeroepen
+  console.log(`🌍 Ophalen lijst: ${url}`);
 
   try {
     const res = await fetch(url);
@@ -23,22 +23,22 @@ async function fetchList(name) {
       console.error(`❌ Fout bij ophalen van ${name}.json:`, errorText);
       throw new Error(`❌ ${name}.json is niet bereikbaar: ${res.status} - ${errorText}`);
     }
-
     return await res.json();
   } catch (err) {
-    console.error(`💥 Fout bij fetchList(${name}): ${err.message}`);
-    throw err; // gooi opnieuw om parse flow te stoppen
+    console.error(`💥 Fout bij lijst "${name}":`, err.message);
+    throw err;
   }
 }
 
 export async function generateXmlFromJson(data) {
-  const [rederijen, containers, klanten, charters, terminals] = await Promise.all([
-    fetchList('rederijen'),
-    fetchList('containers'),
-    fetchList('klanten'),
-    fetchList('charters'),
-    fetchList('terminals')
-  ]);
+  const [rederijen, containers, klanten, charters, terminals, opAfzetten] = await Promise.all([
+  fetchList('rederijen'),
+  fetchList('containers'),
+  fetchList('klanten'),
+  fetchList('charters'),
+  fetchList('terminals'),
+  fetchList('op_afzetten')  // ✅ nieuwe toevoeging
+]);
 
   const locaties = data.locaties || [];
   while (locaties.length < 3) {
