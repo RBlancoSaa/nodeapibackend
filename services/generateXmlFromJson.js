@@ -3,9 +3,13 @@ import fetch from 'node-fetch';
 
 const SUPABASE_LIST_URL = process.env.SUPABASE_LIST_PUBLIC_URL;
 
-function safe(value) {
-  const cleaned = typeof value === 'string' ? value.trim() : '';
-  return cleaned !== '' ? cleaned : '0';
+async function fetchList(name) {
+  const res = await fetch(`${SUPABASE_LIST_URL}/${name}.json`);
+  if (!res.ok) {
+    console.error(`❌ Kan lijst niet ophalen: ${name}.json`, await res.text());
+    return [];
+  }
+  return await res.json();
 }
 
 function match(value, list) {
