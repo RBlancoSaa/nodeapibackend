@@ -1,7 +1,7 @@
 //.parsePdfToEasyFile.js
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
-import { parseJordex } from '../parsers/parseJordex.js';
+import parseJordex from '../parsers/parseJordex.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 
 console.log('✅ SUPABASE_URL in parsePdfToEasyFile:', process.env.SUPABASE_URL); // Debug

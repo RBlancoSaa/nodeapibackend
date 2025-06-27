@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { parsePdfToEasyFile } from './parsePdfToEasyFile.js';
+import parsePdfToEasyFile from './parsePdfToEasyFile.js';
 import fetch from 'node-fetch';
 import nodemailer from 'nodemailer';
 
