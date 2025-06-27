@@ -12,6 +12,11 @@ async function fetchList(name) {
   return await res.json();
 }
 
+function safe(value) {
+  const cleaned = typeof value === 'string' ? value.trim() : '';
+  return cleaned !== '' ? cleaned : '0';
+}
+
 function match(value, list) {
   return list.includes(safe(value)) ? safe(value) : '0';
 }
