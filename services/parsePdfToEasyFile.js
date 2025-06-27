@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
-import { parseJordex } from './parsers/parseJordex.js';
+import { parseJordex } from '../parsers/parseJordex.js';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
