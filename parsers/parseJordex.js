@@ -1,4 +1,9 @@
 import fs from 'fs';
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase verbinding
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
 // ⛔️ Blokkeer testbestand vóór pdf-parse geladen wordt
 const originalReadFileSync = fs.readFileSync;
 fs.readFileSync = function (path, ...args) {
@@ -8,39 +13,35 @@ fs.readFileSync = function (path, ...args) {
   }
   return originalReadFileSync.call(this, path, ...args);
 };
-import { createClient } from '@supabase/supabase-js';
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 export default async function parseJordex(pdfBuffer) {
   try {
-    // ✅ Check op geldige buffer
+    const { default: pdfParse } = await import('pdf-parse');
+
+    // 🧪 Validatie PDF-buffer
     if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length === 0) {
-      console.warn('⚠️ Geen geldig PDF-buffer ontvangen');
+      console.warn('⚠️ Ongeldig of leeg PDF-buffer ontvangen');
       return {};
     }
 
-    console.log('📦 PDF buffer lengte:', pdfBuffer.length);
-    console.log('📦 PDF buffer type:', typeof pdfBuffer);
+    console.log('✅ PDF buffer lengte:', pdfBuffer.length);
+    console.log('✅ PDF buffer type:', typeof pdfBuffer);
 
-    // ✅ PDF inlezen
-    const { default: pdfParse } = await import('pdf-parse');
     const parsed = await pdfParse(pdfBuffer);
-
     if (!parsed || typeof parsed.text !== 'string') {
-      console.warn('⚠️ PDF-parsing mislukt: geen tekst gevonden');
+      console.warn('⚠️ PDF-parsing mislukt: parsed object ongeldig of geen tekst gevonden');
       return {};
     }
 
     const text = parsed.text;
-
     if (text.includes('05-versions-space')) {
-      console.warn('⚠️ Skipping test file: 05-versions-space.pdf');
+      console.warn('⚠️ Testbestand gedetecteerd, verwerking gestopt');
       return {};
     }
 
     console.log('📄 PDF-Tekst:\n', text);
 
-    // 🧠 Functies voor data-extractie
+    // 🛠 Hulpfunctie voor regex-extractie
     const getMatch = (regex, label) => {
       const match = text.match(regex);
       if (!match || !match[1]) console.warn(`⚠️ ${label} NIET gevonden in PDF`);
@@ -54,74 +55,69 @@ export default async function parseJordex(pdfBuffer) {
       return value || '';
     };
 
-
-    // 📄 Basisvelden uit PDF
+    // 🧾 Opdrachtgever (vast)
     const opdrachtgeverNaam = 'Jordex Shipping & Forwarding B.V.';
     const opdrachtgeverAdres = 'Ambachtsweg 6';
     const opdrachtgeverPostcode = '3161 GL';
     const opdrachtgeverPlaats = 'Rhoon';
+    console.log('✅ opdrachtgever:', opdrachtgeverNaam, opdrachtgeverAdres, opdrachtgeverPostcode, opdrachtgeverPlaats);
 
-    const referentie = getMatch(/Our reference:\s*(\S+)/i, 'referentie');
-    const rederijNaam = getMatch(/Carrier:\s*(.+)/i, 'rederijNaam');
-    const bootnaam = getMatch(/Vessel:\s*(.*)/i, 'bootnaam');
+    // 📦 Containerspecs
     const containertypeLabel = getMatch(/Cargo:\s*\d+\s*x\s*(.+)/i, 'containertype label');
     const containernummer = getMatch(/([A-Z]{3}U\d{7})/i, 'containernummer');
     const temperatuur = getMatch(/Temperature:\s*(-?\d+)/i, 'temperatuur');
-    const datumTijd = getMatch(/Date:\s*(\d{2} \w{3} \d{4})\s+(\d{2}:\d{2})/i, 'datum + tijd');
-    const closingDatum = getMatch(/Document closing:\s*(\d{2} \w{3} \d{4})/i, 'closingDatum');
-    const closingTijd = getMatch(/VGM closing:\s*\d{2} \w{3} \d{4}\s+(\d{2}:\d{2})/i, 'closingTijd');
-    const laadreferentie = getMatch(/Pick-up[\s\S]*?Reference\(s\):\s*(\d+)/i, 'laadreferentie');
-    const inleverreferentie = getMatch(/Drop-off terminal[\s\S]*?Reference\(s\):\s*(\d+)/i, 'inleverreferentie');
     const gewicht = getMatch(/Weight\s+(\d+)/i, 'gewicht');
     const volume = getMatch(/Volume\s+(\d+)/i, 'volume');
     const colli = getMatch(/Colli\s+(\d+)/i, 'colli');
     const lading = getMatch(/Description\s+([A-Z\s]+)/i, 'lading');
-    const inleverBestemming = getMatch(/To:\s*(.+)/i, 'inleverBestemming');
+    console.log('✅ container info:', containertypeLabel, containernummer, temperatuur, gewicht, volume, colli, lading);
 
-    
-    const datum = datumTijd.split(' ')[0] || '';
-    const tijdVan = datumTijd.split(' ')[1] || '';
+    // 📆 Tijd en datum
+    const datumTijd = getMatch(/Date:\s*(\d{2} \w{3} \d{4})\s+(\d{2}:\d{2})/i, 'datum + tijd');
+    const datum = datumTijd?.split(' ')[0] || '';
+    const tijdVan = datumTijd?.split(' ')[1] || '';
+    const closingDatum = getMatch(/Document closing:\s*(\d{2} \w{3} \d{4})/i, 'closingDatum');
+    const closingTijd = getMatch(/VGM closing:\s*\d{2} \w{3} \d{4}\s+(\d{2}:\d{2})/i, 'closingTijd');
+    console.log('✅ datum info:', datum, tijdVan, closingDatum, closingTijd);
 
-    // 📦 Supabase lookups
-    
+    // 🔄 Referenties
+    const referentie = getMatch(/Our reference:\s*(\S+)/i, 'referentie');
+    const laadreferentie = getMatch(/Pick-up[\s\S]*?Reference\(s\):\s*(\d+)/i, 'laadreferentie');
+    const inleverreferentie = getMatch(/Drop-off terminal[\s\S]*?Reference\(s\):\s*(\d+)/i, 'inleverreferentie');
+    console.log('✅ referenties:', referentie, laadreferentie, inleverreferentie);
+
+    // 🛳️ Rederijgegevens
+    const rederijNaam = getMatch(/Carrier:\s*(.+)/i, 'rederijNaam');
     const { data: rederijenFile } = await supabase.storage.from('referentielijsten').download('rederijen.json');
     const rederijenJson = JSON.parse(await rederijenFile.text());
-    const cleanedRederijInput = rederijNaam.split('-')[0].trim();
-
-const rederijData = rederijenJson.find(r =>
-  r.altLabels?.some(label => cleanedRederijInput.toLowerCase() === label.toLowerCase())
-);
-
-if (rederijData) {
-  console.log(`✅ Rederij herkend: ${rederijData.naam}`);
-} else {
-  console.warn(`⚠️ Rederij NIET gevonden voor invoer: ${cleanedRederijInput}`);
-}
-
+    const rederijData = rederijenJson.find(r => r.naam?.toUpperCase() === rederijNaam?.toUpperCase());
     const rederij = rederijData?.naam || '';
     const bicsCode = rederijData?.bicsCode || '';
     const portbaseCode = rederijData?.Portbase_code || '';
-    const voorgemeld = rederijData?.Voorgemeld || '';
+    console.log('✅ rederij:', rederij, bicsCode, portbaseCode);
 
+    // 🚢 Boot
+    const bootnaam = getMatch(/Vessel:\s*(.*)/i, 'bootnaam');
+    const inleverBestemming = getMatch(/To:\s*(.+)/i, 'inleverBestemming');
+    console.log('✅ boot:', bootnaam, inleverBestemming);
+
+    // 🧊 Containertype lookup
     const { data: containersFile } = await supabase.storage.from('referentielijsten').download('containertypes.json');
     const containersJson = JSON.parse(await containersFile.text());
     const containerType = containersJson.find(c => containertypeLabel.toLowerCase().includes(c.label.toLowerCase()));
     const containertype = containerType?.code || '';
+    console.log('✅ containertype:', containertype);
 
+    // 📍 Terminalgegevens
     const { data: terminalsFile } = await supabase.storage.from('referentielijsten').download('terminals.json');
     const terminals = JSON.parse(await terminalsFile.text());
-
     const uithaalTerminalText = getMatch(/Pick-up terminal\s*Address:\s*([\s\S]*?)Cargo:/i, 'uithaalTerminal');
     const inleverTerminalText = getMatch(/Drop-off terminal\s*Address:\s*([\s\S]*?)Cargo:/i, 'inleverTerminal');
+    const locatie2Terminal = terminals.find(t => uithaalTerminalText?.toLowerCase().includes(t.naam.toLowerCase()));
+    const locatie3Terminal = terminals.find(t => inleverTerminalText?.toLowerCase().includes(t.naam.toLowerCase()));
+    console.log('✅ terminals:', locatie2Terminal?.naam, locatie3Terminal?.naam);
 
-    const locatie2Terminal = terminals.find(t =>
-      uithaalTerminalText?.toLowerCase().includes(t.naam.toLowerCase())
-    );
-    const locatie3Terminal = terminals.find(t =>
-      inleverTerminalText?.toLowerCase().includes(t.naam.toLowerCase())
-    );
-
-    // 📍 Klantlocatie
+    // 📦 Klantlocatie
     const klantAdresBlok = getMatch(/Pick-up\s*Address:\s*([\s\S]*?)Cargo:/i, 'klantAdres');
     const klantregels = klantAdresBlok?.split('\n').map(r => r.trim()).filter(Boolean) || [];
     const klantNaam = klantregels[0] || '';
@@ -129,10 +125,12 @@ if (rederijData) {
     const klantPostcodePlaats = klantregels[2] || '';
     const [klantPostcode, ...klantPlaatsDelen] = klantPostcodePlaats.split(' ');
     const klantPlaats = klantPlaatsDelen.join(' ');
+    console.log('✅ klantlocatie:', klantNaam, klantAdres, klantPostcode, klantPlaats);
 
-    
-    // 📌 Locaties
-    const locaties = [
+    // ✅ Succesvolle parsing
+    console.log('✅ Jordex-parser afgerond zonder fatale fouten');
+
+    return [
       {
         actie: 'Laden',
         naam: klantNaam,
