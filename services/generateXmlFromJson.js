@@ -60,7 +60,7 @@ export async function generateXmlFromJson(data) {
   }
 
 
-  return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Order>
 <Dossiers><Dossier>
 <Opdrachtgever>
