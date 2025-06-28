@@ -31,7 +31,7 @@ async function fetchList(name) {
 }
 
 export async function generateXmlFromJson(data) {
-   console.log('📄 Input voor XML-generator:', JSON.stringify(json, null, 2));
+   console.log('📄 Input voor XML-generator:', JSON.stringify(data, null, 2));
   const [rederijen, containers, klanten, charters, terminals, opAfzetten] = await Promise.all([
   fetchList('rederijen'),
   fetchList('containers'),
