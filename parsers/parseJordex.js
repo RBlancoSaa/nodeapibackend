@@ -9,6 +9,9 @@ fs.readFileSync = function (path, ...args) {
   }
   return originalReadFileSync.call(this, path, ...args);
 };
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 export default async function parseJordex(pdfBuffer) {
   try {
