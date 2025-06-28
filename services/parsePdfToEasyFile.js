@@ -1,12 +1,4 @@
 import fs from 'fs';
-import { createClient } from '@supabase/supabase-js';
-import pdfParse from 'pdf-parse';
-import parseJordex from '../parsers/parseJordex.js';
-import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-
-// Testbestand blokkeren
 const originalReadFileSync = fs.readFileSync;
 fs.readFileSync = function (path, ...args) {
   if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
@@ -15,6 +7,13 @@ fs.readFileSync = function (path, ...args) {
   }
   return originalReadFileSync.call(this, path, ...args);
 };
+
+import { createClient } from '@supabase/supabase-js';
+import pdfParse from 'pdf-parse';
+import parseJordex from '../parsers/parseJordex.js';
+import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 export default async function parsePdfToEasyFile(pdfBuffer) {
   console.log('📥 Start parser...');
