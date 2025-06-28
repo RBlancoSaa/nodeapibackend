@@ -35,6 +35,7 @@ export default async function parsePdfToEasyFile(pdfBuffer) {
   const parsedData = await parseJordex(pdfBuffer, text);
 
   console.log('📄 parsedData naar XML:', parsedData); // Debug
+console.log('🔍 parsedData:', parsedData);
 
   const xml = await generateXmlFromJson(parsedData); // Genereer XML-string
 

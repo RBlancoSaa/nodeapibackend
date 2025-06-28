@@ -315,6 +315,7 @@ const result = {
      if (logOntbrekend.length > 0) {
   console.warn('⚠️ Ontbrekende velden in Jordex-parser:', logOntbrekend.join(', '));
 }
-
+console.log('✅ Parser result:', result);
 return result;
+
 }
