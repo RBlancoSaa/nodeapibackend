@@ -140,6 +140,12 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       };
 
       console.log(`📡 Versturen naar generate-easy-files`, payload);
+console.log('📡 Versturen naar generate-easy-files', {
+  xmlBase64,
+  reference,
+  laadplaats,
+  url: `${process.env.PUBLIC_URL}/api/generate-easy-files`
+});
 
       const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
         method: 'POST',
