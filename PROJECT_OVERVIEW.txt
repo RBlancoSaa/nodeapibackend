@@ -175,3 +175,24 @@ nodeapibackend/
 - De `.easy`-bestanden moeten aan een vaste XML-structuur voldoen.
 
 Laatste update: 2025-06-27
+
+Update 28-06-2025
+✅ Laatste updates verwerkt in de OVERVIEW:
+
+generateXmlFromJson.js bevat nu een veilige safe()-functie om ontbrekende of lege waarden op te vangen met '0'.
+
+Alle referentielijsten worden correct geladen vanaf:
+https://pxgpycnzbdapgybtadiz.supabase.co/storage/v1/object/public/referentielijsten/*.json
+
+De fout "Invalid URL" is opgelost door te zorgen dat process.env.PUBLIC_URL correct geladen is vóór de POST.
+
+Logging van payload + endpoint wordt nu getoond bij iedere aanroep van /api/generate-easy-files, inclusief base64 en laadplaats.
+
+.easy-bestand wordt zelfs bij incomplete data succesvol opgeslagen en verstuurd via SMTP.
+
+Voorbeeld: Order_GeenReferentie_0.easy met volledig correct opgebouwd XML in juiste structuur.
+
+Alle logs, uploadresultaten en foutmeldingen worden netjes weergegeven in Vercel dashboard.
+
+
+
