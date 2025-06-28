@@ -9,33 +9,38 @@ fs.readFileSync = function (path, ...args) {
   return originalReadFileSync.call(this, path, ...args);
 };
 import { createClient } from '@supabase/supabase-js';
-
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 export default async function parseJordex(pdfBuffer) {
   try {
-    if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
+    // ✅ Check op geldige buffer
+    if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length === 0) {
       console.warn('⚠️ Geen geldig PDF-buffer ontvangen');
       return {};
     }
 
+    console.log('📦 PDF buffer lengte:', pdfBuffer.length);
+    console.log('📦 PDF buffer type:', typeof pdfBuffer);
+
+    // ✅ PDF inlezen
     const { default: pdfParse } = await import('pdf-parse');
     const parsed = await pdfParse(pdfBuffer);
 
-if (!parsed || !parsed.text) {
-  console.warn('⚠️ PDF-parsing mislukt: geen tekst gevonden in bestand');
-  return {};
-}
+    if (!parsed || typeof parsed.text !== 'string') {
+      console.warn('⚠️ PDF-parsing mislukt: geen tekst gevonden');
+      return {};
+    }
 
-const text = parsed.text;
+    const text = parsed.text;
 
     if (text.includes('05-versions-space')) {
       console.warn('⚠️ Skipping test file: 05-versions-space.pdf');
       return {};
     }
 
-console.log('📄 PDF-Tekst:\n', text);
+    console.log('📄 PDF-Tekst:\n', text);
 
+    // 🧠 Functies voor data-extractie
     const getMatch = (regex, label) => {
       const match = text.match(regex);
       if (!match || !match[1]) console.warn(`⚠️ ${label} NIET gevonden in PDF`);
@@ -48,6 +53,7 @@ console.log('📄 PDF-Tekst:\n', text);
       if (!value) logOntbrekend.push(label);
       return value || '';
     };
+
 
     // 📄 Basisvelden uit PDF
     const opdrachtgeverNaam = 'Jordex Shipping & Forwarding B.V.';
