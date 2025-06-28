@@ -1,13 +1,4 @@
-import express from 'express';
-import dotenv from 'dotenv';
-import { ImapFlow } from 'imapflow';
-import path from 'path';
-import nodemailer from 'nodemailer';
-import { createClient } from '@supabase/supabase-js';
-import { uploadPdfAttachmentsToSupabase } from './services/uploadPdfAttachmentsToSupabase.js';
 import fs from 'fs';
-import fsPromises from 'fs/promises';
-
 // Blokkeer toegang tot testbestand van pdf-parse
 const originalReadFileSync = fs.readFileSync;
 fs.readFileSync = function (path, ...args) {
@@ -17,6 +8,14 @@ fs.readFileSync = function (path, ...args) {
   }
   return originalReadFileSync.call(this, path, ...args);
 };
+import express from 'express';
+import dotenv from 'dotenv';
+import { ImapFlow } from 'imapflow';
+import path from 'path';
+import nodemailer from 'nodemailer';
+import { createClient } from '@supabase/supabase-js';
+import { uploadPdfAttachmentsToSupabase } from './services/uploadPdfAttachmentsToSupabase.js';
+
 
 dotenv.config();
 
