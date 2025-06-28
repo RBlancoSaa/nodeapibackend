@@ -1,13 +1,4 @@
 import fs from 'fs';
-// Blokkeer toegang tot testbestand van pdf-parse
-const originalReadFileSync = fs.readFileSync;
-fs.readFileSync = function (path, ...args) {
-  if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
-    console.warn('⛔️ Testbestand geblokkeerd:', path);
-    return Buffer.from(''); // Leeg buffer retourneert niets
-  }
-  return originalReadFileSync.call(this, path, ...args);
-};
 import express from 'express';
 import dotenv from 'dotenv';
 import { ImapFlow } from 'imapflow';
@@ -15,7 +6,6 @@ import path from 'path';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 import { uploadPdfAttachmentsToSupabase } from './services/uploadPdfAttachmentsToSupabase.js';
-
 
 dotenv.config();
 

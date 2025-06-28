@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-// 🛑 Blokkeer het testbestand vóór alles
+// ⛔️ Blokkeer testbestand vóór pdf-parse geladen wordt
 const originalReadFileSync = fs.readFileSync;
 fs.readFileSync = function (path, ...args) {
   if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
@@ -17,7 +17,6 @@ export default async function parseJordex(pdfBuffer) {
       return {};
     }
 
-    // ✅ Dynamisch importeren ná override
     const { default: pdfParse } = await import('pdf-parse');
     const parsed = await pdfParse(pdfBuffer);
     const text = parsed.text;
@@ -33,28 +32,14 @@ export default async function parseJordex(pdfBuffer) {
       return match?.[1]?.trim() || '';
     };
 
-    // voorbeeld:
-    const referentie = getMatch(/Our reference:\s*(\S+)/i, 'referentie');
-
-    return {
-      referentie,
-      // ...alle andere velden nog invullen
-    };
-  } catch (err) {
-    console.error('❌ Fout in parseJordex:', err.message);
-    throw err;
-  }
-}
-
     const opdrachtgeverNaam = getMatch(/Opdrachtgever:\s*(.*)/i, 'opdrachtgeverNaam');
-    const referentie = getMatch(/Reference\(s\):\s*(\d+)/i, 'referentie');
+    const referentie = getMatch(/Our reference:\s*(\S+)/i, 'referentie');
     const bootnaam = getMatch(/Vessel:\s*(.*)/i, 'bootnaam');
     const rederij = getMatch(/Carrier:\s*(.*)/i, 'rederij');
-    const containertype = getMatch(/1\s+X\s+(\d{2})[\'’]?[\s\-]+high\s+cube\s+reefer/i, 'containertype');
+    const containertype = getMatch(/1\s+X\s+(\d{2})[\'’]?\s+high\s+cube\s+reefer/i, 'containertype');
     const temperatuur = getMatch(/Temperature:\s*(-?\d+)/i, 'temperatuur');
     const datumTijd = getMatch(/Date:\s*(\d{2}\s+\w+\s+\d{4})\s+(\d{2}:\d{2})/i, 'datum + tijd');
     const containernummer = getMatch(/Reference\(s\):\s*(\d{8,})/i, 'containernummer');
-
     const opdrachtgeverAdres = getMatch(/Address:\s*([\w\s\.\-']+\n[^\n]+)/i, 'opdrachtgeverAdres');
     const opdrachtgeverPostcode = getMatch(/(\d{4}\s?[A-Z]{2})/i, 'opdrachtgeverPostcode');
     const opdrachtgeverPlaats = getMatch(/\n(\w{3,})$/im, 'opdrachtgeverPlaats');
