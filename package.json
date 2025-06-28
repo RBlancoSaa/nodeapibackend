@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "vercel-build": "echo '✅ Vercel build zonder testmap actief'"
+    "vercel-build": "echo '✅ Vercel build zonder testmap actief'",
+    "test": "echo \"No test specified\" && exit 0"
+
   },
   "repository": {
     "type": "git",
