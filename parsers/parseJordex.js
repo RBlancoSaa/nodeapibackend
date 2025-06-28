@@ -75,8 +75,17 @@ export default async function parseJordex(pdfBuffer) {
     }
     const rederijenJson = JSON.parse(await rederijenFile.text());
     const rederijData = rederijenJson.find(r =>
-      [r.naam, ...(r.altLabels || [])].some(label => label?.toLowerCase() === rederijNaam?.toLowerCase())
-    ) || {};
+  [r.naam, ...(r.altLabels || [])].some(label =>
+    rederijNaam?.toLowerCase().includes(label.toLowerCase())
+  )
+);
+
+if (!rederijData) {
+  console.warn(`⚠️ Rederij niet herkend op basis van naam: ${rederijNaam}`);
+} else {
+  console.log('✅ Gevonden Rederij:', rederijData.naam);
+}
+
     const rederij = rederijData.naam || '';
     const bicsCode = rederijData.bicsCode || '';
     const portbaseCode = rederijData.Portbase_code || '';
@@ -94,9 +103,16 @@ if (!containersFile) {
 }
 
 const containersJson = JSON.parse(await containersFile.text());
-    const containerType = containersJson.find(c => containertypeLabel.toLowerCase().includes(c.label.toLowerCase())) || {};
-    const containertype = containerType.code || '';
-    console.log('✅ containertype:', containertype);
+    const containerType = containersJson.find(c =>
+  containertypeLabel?.toLowerCase().includes(c.label?.toLowerCase())
+);
+
+if (!containerType) {
+  console.warn(`⚠️ ContainerType niet herkend op basis van label: ${containertypeLabel}`);
+} else {
+  console.log('✅ Gevonden ContainerType:', containerType.code);
+}
+
 
     const { data: terminalsFile, error: terminalsError } = await supabase.storage.from('referentielijsten').download('terminals.json');
     if (!terminalsFile) {
@@ -109,9 +125,26 @@ const containersJson = JSON.parse(await containersFile.text());
     const uithaalTerminalText = getMatch(/Pick-up terminal\s*Address:\s*([\s\S]*?)Cargo:/i, 'uithaalTerminal');
     const inleverTerminalText = getMatch(/Drop-off terminal\s*Address:\s*([\s\S]*?)Cargo:/i, 'inleverTerminal');
 
-    const locatie2Terminal = terminals.find(t => uithaalTerminalText?.toLowerCase().includes(t.naam?.toLowerCase()));
-    const locatie3Terminal = terminals.find(t => inleverTerminalText?.toLowerCase().includes(t.naam?.toLowerCase()));
+    const locatie2Terminal = terminals.find(t =>
+  uithaalTerminalText?.toLowerCase().includes(t.naam?.toLowerCase()) ||
+  t.adres?.toLowerCase() === uithaalTerminalText?.toLowerCase()
+);
 
+if (!locatie2Terminal) {
+  console.warn(`⚠️ Uithaalterminal niet herkend: ${uithaalTerminalText}`);
+} else {
+  console.log('✅ Gevonden Uithaalterminal:', locatie2Terminal.naam);
+}
+    const locatie3Terminal = terminals.find(t =>
+  inleverTerminalText?.toLowerCase().includes(t.naam?.toLowerCase()) ||
+  t.adres?.toLowerCase() === inleverTerminalText?.toLowerCase()
+);
+
+if (!locatie3Terminal) {
+  console.warn(`⚠️ Inleverterminal niet herkend: ${inleverTerminalText}`);
+} else {
+  console.log('✅ Gevonden Inleverterminal:', locatie3Terminal.naam);
+}
     console.log('✅ Terminal 2 (uithaal):', locatie2Terminal?.naam);
     console.log('✅ Terminal 3 (inlever):', locatie3Terminal?.naam);
 
