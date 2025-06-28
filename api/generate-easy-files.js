@@ -34,6 +34,9 @@ export default async function handler(req, res) {
   console.log('📥 Ontvangen JSON in /generate-easy-files:', JSON.stringify(data, null, 2));
 
   try {
+    if (!data || typeof data !== 'object') {
+  return res.status(400).json({ success: false, message: 'Ongeldige inputdata ontvangen' });
+}
     const reference = data.klantreferentie || 'GeenReferentie';
     const laadplaats = data.laadplaats || 'GeenPlaats';
 
