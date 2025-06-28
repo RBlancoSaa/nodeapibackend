@@ -28,6 +28,8 @@ export default async function parseJordex(pdfBuffer) {
       return {};
     }
 
+console.log('📄 PDF-Tekst:\n', text);
+
     const getMatch = (regex, label) => {
       const match = text.match(regex);
       if (!match || !match[1]) console.warn(`⚠️ ${label} NIET gevonden in PDF`);
