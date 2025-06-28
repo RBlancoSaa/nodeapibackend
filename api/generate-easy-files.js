@@ -26,6 +26,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
+  console.log('📥 Data ontvangen in /generate-easy-files:', JSON.stringify(req.body, null, 2));
   try {
     const json = req.body;
     const reference = json.klantreferentie || 'GeenReferentie';
