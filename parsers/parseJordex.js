@@ -1,52 +1,56 @@
-import pdfParse from 'pdf-parse';
+// 📁 parsers/parseJordex.js
 
 export default async function parseJordex(pdfBuffer) {
   try {
+    if (!pdfBuffer || Buffer.isBuffer(pdfBuffer) === false) {
+  console.warn("⚠️ Geen geldig PDF-buffer ontvangen");
+  return {};
+    }
+    const { default: pdfParse } = await import('pdf-parse');
     const parsed = await pdfParse(pdfBuffer);
     const text = parsed.text;
 
-    // 🧠 Extract basic container data
-    const opdrachtgeverNaam = (text.match(/Opdrachtgever:?\s*(.*)/i) || [])[1] || 'Jordex';
-    const referentie = (text.match(/Our reference:?\s*(\S+)/i) || [])[1] || '';
-    const bootnaam = (text.match(/Vessel:?\s*(.*)/i) || [])[1] || '';
-    const rederij = (text.match(/Carrier:?\s*(.*)/i) || [])[1] || '';
-    const containertypeRaw = (text.match(/(\d{2}[A-Z]\d)/i) || [])[1] || '';
-    const containernummer = (text.match(/Container number:?\s*([A-Z]{4}\d{7})/i) || [])[1] || '';
-    const temperatuur = (text.match(/Temperature:?\s*(-?\d+)/i) || [])[1] || '';
-    const tarra = (text.match(/Tarra:?\s*(\d+)/i) || [])[1] || '';
-    const brutogewicht = (text.match(/Gross weight:?\s*(\d+)/i) || [])[1] || '';
-    const cbm = (text.match(/CBM:?\s*(\d+(\.\d+)?)/i) || [])[1] || '';
-    const zegel = (text.match(/Seal:?\s*(.*)/i) || [])[1] || '';
+    const logIfMissing = (label, value) => {
+      if (!value) console.warn(`⚠️ ${label} NIET gevonden in PDF`);
+      return value || '';
+    };
 
-    // 📍 Pick-up en Drop-off gegevens
-    const laadref = (text.match(/Pick[- ]?up ref.?\s*[:\-]?\s*(.*)/i) || [])[1] || '';
-    const pickuploc = (text.match(/Pick[- ]?up:?\s*([\s\S]*?)Drop[- ]?off/i) || [])[1] || '';
-    const droploc = (text.match(/Drop[- ]?off:?\s*([\s\S]*?)$/i) || [])[1] || '';
+    // Referentie uit "Our reference"
+    const referentie = logIfMissing('Referentie', (text.match(/Our reference:\s*(\S+)/i) || [])[1]);
 
-    // 🧹 Clean pick-up en drop-off details
-    function extractLocationDetails(block) {
-      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
-      return {
-        naam: lines[0] || '',
-        adres: lines[1] || '',
-        postcode: (lines[2]?.match(/\d{4}\s?[A-Z]{2}/) || [])[0] || '',
-        plaats: lines[2]?.replace(/\d{4}\s?[A-Z]{2}/, '').trim() || '',
-        land: 'NL',
-        actie: '',
-        voorgemeld: '',
-        aankomst_verw: '',
-        tijslot_van: '',
-        tijslot_tm: '',
-        portbase_code: '',
-        bicsCode: ''
-      };
-    }
+    // Bootnaam
+    const bootnaam = logIfMissing('Bootnaam', (text.match(/Vessel:\s*(.*)/i) || [])[1]);
 
-    const locatie1 = extractLocationDetails(pickuploc);
-    locatie1.actie = 'Laden';
+    // Rederij
+    const rederij = logIfMissing('Rederij', (text.match(/Carrier:\s*(.*)/i) || [])[1]);
 
-    const locatie2 = extractLocationDetails(droploc);
-    locatie2.actie = 'Inleveren';
+    // Container type (inclusief 20', 40', reefer enz)
+    const containertype = logIfMissing('Containertype', (text.match(/(\d{2})['’]?\s+high\s+cube\s+reefer/i) || [])[0]);
+
+    // Temperatuur (mag ook negatief zijn)
+    const temperatuur = logIfMissing('Temperatuur', (text.match(/Temperature:\s*(-?\d+)[°º]?C/i) || [])[1]);
+
+    // ADR (optioneel)
+    const adr = (text.match(/IMO:\s*(\S+)/i) || [])[1] || '';
+
+    // Gewicht, tarra, brutogewicht, volume (optioneel)
+    const tarra = (text.match(/Tarra:\s*(\d+)/i) || [])[1] || '';
+    const brutogewicht = (text.match(/Gross weight:\s*(\d+)/i) || [])[1] || '';
+    const geladenGewicht = (text.match(/Net weight:\s*(\d+)/i) || [])[1] || '';
+    const cbm = (text.match(/Volume:\s*(\d+(\.\d+)?)/i) || [])[1] || '';
+
+    // Pick-up datum en tijd: dit is de ENIGE geldige datum
+    const dateMatch = text.match(/Pick[-\s]?up[\s\S]*?Date:\s*(\d{2} \w{3} \d{4}) (\d{2}:\d{2})/i);
+    const datum = logIfMissing('Datum', dateMatch?.[1]);
+    const tijdVan = logIfMissing('Tijd van', dateMatch?.[2]);
+
+    // Klantreferentie onder Pick-up → Reference(s):
+    const klantrefMatch = text.match(/Pick[-\s]?up[\s\S]*?Reference\(s\):\s*(\S+)/i);
+    const laadreferentie = logIfMissing('Laadreferentie', klantrefMatch?.[1]);
+
+    // Klantnaam uit Pick-up blok
+    const opdrachtgeverNaam = logIfMissing('Opdrachtgever naam', (text.match(/Pick[-\s]?up[\s\S]*?Address:\s*([\w\s.&'-]+)/i) || [])[1]);
+
 
     // 🧾 Teruggeven volledige JSON
     return {
