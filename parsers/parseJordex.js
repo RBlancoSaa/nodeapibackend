@@ -12,13 +12,7 @@ import pdfParse from 'pdf-parse';
 
     const parsed = await pdfParse(pdfBuffer);
     const text = parsed.text;
-
-    // ❗ Sla test-bestanden zoals '05-versions-space.pdf' over
-    if (text.includes('05-versions-space')) {
-      console.warn('⚠️ Skipping test file: 05-versions-space.pdf');
-      return {};
-    }
-
+    
     const getMatch = (regex, label) => {
       const match = text.match(regex);
       if (!match || !match[1]) console.warn(`⚠️ ${label} NIET gevonden in PDF`);
