@@ -6,6 +6,17 @@ import fs from 'fs/promises';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 import { uploadPdfAttachmentsToSupabase } from './services/uploadPdfAttachmentsToSupabase.js';
+import fs from 'fs';
+
+// Blokkeer toegang tot testbestand van pdf-parse
+const originalReadFileSync = fs.readFileSync;
+fs.readFileSync = function (path, ...args) {
+  if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
+    console.warn('⛔️ Testbestand geblokkeerd:', path);
+    return Buffer.from(''); // Leeg buffer retourneert niets
+  }
+  return originalReadFileSync.call(this, path, ...args);
+};
 
 dotenv.config();
 
