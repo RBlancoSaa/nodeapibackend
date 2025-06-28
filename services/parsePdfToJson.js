@@ -1,6 +1,10 @@
 import pdfParse from 'pdf-parse';
 import parseJordex from '../parsers/parseJordex.js';
+const { default: pdfParse } = await import('pdf-parse');
+const parsed = await pdfParse(pdfBuffer);
+const text = parsed.text;
 
+return await parseJordex(pdfBuffer, text);
 export default async function parsePdfToJson(buffer) {
   if (!buffer || !Buffer.isBuffer(buffer)) {
     console.warn('⚠️ Ongeldige PDF-buffer');

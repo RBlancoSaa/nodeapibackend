@@ -14,47 +14,19 @@ fs.readFileSync = function (path, ...args) {
 };
 
 export default async function parseJordex(pdfBuffer, text) {
-  // GEEN opnieuw pdfParse doen
-  // Gebruik direct de `text`-variabele
-
-  if (!text) {
+  if (!text || typeof text !== 'string') {
     console.warn('⚠️ Geen tekstinhoud ontvangen in Jordex-parser');
     return {};
   }
 
-  // vanaf hier jouw bestaande logic
-}
-    const { default: pdfParse } = await import('pdf-parse');
-    const logOntbrekend = [];
+  const logOntbrekend = [];
 
-    // ✅ PDF-buffer controleren
-    if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length === 0) {
-      console.warn('⚠️ Ongeldig of leeg PDF-buffer ontvangen');
-      return {};
-    }
-    console.log('✅ PDF buffer lengte:', pdfBuffer.length);
-    console.log('✅ PDF buffer type:', typeof pdfBuffer);
-
-    const parsed = await pdfParse(pdfBuffer);
-    if (!parsed || typeof parsed.text !== 'string') {
-      console.warn('⚠️ PDF-parsing mislukt: geen tekst gevonden');
-      return {};
-    }
-
-    const text = parsed.text;
-    console.log('📄 PDF-Tekst:\n', text);
-
-    if (text.includes('05-versions-space')) {
-      console.warn('⚠️ Skipping test file: 05-versions-space.pdf');
-      return {};
-    }
-
-    const getMatch = (regex, label) => {
-      const match = text.match(regex);
-      if (!match || !match[1]) console.warn(`⚠️ ${label} NIET gevonden in PDF`);
-      else console.log(`✅ ${label}:`, match[1].trim());
-      return match?.[1]?.trim() || '';
-    };
+  const getMatch = (regex, label) => {
+    const match = text.match(regex);
+    if (!match || !match[1]) console.warn(`⚠️ ${label} NIET gevonden in PDF`);
+    else console.log(`✅ ${label}:`, match[1].trim());
+    return match?.[1]?.trim() || '';
+  };
 
     // ✅ Referenties
     const referentie = getMatch(/Our reference:\s*(\S+)/i, 'referentie');
@@ -299,14 +271,9 @@ voorgemeld,
       locaties
     };
 
-    if (logOntbrekend.length > 0) {
-      console.warn('⚠️ Ontbrekende velden in Jordex-parser:', logOntbrekend.join(', '));
-    }
+     if (logOntbrekend.length > 0) {
+  console.warn('⚠️ Ontbrekende velden in Jordex-parser:', logOntbrekend.join(', '));
+}
 
-    return result;
-
-  } catch (err) {
-    console.error('❌ Fout in parseJordex:', err.message);
-    throw err;
-  }
+return result;
 }
