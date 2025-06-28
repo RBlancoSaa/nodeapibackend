@@ -195,4 +195,65 @@ Voorbeeld: Order_GeenReferentie_0.easy met volledig correct opgebouwd XML in jui
 Alle logs, uploadresultaten en foutmeldingen worden netjes weergegeven in Vercel dashboard.
 
 
+Projectoverzicht Easytrip Automator – Update 29 juni 2025
+
+📍 Huidige status (werkend maar incompleet)
+Parser loopt succesvol end-to-end zonder crashes of missing modules
+.pdf wordt correct geüpload naar Supabase via upload-from-inbox
+Parser (parseJordex) wordt correct aangeroepen
+XML wordt gegenereerd via generateXmlFromJson
+.easy bestand wordt gegenereerd n gemaild
+
+🧠 Wat hebben we vandaag geleerd?
+pdf-parse probeert automatisch testbestanden te laden, zelfs als je die niet gebruikt. Dit veroorzaakte ENOENT-errors.
+Oplossing: override op fs.readFileSync werkt ✅
+De parseJordex parser mag zelf geen pdf-parse meer aanroepen, die wordt al uitgevoerd in parsePdfToJson
+Parser accepteert nu text als input, los van de pdfBuffer
+parsePdfToEasyFile.js moet parsePdfToJson aanroepen, en die geeft text + buffer door aan parseJordex
+Vercel probeert intern test/data/05-versions-space.pdf te openen, dus dat moet geblokkeerd blijven ook in productie
+.easy bestanden blijven gevuld met 0 als parseJordex geen bruikbare text ontvangt of matching labels mist
+
+🚧 Wat gaat nog fout?
+parsePdfToEasyFile.js roept direct parseJordex aan, dus de tekst (text) wordt niet meegegeven ➝ hierdoor is alles 0
+parseJordex verwacht zowel pdfBuffer als text, en zonder text doet de parser niets
+De .easy bestanden worden wel gegeneerd, maar zijn leeg omdat parsedData = {} is
+✅ Wat moet morgen gebeuren?
+
+🧾 Belangrijke bestanden en flow
+📁 /api/upload-from-inbox.js        // ontvangt e-mails, haalt PDF eruit
+📁 /services/uploadPdfAttachmentsToSupabase.js // slaat PDF op
+📁 /services/parsePdfToJson.js      // voert pdf-parse uit, detecteert klant
+📁 /parsers/parseJordex.js          // haalt velden uit tekst, geen pdf-parse meer!
+📁 /services/generateXmlFromJson.js // maakt .easy XML van JSON
+📁 /services/parsePdfToEasyFile.js  // coördineert parsing + XML-generatie
+
+📦 Wat werkt goed?
+E-mail ophalen, PDF extractie, Supabase opslag
+Testbestand blokkeren ✅
+Tekst extractie werkt ✅
+XML-structuur en opslag ✅
+SMTP-verzending met bijlagen ✅
+
+⚠️ Wat is nog kwetsbaar?
+Parser is afhankelijk van exacte regex en Supabase-JSON match
+Terminal-lookup kan nog falen als naam afwijkt
+.easy naamgeving nog te controleren op volledigheid
+Geen fallback of melding als parsedData leeg blijft
+
+🧭 Richting voor morgen
+Parser robuust maken voor meerdere PDF layouts (tolerantie)
+.easy filenames uitbreiden met laadplaats + referentie
+In dashboard laten zien welke PDF ➝ welk EasyFile werd
+Start maken aan inbox 2 (updates) zodra parsing 100% stabiel is
+
+💡 Samenvatting
+We hebben de parser-keten bijna volledig correct, maar de text komt niet aan in parseJordex als parsePdfToJson niet wordt aangeroepen. Zodra dat hersteld is, zal het systeem correcte .easy-bestanden genereren. Supabase, e-mail, opslag en verzendlogica zijn volledig live. We zijn nu bij stap "finetunen parser en XML-invoer", daarna volgt inbox 2 (updates herkennen) en visuele logging in dashboard.
+Morgen starten we met:
+✅ parsePdfToEasyFile koppelen aan parsePdfToJson
+✅ parsedData loggen vóór XML
+✅ min. 1 rit met correct ingevuld .easy-bestand live testen
+✅ commit & deploy via Vercel met controle op .easy inhoud
+Alles wat werkt moet blijven zoals het nu is – alleen koppeling text ➝ parseJordex herstellen.
+🚀 Je bent er bijna!
+
 
