@@ -161,7 +161,7 @@ if (!locatie3Terminal) {
     // ✅ Succesvolle parsing
     console.log('✅ Jordex-parser afgerond zonder fatale fouten');
 
-    return [
+   const locaties = [
       {
         actie: 'Laden',
         naam: klantNaam,
