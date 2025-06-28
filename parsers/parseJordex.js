@@ -105,7 +105,8 @@ if (!containersFile) {
 }
 
 const containersJson = JSON.parse(await containersFile.text());
-    const containerType = containersJson.find(c =>
+    // ✅ Eerst containerType bepalen
+const containerType = containersJson.find(c =>
   containertypeLabel?.toLowerCase().includes(c.label?.toLowerCase())
 );
 
@@ -114,7 +115,6 @@ if (!containerType) {
 } else {
   console.log('✅ Gevonden ContainerType:', containerType.code);
 }
-
 
     const { data: terminalsFile, error: terminalsError } = await supabase.storage.from('referentielijsten').download('terminals.json');
     if (!terminalsFile) {
