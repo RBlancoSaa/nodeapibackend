@@ -84,12 +84,16 @@ export default async function parseJordex(pdfBuffer) {
 
     console.log('✅ Rederij:', rederij, bicsCode, portbaseCode);
 
-    const { data: containersFile, error: containersError } = await supabase.storage.from('referentielijsten').download('containertypes.json');
-    if (!containersFile) {
-      console.warn('⚠️ containertypes.json niet gevonden:', containersError?.message || 'Geen data');
-      return {};
-    }
-    const containersJson = JSON.parse(await containersFile.text());
+    const { data: containersFile, error: containersError } = await supabase.storage
+  .from('referentielijsten')
+  .download('containers.json');
+
+if (!containersFile) {
+  console.warn('⚠️ containers.json NIET gevonden in Supabase');
+  return {};
+}
+
+const containersJson = JSON.parse(await containersFile.text());
     const containerType = containersJson.find(c => containertypeLabel.toLowerCase().includes(c.label.toLowerCase())) || {};
     const containertype = containerType.code || '';
     console.log('✅ containertype:', containertype);
