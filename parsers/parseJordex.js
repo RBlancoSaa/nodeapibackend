@@ -16,6 +16,7 @@ fs.readFileSync = function (path, ...args) {
 export default async function parseJordex(pdfBuffer) {
   try {
     const { default: pdfParse } = await import('pdf-parse');
+    const logOntbrekend = [];
 
     // ✅ PDF-buffer controleren
     if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length === 0) {
@@ -110,10 +111,10 @@ const containerType = containersJson.find(c =>
 
 if (!containerType) {
   console.warn(`⚠️ ContainerType niet herkend op basis van label: ${containertypeLabel}`);
+  logOntbrekend.push('containertype'); // <-- ✅ alleen hier na check
 } else {
   console.log('✅ Gevonden ContainerType:', containerType.code);
-}
-if (!containerType) logOntbrekend.push('containertype');    
+}   
 
     const { data: terminalsFile, error: terminalsError } = await supabase.storage.from('referentielijsten').download('terminals.json');
     if (!terminalsFile) {
