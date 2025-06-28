@@ -105,16 +105,17 @@ if (!containersFile) {
 
 const containersJson = JSON.parse(await containersFile.text());
     // ✅ Eerst containerType bepalen
-const containerType = containersJson.find(c =>
+
+  const containerType = containersJson.find(c =>
   containertypeLabel?.toLowerCase().includes(c.label?.toLowerCase())
 );
 
 if (!containerType) {
   console.warn(`⚠️ ContainerType niet herkend op basis van label: ${containertypeLabel}`);
-  logOntbrekend.push('containertype'); // <-- ✅ alleen hier na check
+  logOntbrekend.push('containertype');
 } else {
   console.log('✅ Gevonden ContainerType:', containerType.code);
-}   
+}
 
     const { data: terminalsFile, error: terminalsError } = await supabase.storage.from('referentielijsten').download('terminals.json');
     if (!terminalsFile) {
