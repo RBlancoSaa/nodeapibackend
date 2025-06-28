@@ -6,11 +6,13 @@ import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 
+// 🔗 Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// ✉️ E-mail setup
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
@@ -21,33 +23,41 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// 🚀 API handler
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
-  
-  try {
-    const json = req.body;
-    console.log('📥 Data ontvangen in /generate-easy-files:', JSON.stringify(req.body, null, 2));
-    const reference = json.klantreferentie || 'GeenReferentie';
-    const laadplaats = json.laadplaats || 'GeenPlaats';
+ try {
+    // 📄 Input data
+    const data = req.body;
+    console.log('📥 Ontvangen JSON:', JSON.stringify(data, null, 2));
 
-    const xml = await generateXmlFromJson(json);
+    const reference = data.klantreferentie || 'GeenReferentie';
+    console.log('🔖 klantreferentie:', reference);
+
+    const laadplaats = data.laadplaats || 'GeenPlaats';
+    console.log('📍 laadplaats:', laadplaats);
+
+    // 📄 Genereer XML
+    const xml = await generateXmlFromJson(data);
     if (!xml || typeof xml !== 'string') {
       throw new Error('Parser gaf geen geldig XML-bestand terug');
     }
+    console.log('🧩 XML gegenereerd');
 
+    // 💾 Tijdelijke opslag
     const filename = `Order_${reference}_${laadplaats}.easy`;
     const tempDir = '/tmp';
     const filePath = path.join(tempDir, filename);
-
     fs.writeFileSync(filePath, xml);
-    console.log("💾 Bestand opgeslagen:", filePath);
+    console.log('💾 Bestand opgeslagen op pad:', filePath);
 
+    // ☁️ Upload naar Supabase
     const bucketName = process.env.SUPABASE_EASY_BUCKET;
     if (!bucketName || bucketName.trim() === '') {
-      console.error('❌ Geen geldige bucketnaam ingesteld in .env (SUPABASE_EASY_BUCKET)');
+      console.error('❌ SUPABASE_EASY_BUCKET ontbreekt of is leeg');
       return res.status(500).json({ success: false, message: 'SUPABASE_EASY_BUCKET ontbreekt of is leeg' });
     }
 
@@ -59,30 +69,35 @@ export default async function handler(req, res) {
       });
 
     if (error) {
-      console.error('❌ Uploadfout:', error.message);
+      console.error('❌ Uploadfout naar Supabase:', error.message);
       await transporter.sendMail({
         from: process.env.FROM_EMAIL,
         to: process.env.FROM_EMAIL,
         subject: `FOUT: .easy upload voor ${filename}`,
-        text: `Er ging iets mis bij het uploaden van ${filename}:
-
-${error.message}`
+        text: `Upload naar Supabase mislukt:\n\n${error.message}`
       });
-
       return res.status(500).json({ success: false, message: 'Upload naar Supabase mislukt' });
     }
 
     const downloadUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/${bucketName}/${filename}`;
-    console.log(`✅ .easy bestand opgeslagen als: ${filename}`);
+    console.log('☁️ Bestand geüpload naar:', downloadUrl);
 
+    // ✉️ E-mail verzenden
     await transporter.sendMail({
       from: process.env.FROM_EMAIL,
       to: process.env.FROM_EMAIL,
       subject: `easytrip file - automatisch gegenereerd - ${reference}`,
       text: `In de bijlage vind je het gegenereerde Easytrip-bestand voor referentie: ${reference}`,
-      attachments: [{ filename, content: fs.readFileSync(filePath) }]
+      attachments: [
+        {
+          filename,
+          content: fs.readFileSync(filePath)
+        }
+      ]
     });
+    console.log('📧 Mail verzonden');
 
+    // ✅ Antwoord
     return res.status(200).json({
       success: true,
       fileName: filename,
@@ -90,7 +105,7 @@ ${error.message}`
     });
 
   } catch (err) {
-    console.error('💥 Onverwachte fout in generate-easy-files:', err.message || err);
+    console.error('💥 Fout in generate-easy-files:', err.message || err);
     return res.status(500).json({
       success: false,
       message: err.message || 'Serverfout'
