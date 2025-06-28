@@ -1,10 +1,6 @@
 import pdfParse from 'pdf-parse';
 import parseJordex from '../parsers/parseJordex.js';
-const { default: pdfParse } = await import('pdf-parse');
-const parsed = await pdfParse(pdfBuffer);
-const text = parsed.text;
 
-return await parseJordex(pdfBuffer, text);
 export default async function parsePdfToJson(buffer) {
   if (!buffer || !Buffer.isBuffer(buffer)) {
     console.warn('⚠️ Ongeldige PDF-buffer');
@@ -14,11 +10,16 @@ export default async function parsePdfToJson(buffer) {
   const parsed = await pdfParse(buffer);
   const text = parsed.text;
 
+  if (!text || typeof text !== 'string' || text.trim().length === 0) {
+    console.warn('⚠️ Lege of ongeldige tekstinhoud in PDF');
+    return {};
+  }
+
   const isJordex = text.includes('Jordex Shipping & Forwarding');
 
   if (isJordex) {
     console.log('🔍 Jordex PDF herkend');
-    // 🧠 Geef zowel buffer als tekst mee
+    console.log('📄 TEXT IN PDF:\n', text.slice(0, 500));
     return await parseJordex(buffer, text);
   }
 
