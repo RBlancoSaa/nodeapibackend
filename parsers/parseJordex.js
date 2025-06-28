@@ -1,91 +1,77 @@
-// 📁 parsers/parseJordex.js
+import fs from 'fs';
+import pdfParse from 'pdf-parse';
 
 export default async function parseJordex(pdfBuffer) {
   try {
     if (!pdfBuffer || Buffer.isBuffer(pdfBuffer) === false) {
-  console.warn("⚠️ Geen geldig PDF-buffer ontvangen");
-  return {};
+      console.warn("⚠️ Geen geldig PDF-buffer ontvangen");
+      return {};
     }
-    const { default: pdfParse } = await import('pdf-parse');
+
     const parsed = await pdfParse(pdfBuffer);
     const text = parsed.text;
 
-    const logIfMissing = (label, value) => {
-      if (!value) console.warn(`⚠️ ${label} NIET gevonden in PDF`);
-      return value || '';
+    // ❗ Sla test-bestanden zoals '05-versions-space.pdf' over
+    if (text.includes('05-versions-space')) {
+      console.warn('⚠️ Skipping test file: 05-versions-space.pdf');
+      return {};
+    }
+
+    const getMatch = (regex, label) => {
+      const match = text.match(regex);
+      if (!match || !match[1]) console.warn(`⚠️ ${label} NIET gevonden in PDF`);
+      return match?.[1]?.trim() || '';
     };
 
-    // Referentie uit "Our reference"
-    const referentie = logIfMissing('Referentie', (text.match(/Our reference:\s*(\S+)/i) || [])[1]);
+    const opdrachtgeverNaam = getMatch(/Opdrachtgever:\s*(.*)/i, 'opdrachtgeverNaam');
+    const referentie = getMatch(/Reference\(s\):\s*(\d+)/i, 'referentie');
+    const bootnaam = getMatch(/Vessel:\s*(.*)/i, 'bootnaam');
+    const rederij = getMatch(/Carrier:\s*(.*)/i, 'rederij');
+    const containertype = getMatch(/1\s+X\s+(\d{2})[\'’]?[\s\-]+high\s+cube\s+reefer/i, 'containertype');
+    const temperatuur = getMatch(/Temperature:\s*(-?\d+)/i, 'temperatuur');
+    const datumTijd = getMatch(/Date:\s*(\d{2}\s+\w+\s+\d{4})\s+(\d{2}:\d{2})/i, 'datum + tijd');
+    const containernummer = getMatch(/Reference\(s\):\s*(\d{8,})/i, 'containernummer');
 
-    // Bootnaam
-    const bootnaam = logIfMissing('Bootnaam', (text.match(/Vessel:\s*(.*)/i) || [])[1]);
+    const opdrachtgeverAdres = getMatch(/Address:\s*([\w\s\.\-']+\n[^\n]+)/i, 'opdrachtgeverAdres');
+    const opdrachtgeverPostcode = getMatch(/(\d{4}\s?[A-Z]{2})/i, 'opdrachtgeverPostcode');
+    const opdrachtgeverPlaats = getMatch(/\n(\w{3,})$/im, 'opdrachtgeverPlaats');
 
-    // Rederij
-    const rederij = logIfMissing('Rederij', (text.match(/Carrier:\s*(.*)/i) || [])[1]);
+    const logOntbrekend = [];
+    const checkVeld = (label, value) => { if (!value) logOntbrekend.push(label); return value || ''; };
 
-    // Container type (inclusief 20', 40', reefer enz)
-    const containertype = logIfMissing('Containertype', (text.match(/(\d{2})['’]?\s+high\s+cube\s+reefer/i) || [])[0]);
-
-    // Temperatuur (mag ook negatief zijn)
-    const temperatuur = logIfMissing('Temperatuur', (text.match(/Temperature:\s*(-?\d+)[°º]?C/i) || [])[1]);
-
-    // ADR (optioneel)
-    const adr = (text.match(/IMO:\s*(\S+)/i) || [])[1] || '';
-
-    // Gewicht, tarra, brutogewicht, volume (optioneel)
-    const tarra = (text.match(/Tarra:\s*(\d+)/i) || [])[1] || '';
-    const brutogewicht = (text.match(/Gross weight:\s*(\d+)/i) || [])[1] || '';
-    const geladenGewicht = (text.match(/Net weight:\s*(\d+)/i) || [])[1] || '';
-    const cbm = (text.match(/Volume:\s*(\d+(\.\d+)?)/i) || [])[1] || '';
-
-    // Pick-up datum en tijd: dit is de ENIGE geldige datum
-    const dateMatch = text.match(/Pick[-\s]?up[\s\S]*?Date:\s*(\d{2} \w{3} \d{4}) (\d{2}:\d{2})/i);
-    const datum = logIfMissing('Datum', dateMatch?.[1]);
-    const tijdVan = logIfMissing('Tijd van', dateMatch?.[2]);
-
-    // Klantreferentie onder Pick-up → Reference(s):
-    const klantrefMatch = text.match(/Pick[-\s]?up[\s\S]*?Reference\(s\):\s*(\S+)/i);
-    const laadreferentie = logIfMissing('Laadreferentie', klantrefMatch?.[1]);
-
-    // Klantnaam uit Pick-up blok
-    const opdrachtgeverNaam = logIfMissing('Opdrachtgever naam', (text.match(/Pick[-\s]?up[\s\S]*?Address:\s*([\w\s.&'-]+)/i) || [])[1]);
-
-
-    // 🧾 Teruggeven volledige JSON
-    return {
-      opdrachtgeverNaam,
-      opdrachtgeverAdres: '',
-      opdrachtgeverPostcode: '',
-      opdrachtgeverPlaats: '',
+    const result = {
+      opdrachtgeverNaam: checkVeld('opdrachtgeverNaam', opdrachtgeverNaam),
+      opdrachtgeverAdres: checkVeld('opdrachtgeverAdres', opdrachtgeverAdres),
+      opdrachtgeverPostcode: checkVeld('opdrachtgeverPostcode', opdrachtgeverPostcode),
+      opdrachtgeverPlaats: checkVeld('opdrachtgeverPlaats', opdrachtgeverPlaats),
       opdrachtgeverTelefoon: '',
       opdrachtgeverEmail: '',
       opdrachtgeverBTW: '',
       opdrachtgeverKVK: '',
-      ritnummer: referentie,
-      ladenOfLossen: 'Laden',
-      type: 'import',
-      datum: '',
-      tijdVan: '',
+      ritnummer: '',
+      ladenOfLossen: '',
+      type: '',
+      datum: datumTijd.split(' ')[0] || '',
+      tijdVan: datumTijd.split(' ')[1] || '',
       tijdTM: '',
-      containernummer,
-      containertype: containertypeRaw,
+      containernummer: checkVeld('containernummer', containernummer),
+      containertype: checkVeld('containertype', containertype),
       lading: '',
       adr: '',
-      tarra,
+      tarra: '',
       geladenGewicht: '',
-      brutogewicht,
+      brutogewicht: '',
       colli: '',
-      zegel,
-      temperatuur,
-      cbm,
+      zegel: '',
+      temperatuur: checkVeld('temperatuur', temperatuur),
+      cbm: '',
       brix: '',
-      referentie,
-      bootnaam,
-      rederij,
+      referentie: checkVeld('referentie', referentie),
+      bootnaam: checkVeld('bootnaam', bootnaam),
+      rederij: checkVeld('rederij', rederij),
       documentatie: '',
       tar: '',
-      laadreferentie: laadref,
+      laadreferentie: '',
       meldtijd: '',
       inleverreferentie: '',
       inleverBootnaam: '',
@@ -95,37 +81,41 @@ export default async function parseJordex(pdfBuffer) {
       closingDatum: '',
       closingTijd: '',
       instructies: '',
-      locaties: [locatie1, locatie2],
-      // Financieel dummy (alles nul tenzij gevonden)
       tarief: '',
       btw: '',
-      adrToeslagChart: '0',
-      adrBedragChart: '0',
-      botlekChart: '0',
-      chassishuurChart: '0',
-      deltaChart: '0',
-      dieselChart: '0',
-      euromaxChart: '0',
-      extraStopChart: '0',
-      gasMetenChart: '0',
-      genChart: '0',
-      handrailChart: '0',
-      keurenChart: '0',
-      kilometersChart: '0',
-      loeverChart: '0',
-      loodsChart: '0',
-      mautChart: '0',
-      mv2Chart: '0',
-      scannenChart: '0',
-      tolChart: '0',
-      blanco1Chart: '0',
+      adrToeslagChart: '',
+      adrBedragChart: '',
+      botlekChart: '',
+      chassishuurChart: '',
+      deltaChart: '',
+      dieselChart: '',
+      euromaxChart: '',
+      extraStopChart: '',
+      gasMetenChart: '',
+      genChart: '',
+      handrailChart: '',
+      keurenChart: '',
+      kilometersChart: '',
+      loeverChart: '',
+      loodsChart: '',
+      mautChart: '',
+      mv2Chart: '',
+      scannenChart: '',
+      tolChart: '',
+      blanco1Chart: '',
       blanco1Text: '',
-      blanco2Chart: '0',
+      blanco2Chart: '',
       blanco2Text: ''
     };
 
+    if (logOntbrekend.length > 0) {
+      console.warn('⚠️ Ontbrekende velden in Jordex-parser:', logOntbrekend.join(', '));
+    }
+
+    return result;
+
   } catch (err) {
-    console.error('❌ Fout in parseJordex:', err);
+    console.error('❌ Fout in parseJordex:', err.message);
     throw err;
   }
 }
