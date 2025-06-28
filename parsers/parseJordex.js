@@ -13,8 +13,17 @@ fs.readFileSync = function (path, ...args) {
   return originalReadFileSync.call(this, path, ...args);
 };
 
-export default async function parseJordex(pdfBuffer) {
-  try {
+export default async function parseJordex(pdfBuffer, text) {
+  // GEEN opnieuw pdfParse doen
+  // Gebruik direct de `text`-variabele
+
+  if (!text) {
+    console.warn('⚠️ Geen tekstinhoud ontvangen in Jordex-parser');
+    return {};
+  }
+
+  // vanaf hier jouw bestaande logic
+}
     const { default: pdfParse } = await import('pdf-parse');
     const logOntbrekend = [];
 

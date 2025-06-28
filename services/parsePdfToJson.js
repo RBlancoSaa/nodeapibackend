@@ -1,4 +1,3 @@
-// 📁 /services/parsePdfToJson.js
 import pdfParse from 'pdf-parse';
 import parseJordex from '../parsers/parseJordex.js';
 
@@ -11,12 +10,12 @@ export default async function parsePdfToJson(buffer) {
   const parsed = await pdfParse(buffer);
   const text = parsed.text;
 
-  // 🔍 Herken type klant
   const isJordex = text.includes('Jordex Shipping & Forwarding');
 
   if (isJordex) {
     console.log('🔍 Jordex PDF herkend');
-    return await parseJordex(buffer);
+    // 🧠 Geef zowel buffer als tekst mee
+    return await parseJordex(buffer, text);
   }
 
   console.warn('⚠️ Onbekende klant, geen parser uitgevoerd');
