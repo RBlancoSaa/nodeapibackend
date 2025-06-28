@@ -66,6 +66,8 @@ export default async function parseJordex(pdfBuffer) {
 
     const datum = datumTijd.split(' ')[0] || '';
     const tijdVan = datumTijd.split(' ')[1] || '';
+if (!containerType) logOntbrekend.push('containertype');    
+
 
     // ✅ Supabase-downloads (containers, rederijen, terminals)
     const { data: rederijenFile, error: rederijenError } = await supabase.storage.from('referentielijsten').download('rederijen.json');
@@ -226,6 +228,7 @@ console.log('✅ Opdrachtgevergegevens:', opdrachtgeverNaam, opdrachtgeverAdres,
       ritnummer: '',
       ladenOfLossen: 'laden',
       type: containertypeLabel,
+      containertype: containerType.code, 
       datum,
       tijdVan,
       tijdTM: '',
