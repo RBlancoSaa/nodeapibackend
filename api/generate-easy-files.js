@@ -29,16 +29,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
- try {
-    // 📄 Input data
-    const data = req.body;
-    console.log('📥 Ontvangen JSON:', JSON.stringify(data, null, 2));
+  // 📥 Input
+  const data = req.body;
+  console.log('📥 Ontvangen JSON in /generate-easy-files:', JSON.stringify(data, null, 2));
 
+  try {
     const reference = data.klantreferentie || 'GeenReferentie';
-    console.log('🔖 klantreferentie:', reference);
-
     const laadplaats = data.laadplaats || 'GeenPlaats';
-    console.log('📍 laadplaats:', laadplaats);
 
     // 📄 Genereer XML
     const xml = await generateXmlFromJson(data);
