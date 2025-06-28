@@ -58,7 +58,7 @@ export async function generateXmlFromJson(data) {
       bicsCode: ''
     });
   }
-console.log('📦 XML gegenereerd:', xml.slice(0, 500)); // preview eerste 500 tekens
+
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Order>
@@ -156,3 +156,6 @@ console.log('📦 XML gegenereerd:', xml.slice(0, 500)); // preview eerste 500 t
 </Dossier></Dossiers>
 </Order>`;
 }
+
+console.log('📦 XML gegenereerd:', xml.slice(0, 500)); // preview eerste 500 tekens
+return xml;
