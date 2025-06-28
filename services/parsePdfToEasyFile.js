@@ -1,7 +1,12 @@
-// Bovenaan eerst fs fixen vóór import pdf-parse
 import fs from 'fs';
+import { createClient } from '@supabase/supabase-js';
+import pdfParse from 'pdf-parse';
+import parseJordex from '../parsers/parseJordex.js';
+import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 
-// Blokkeer test-bestand (voorkomt ENOENT in pdf-parse)
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+// Testbestand blokkeren
 const originalReadFileSync = fs.readFileSync;
 fs.readFileSync = function (path, ...args) {
   if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
@@ -11,25 +16,17 @@ fs.readFileSync = function (path, ...args) {
   return originalReadFileSync.call(this, path, ...args);
 };
 
-// Pas daarna importeren
-import pdfParse from 'pdf-parse';
-import parseJordex from '../parsers/parseJordex.js';
+export default async function parsePdfToEasyFile(pdfBuffer) {
+  console.log('📥 Start parser...');
 
-export default async function parsePdfToJson(buffer) {
-  if (!buffer || !Buffer.isBuffer(buffer)) {
-    console.warn('⚠️ Ongeldige PDF-buffer');
-    return {};
-  }
-
-  const parsed = await pdfParse(buffer);
+  // ✅ Eerst pdfParse doen
+  const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
 
-  const isJordex = text.includes('Jordex Shipping & Forwarding');
-  if (isJordex) {
-    console.log('🔍 Jordex PDF herkend');
-    return await parseJordex(buffer, text);
-  }
+  // ✅ Daarna doorgeven aan parseJordex
+  const parsedData = await parseJordex(pdfBuffer, text);
 
-  console.warn('⚠️ Onbekende klant, geen parser uitgevoerd');
-  return {};
+  const xml = await generateXmlFromJson(parsedData); // genereert string
+  console.log('📦 XML gegenereerd');
+  return xml;
 }
