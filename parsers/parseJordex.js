@@ -158,9 +158,17 @@ if (!locatie3Terminal) {
     const klantPlaats = klantPlaatsDelen.join(' ');
     console.log('✅ klantlocatie:', klantNaam, klantAdres, klantPostcode, klantPlaats);
 
+    // 🧾 Opdrachtgevergegevens
+const opdrachtgeverNaam = 'Jordex Shipping & Forwarding B.V.';
+const opdrachtgeverAdres = 'Ambachtsweg 6';
+const opdrachtgeverPostcode = '3161 GL';
+const opdrachtgeverPlaats = 'Rhoon';
+console.log('✅ Opdrachtgevergegevens:', opdrachtgeverNaam, opdrachtgeverAdres, opdrachtgeverPostcode, opdrachtgeverPlaats);
+
     // ✅ Succesvolle parsing
     console.log('✅ Jordex-parser afgerond zonder fatale fouten');
 
+    
    const locaties = [
       {
         actie: 'Laden',
