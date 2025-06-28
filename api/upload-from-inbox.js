@@ -1,3 +1,4 @@
+// .api/upload-from-inbox.js
 import { parseAttachmentsFromEmails } from '../services/parseAttachments.js';
 import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
 import { ImapFlow } from 'imapflow';
@@ -34,15 +35,36 @@ export default async function handler(req, res) {
 
     const uploadedFiles = await uploadPdfAttachmentsToSupabase(pdfAttachments);
 
-    await client.logout();
+// Na upload van PDF's, verwerk ze tot .easy-bestanden
+for (const mail of mails) {
+  if (mail.source === 'Jordex' && mail.parsedData) {
+    try {
+      const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mail.parsedData)
+      });
 
-    return res.status(200).json({
-      success: true,
-      mailCount: mails.length,
-      attachmentCount: allAttachments.length,
-      uploadedCount: uploadedFiles.length,
-      filenames: uploadedFiles.map(f => f.filename)
-    });
+      const result = await response.json();
+      console.log('📤 generate-easy-files resultaat:', result);
+    } catch (err) {
+      console.warn('⚠️ Fout bij genereren van .easy:', err.message);
+    }
+  } else {
+    console.log('⏭️ Geen geldige parserdata of niet Jordex');
+  }
+}
+
+await client.logout();
+
+return res.status(200).json({
+  success: true,
+  mailCount: mails.length,
+  attachmentCount: allAttachments.length,
+  uploadedCount: uploadedFiles.length,
+  filenames: uploadedFiles.map(f => f.filename)
+});
+
   } catch (error) {
     if (client) await client.logout().catch(() => {});
     console.error('💥 Upload-fout:', error);
