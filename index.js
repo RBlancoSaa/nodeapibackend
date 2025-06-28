@@ -6,6 +6,7 @@ import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 import { uploadPdfAttachmentsToSupabase } from './services/uploadPdfAttachmentsToSupabase.js';
 import fs from 'fs';
+import fsPromises from 'fs/promises';
 
 // Blokkeer toegang tot testbestand van pdf-parse
 const originalReadFileSync = fs.readFileSync;
