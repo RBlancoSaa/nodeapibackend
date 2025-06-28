@@ -1,12 +1,14 @@
 import fs from 'fs';
+// Blokkeer toegang tot testbestand van pdf-parse
+const originalReadFileSync = fs.readFileSync;
+fs.readFileSync = function (path, ...args) {
+  if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
+    console.warn('⛔️ Testbestand geblokkeerd:', path);
+    return Buffer.from(''); // Leeg buffer retourneert niets
+  }
+  return originalReadFileSync.call(this, path, ...args);
+};
 import pdfParse from 'pdf-parse';
-
-export default async function parseJordex(pdfBuffer) {
-  try {
-    if (!pdfBuffer || Buffer.isBuffer(pdfBuffer) === false) {
-      console.warn("⚠️ Geen geldig PDF-buffer ontvangen");
-      return {};
-    }
 
     const parsed = await pdfParse(pdfBuffer);
     const text = parsed.text;
