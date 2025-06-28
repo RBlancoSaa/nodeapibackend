@@ -21,7 +21,13 @@ export default async function parseJordex(pdfBuffer) {
 
     const { default: pdfParse } = await import('pdf-parse');
     const parsed = await pdfParse(pdfBuffer);
-    const text = parsed.text;
+
+if (!parsed || !parsed.text) {
+  console.warn('⚠️ PDF-parsing mislukt: geen tekst gevonden in bestand');
+  return {};
+}
+
+const text = parsed.text;
 
     if (text.includes('05-versions-space')) {
       console.warn('⚠️ Skipping test file: 05-versions-space.pdf');
