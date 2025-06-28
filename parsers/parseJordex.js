@@ -50,8 +50,8 @@ console.log('📄 PDF-Tekst:\n', text);
     const opdrachtgeverPlaats = 'Rhoon';
 
     const referentie = getMatch(/Our reference:\s*(\S+)/i, 'referentie');
+    const rederijNaam = getMatch(/Carrier:\s*(.+)/i, 'rederijNaam');
     const bootnaam = getMatch(/Vessel:\s*(.*)/i, 'bootnaam');
-    const rederijNaam = getMatch(/Carrier:\s*(.*)/i, 'rederij');
     const containertypeLabel = getMatch(/Cargo:\s*\d+\s*x\s*(.+)/i, 'containertype label');
     const containernummer = getMatch(/([A-Z]{3}U\d{7})/i, 'containernummer');
     const temperatuur = getMatch(/Temperature:\s*(-?\d+)/i, 'temperatuur');
@@ -66,13 +66,25 @@ console.log('📄 PDF-Tekst:\n', text);
     const lading = getMatch(/Description\s+([A-Z\s]+)/i, 'lading');
     const inleverBestemming = getMatch(/To:\s*(.+)/i, 'inleverBestemming');
 
+    
     const datum = datumTijd.split(' ')[0] || '';
     const tijdVan = datumTijd.split(' ')[1] || '';
 
     // 📦 Supabase lookups
+    
     const { data: rederijenFile } = await supabase.storage.from('referentielijsten').download('rederijen.json');
     const rederijenJson = JSON.parse(await rederijenFile.text());
-    const rederijData = rederijenJson.find(r => r.naam?.toUpperCase() === rederijNaam?.toUpperCase());
+    const cleanedRederijInput = rederijNaam.split('-')[0].trim();
+
+const rederijData = rederijenJson.find(r =>
+  r.altLabels?.some(label => cleanedRederijInput.toLowerCase() === label.toLowerCase())
+);
+
+if (rederijData) {
+  console.log(`✅ Rederij herkend: ${rederijData.naam}`);
+} else {
+  console.warn(`⚠️ Rederij NIET gevonden voor invoer: ${cleanedRederijInput}`);
+}
 
     const rederij = rederijData?.naam || '';
     const bicsCode = rederijData?.bicsCode || '';
@@ -106,6 +118,7 @@ console.log('📄 PDF-Tekst:\n', text);
     const [klantPostcode, ...klantPlaatsDelen] = klantPostcodePlaats.split(' ');
     const klantPlaats = klantPlaatsDelen.join(' ');
 
+    
     // 📌 Locaties
     const locaties = [
       {
@@ -190,6 +203,9 @@ console.log('📄 PDF-Tekst:\n', text);
       inleverBootnaam: bootnaam,
       inleverBestemming,
       inleverRederij: rederij,
+      bicsCode,
+portbaseCode,
+voorgemeld,
       inleverTAR: '',
       closingDatum,
       closingTijd,
