@@ -2,7 +2,6 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { ImapFlow } from 'imapflow';
 import path from 'path';
-import fs from 'fs/promises';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 import { uploadPdfAttachmentsToSupabase } from './services/uploadPdfAttachmentsToSupabase.js';
