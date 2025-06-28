@@ -1,23 +1,50 @@
 import fs from 'fs';
-// Blokkeer toegang tot testbestand van pdf-parse
+
+// 🛑 Blokkeer het testbestand vóór alles
 const originalReadFileSync = fs.readFileSync;
 fs.readFileSync = function (path, ...args) {
   if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
     console.warn('⛔️ Testbestand geblokkeerd:', path);
-    return Buffer.from(''); // Leeg buffer retourneert niets
+    return Buffer.from('');
   }
   return originalReadFileSync.call(this, path, ...args);
 };
-import pdfParse from 'pdf-parse';
 
+export default async function parseJordex(pdfBuffer) {
+  try {
+    if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
+      console.warn('⚠️ Geen geldig PDF-buffer ontvangen');
+      return {};
+    }
+
+    // ✅ Dynamisch importeren ná override
+    const { default: pdfParse } = await import('pdf-parse');
     const parsed = await pdfParse(pdfBuffer);
     const text = parsed.text;
-    
+
+    if (text.includes('05-versions-space')) {
+      console.warn('⚠️ Skipping test file: 05-versions-space.pdf');
+      return {};
+    }
+
     const getMatch = (regex, label) => {
       const match = text.match(regex);
       if (!match || !match[1]) console.warn(`⚠️ ${label} NIET gevonden in PDF`);
       return match?.[1]?.trim() || '';
     };
+
+    // voorbeeld:
+    const referentie = getMatch(/Our reference:\s*(\S+)/i, 'referentie');
+
+    return {
+      referentie,
+      // ...alle andere velden nog invullen
+    };
+  } catch (err) {
+    console.error('❌ Fout in parseJordex:', err.message);
+    throw err;
+  }
+}
 
     const opdrachtgeverNaam = getMatch(/Opdrachtgever:\s*(.*)/i, 'opdrachtgeverNaam');
     const referentie = getMatch(/Reference\(s\):\s*(\d+)/i, 'referentie');
