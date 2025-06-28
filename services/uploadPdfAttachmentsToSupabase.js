@@ -133,13 +133,14 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       const reference = referenceMatch?.[1] || 'Onbekend';
       const laadplaats = laadplaatsMatch?.[1] || 'Onbekend';
 
-      const payload = {
-        xmlBase64: Buffer.from(xml).toString('base64'),
-        reference,
-        laadplaats
-      };
+      const xmlBase64 = Buffer.from(xml).toString('base64');
 
-      console.log(`📡 Versturen naar generate-easy-files`, payload);
+const payload = {
+  xmlBase64,
+  reference,
+  laadplaats
+};
+
 console.log('📡 Versturen naar generate-easy-files', {
   xmlBase64,
   reference,
@@ -147,11 +148,11 @@ console.log('📡 Versturen naar generate-easy-files', {
   url: `${process.env.PUBLIC_URL}/api/generate-easy-files`
 });
 
-      const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(payload)
+});
 
       const responseText = await resp.text();
       console.log("📥 Antwoord van endpoint:", responseText);
