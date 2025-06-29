@@ -25,6 +25,11 @@ const parsed = await pdfParse(pdfBuffer);
 const text = parsed.text;
 
   const parsedData = await parseJordex(pdfBuffer, text);
+if (!parsedData || !parsedData.referentie || parsedData.opdrachtgeverNaam !== 'Jordex Shipping & Forwarding B.V.') {
+  console.log('⏭️ Geen geldige parserdata of niet Jordex');
+  return res.status(200).json({ success: false, message: 'Geen geldige parserdata' });
+}
+const reference = parsedData.referentie;
 
   console.log('📄 Parsed data ontvangen:', parsedData);
 
