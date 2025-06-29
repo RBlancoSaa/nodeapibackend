@@ -20,8 +20,12 @@ fs.readFileSync = function (path, ...args) {
 
 export default async function parsePdfToEasyFile(pdfBuffer) {
   console.log('📥 Start parser...');
+const { default: pdfParse } = await import('pdf-parse');
+const parsed = await pdfParse(pdfBuffer);
+const text = parsed.text;
 
-  const parsedData = await parseJordex(pdfBuffer);
+  const parsedData = await parseJordex(pdfBuffer, text);
+
   console.log('📄 Parsed data ontvangen:', parsedData);
 
   const result = {

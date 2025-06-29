@@ -318,4 +318,5 @@ const result = {
 console.log('✅ Parser result:', result);
 return result;
 
+return result;
 }
