@@ -99,5 +99,14 @@ export default async function parseJordex(pdfBuffer) {
     }
   }
 
+  data.opdrachtgeverNaam = data.klantnaam || '0';
+data.opdrachtgeverAdres = data.klantadres || '0';
+data.opdrachtgeverPostcode = data.klantpostcode || '0';
+data.opdrachtgeverPlaats = data.klantplaats || '0';
+data.opdrachtgeverTelefoon = '0';
+data.opdrachtgeverEmail = '0';
+data.opdrachtgeverBTW = '0';
+data.opdrachtgeverKVK = '0';
+
   return data;
 }
