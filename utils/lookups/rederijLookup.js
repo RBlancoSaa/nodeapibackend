@@ -10,9 +10,9 @@ export async function getRederijNaam(rederijRuweNaam) {
     }
 
     const { data, error } = await supabase
-      .from('referentielijsten/rederijen')
+      .from('rederijen')
       .select('*')
-      .ilike('alias', `%${rederijRuweNaam}%`);
+      .ilike('naam', `%${rederij}%`);
 
     if (error) {
       console.error('❌ Supabase fout bij rederij lookup:', error);

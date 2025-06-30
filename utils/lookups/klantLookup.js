@@ -9,9 +9,9 @@ export async function getKlantData(klantnaamRuw) {
     }
 
     const { data, error } = await supabase
-      .from('referentielijsten/klanten')
+      .from('klanten')
       .select('*')
-      .ilike('alias', `%${klantnaamRuw}%`);
+      .ilike('naam', `%${klantnaam}%`);
 
     if (error) {
       console.error('❌ Supabase fout bij klant lookup:', error);

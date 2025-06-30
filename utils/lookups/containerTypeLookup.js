@@ -1,17 +1,18 @@
 import '../../utils/fsPatch.js';
 import { supabase } from '../../services/supabaseClient.js';
 
-export function getContainerTypeCode(line) {
-  if (!line || typeof line !== 'string') return null;
+export async function getContainerTypeCode(type) {
+  try {
+    if (!type || typeof type !== 'string') return null;
 
-  const match = line.match(/\b(22G1|22R1|42G1|45G1|45R1|42U1|LEG1)\b/i);
-  const code = match ? match[1].toUpperCase() : null;
+    const { data, error } = await supabase
+      .from('containers')
+      .select('*')
+      .ilike('code', `%${type}%`);
 
-  if (code) {
-    console.log(`📦 Containertype herkend: ${code}`);
-  } else {
-    console.warn(`⚠️ Geen containertype gevonden in regel:`, line);
+    if (error || !data || data.length === 0) return null;
+    return data[0].code || null;
+  } catch (err) {
+    return null;
   }
-
-  return code;
 }

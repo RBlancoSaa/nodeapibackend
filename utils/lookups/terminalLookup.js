@@ -9,7 +9,7 @@ export async function getTerminalInfo(referentie) {
     }
 
     const { data, error } = await supabase
-      .from('referentielijsten/op_afzetten')
+      .from('op_afzetten')
       .select('*')
       .ilike('referentie', `%${referentie}%`);
 
