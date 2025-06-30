@@ -6,77 +6,65 @@ const SUPABASE_LIST_URL = process.env.SUPABASE_LIST_PUBLIC_URL?.replace(/\/$/, '
 
 export async function getTerminalInfo(referentie) {
   try {
-    if (!referentie || typeof referentie !== 'string') return null;
-
+    if (!referentie || typeof referentie !== 'string') return '0';
     const url = `${SUPABASE_LIST_URL}/op_afzetten.json`;
-    const response = await fetch(url);
-    const lijst = await response.json();
-
-    const gevonden = lijst.find(item => item.referentie?.toLowerCase() === referentie.toLowerCase());
-    if (!gevonden) return null;
-
-    return gevonden.terminal || '0';
+    const res = await fetch(url);
+    const lijst = await res.json();
+    const gevonden = lijst.find(i => i.referentie?.toLowerCase() === referentie.toLowerCase());
+    return gevonden?.terminal || '0';
   } catch (err) {
-    console.error('❌ Fout in getTerminalInfo:', err);
-    return null;
+    console.error('❌ getTerminalInfo:', err);
+    return '0';
   }
 }
 
 export async function getRederijNaam(rederij) {
   try {
-    if (!rederij || typeof rederij !== 'string') return null;
-
+    if (!rederij || typeof rederij !== 'string') return '0';
     const url = `${SUPABASE_LIST_URL}/rederijen.json`;
-    const response = await fetch(url);
-    const lijst = await response.json();
-
-    const gevonden = lijst.find(item => item.naam?.toLowerCase() === rederij.toLowerCase());
-    if (!gevonden) return null;
-
-    return gevonden.code || '0';
+    const res = await fetch(url);
+    const lijst = await res.json();
+    const gevonden = lijst.find(i => i.naam?.toLowerCase() === rederij.toLowerCase());
+    return gevonden?.code || '0';
   } catch (err) {
-    console.error('❌ Fout in getRederijNaam:', err);
-    return null;
+    console.error('❌ getRederijNaam:', err);
+    return '0';
   }
 }
 
 export async function getContainerTypeCode(type) {
   try {
-    if (!type || typeof type !== 'string') return null;
-
+    if (!type || typeof type !== 'string') return '0';
     const url = `${SUPABASE_LIST_URL}/containers.json`;
-    const response = await fetch(url);
-    const lijst = await response.json();
-
-    const gevonden = lijst.find(item => item.naam?.toLowerCase() === type.toLowerCase());
-    if (!gevonden) return null;
-
-    return gevonden.code || '0';
+    const res = await fetch(url);
+    const lijst = await res.json();
+    const gevonden = lijst.find(i => i.naam?.toLowerCase() === type.toLowerCase());
+    return gevonden?.code || '0';
   } catch (err) {
-    console.error('❌ Fout in getContainerTypeCode:', err);
-    return null;
+    console.error('❌ getContainerTypeCode:', err);
+    return '0';
   }
 }
 
 export async function getKlantData(klantnaam) {
   try {
-    if (!klantnaam || typeof klantnaam !== 'string') return null;
-
+    if (!klantnaam || typeof klantnaam !== 'string') return {
+      adres: '0', postcode: '0', plaats: '0', volledig: '0'
+    };
     const url = `${SUPABASE_LIST_URL}/klanten.json`;
-    const response = await fetch(url);
-    const lijst = await response.json();
-
-    const gevonden = lijst.find(item => item.naam?.toLowerCase() === klantnaam.toLowerCase());
-    if (!gevonden) return null;
-
+    const res = await fetch(url);
+    const lijst = await res.json();
+    const gevonden = lijst.find(i => i.naam?.toLowerCase() === klantnaam.toLowerCase());
     return {
-      adres: gevonden.adres || '0',
-      postcode: gevonden.postcode || '0',
-      plaats: gevonden.plaats || '0',
-      volledig: gevonden.volledig || '0'
+      adres: gevonden?.adres || '0',
+      postcode: gevonden?.postcode || '0',
+      plaats: gevonden?.plaats || '0',
+      volledig: gevonden?.volledig || '0'
     };
   } catch (err) {
-    console.error('❌ Fout in getKlantData:', err);
-    return null;
+    console.error('❌ getKlantData:', err);
+    return {
+      adres: '0', postcode: '0', plaats: '0', volledig: '0'
+    };
   }
 }
