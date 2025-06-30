@@ -1,5 +1,5 @@
 // parseJordex.js
-import '../utils/fsPatch.js'; // ⛔️ Blokkeer testbestand vóór pdf-parse geladen wordt
+import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import { supabase } from '../services/supabaseClient.js';
 
@@ -27,9 +27,9 @@ export default async function parseJordex(pdfBuffer) {
     referentie: extract(lines, /Our reference[:\s]*([A-Z0-9]+)/i) || '0',
     rederij: extract(lines, /Carrier[:\s]*(.+)/i) || '0',
     bootnaam: extract(lines, /Vessel[:\s]*(.+)/i) || '0',
-    containertype: extract(lines, /Container type[:\s]*(\S+)/i) || '0',
+    containertype: extract(lines, /Container type[:\s]*([A-Z0-9]{4})/i) || '0',
     containernummer: extract(lines, /Container no[:\s]*(\S+)/i) || '0',
-    temperatuur: extract(lines, /Temperature[:\s]*([\-\d]+°C)/i) || '0',
+    temperatuur: extract(lines, /Temperature[:\s]*([-\d]+°C)/i) || '0',
     datum: extract(lines, /Closing[:\s]*(\d{2}[-/]\d{2}[-/]\d{4})/i) || '0',
     tijd: extract(lines, /Closing[:\s]*\d{2}[-/]\d{2}[-/]\d{4}.*?(\d{2}:\d{2})/i) || '0',
     laadreferentie: extract(lines, /Pick-up reference[:\s]*(\S+)/i) || '0',
@@ -65,10 +65,33 @@ export default async function parseJordex(pdfBuffer) {
     data.klantnaam = data.klantadres = data.klantpostcode = data.klantplaats = '0';
   }
 
-  data.terminal = await getTerminalInfo(data.referentie, supabase) || '0';
-  data.rederijCode = await getRederijNaam(data.rederij, supabase) || '0';
-  data.containertypeCode = await getContainerTypeCode(data.containertype, supabase) || '0';
-  data.klantAdresVolledig = await getKlantData(data.klantnaam, supabase) || '0';
+  try {
+    data.terminal = await getTerminalInfo(data.referentie, supabase) || '0';
+  } catch (e) {
+    console.error('❌ Supabase fout bij ophalen terminalinfo:', e);
+    data.terminal = '0';
+  }
+
+  try {
+    data.rederijCode = await getRederijNaam(data.rederij, supabase) || '0';
+  } catch (e) {
+    console.error('❌ Supabase fout bij rederij lookup:', e);
+    data.rederijCode = '0';
+  }
+
+  try {
+    data.containertypeCode = await getContainerTypeCode(data.containertype, supabase) || '0';
+  } catch (e) {
+    console.error('❌ Supabase fout bij containertype lookup:', e);
+    data.containertypeCode = '0';
+  }
+
+  try {
+    data.klantAdresVolledig = await getKlantData(data.klantnaam, supabase) || '0';
+  } catch (e) {
+    console.error('❌ Supabase fout bij klant lookup:', e);
+    data.klantAdresVolledig = '0';
+  }
 
   Object.entries(data).forEach(([key, value]) => {
     if (!value || value === '') {
