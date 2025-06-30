@@ -2,6 +2,11 @@
 import '../../utils/fsPatch.js';
 import fetch from 'node-fetch';
 
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
 const SUPABASE_LIST_URL = process.env.SUPABASE_LIST_PUBLIC_URL?.replace(/\/$/, '');
 
 export async function getTerminalInfo(referentie) {
@@ -47,17 +52,17 @@ export async function getContainerTypeCode(type) {
 }
 
 export async function getKlantData(klantAlias) {
-  const bestandspad = path.resolve('data/klanten.json'); // of het juiste pad
-  const json = JSON.parse(fs.readFileSync(bestandspad, 'utf-8'));
+  const { data, error } = await supabase
+    .from('klanten')
+    .select('*')
+    .ilike('Bedrijfsnaam', `%${klantAlias}%`);
 
-  const klant = json.find(item => {
-    return item.Bedrijfsnaam?.toLowerCase().trim() === klantAlias.toLowerCase().trim();
-  });
-
-  if (!klant) {
-    console.warn(`⚠️ Geen klant gevonden voor alias: ${klantAlias}`);
+  if (error || !data || data.length === 0) {
+    console.warn(`⚠️ Supabase lookup gefaald voor klant: ${klantAlias}`, error || 'Geen data');
     return {};
   }
+
+  const klant = data[0];
 
   return {
     naam: klant.Bedrijfsnaam || klantAlias,
