@@ -2,7 +2,7 @@
 
 import '../utils/fsPatch.js'; // ⛔️ Blokkeer testbestand vóór pdf-parse geladen wordt
 import pdfParse from 'pdf-parse';
-import { supabase } from '../supabaseClient.js';
+import { supabase } from '../services/supabaseClient.js';
 import { getTerminalInfo } from '../helpers/terminalLookup.js';
 import { getContainerTypeCode } from '../helpers/containerTypes.js';
 
