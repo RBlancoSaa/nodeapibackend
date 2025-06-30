@@ -12,8 +12,7 @@ export async function getTerminalInfo(referentie) {
     const lijst = await res.json();
     const gevonden = lijst.find(i => i.referentie?.toLowerCase() === referentie.toLowerCase());
     return gevonden?.terminal || '0';
-  } catch (err) {
-    console.error('❌ getTerminalInfo:', err);
+  } catch {
     return '0';
   }
 }
@@ -26,8 +25,7 @@ export async function getRederijNaam(rederij) {
     const lijst = await res.json();
     const gevonden = lijst.find(i => i.naam?.toLowerCase() === rederij.toLowerCase());
     return gevonden?.code || '0';
-  } catch (err) {
-    console.error('❌ getRederijNaam:', err);
+  } catch {
     return '0';
   }
 }
@@ -40,8 +38,7 @@ export async function getContainerTypeCode(type) {
     const lijst = await res.json();
     const gevonden = lijst.find(i => i.naam?.toLowerCase() === type.toLowerCase());
     return gevonden?.code || '0';
-  } catch (err) {
-    console.error('❌ getContainerTypeCode:', err);
+  } catch {
     return '0';
   }
 }
@@ -61,8 +58,7 @@ export async function getKlantData(klantnaam) {
       plaats: gevonden?.plaats || '0',
       volledig: gevonden?.volledig || '0'
     };
-  } catch (err) {
-    console.error('❌ getKlantData:', err);
+  } catch {
     return {
       adres: '0', postcode: '0', plaats: '0', volledig: '0'
     };

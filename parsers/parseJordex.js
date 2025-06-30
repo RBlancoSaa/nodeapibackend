@@ -3,8 +3,12 @@ import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import { supabase } from '../services/supabaseClient.js';
 
-import { getTerminalInfo, getRederijNaam, getContainerTypeCode, getKlantData } from '../utils/lookups/terminalLookup.js';
-
+import {
+  getTerminalInfo,
+  getRederijNaam,
+  getKlantData,
+  getContainerTypeCode
+} from '../utils/lookups/terminalLookup.js';
 
 export default async function parseJordex(pdfBuffer) {
   console.log('📥 Start parser...');
@@ -45,6 +49,7 @@ export default async function parseJordex(pdfBuffer) {
     klantpostcode: '0',
     klantplaats: '0',
     terminal: '0',
+
     rederijCode: '0',
     containertypeCode: '0',
     klantAdresVolledig: '0'
@@ -63,33 +68,17 @@ export default async function parseJordex(pdfBuffer) {
     data.klantnaam = data.klantadres = data.klantpostcode = data.klantplaats = '0';
   }
 
-  try {
-    data.terminal = await getTerminalInfo(data.referentie, supabase) || '0';
-  } catch (e) {
-    console.error('❌ Supabase fout bij ophalen terminalinfo:', e);
-    data.terminal = '0';
-  }
+// ... extracties en klantnaamdetectie
 
-  try {
-    data.rederijCode = await getRederijNaam(data.rederij, supabase) || '0';
-  } catch (e) {
-    console.error('❌ Supabase fout bij rederij lookup:', e);
-    data.rederijCode = '0';
-  }
+data.terminal = await getTerminalInfo(data.referentie);
+data.rederijCode = await getRederijNaam(data.rederij);
+data.containertypeCode = await getContainerTypeCode(data.containertype);
+const klant = await getKlantData(data.klantnaam);
+data.klantadres = klant.adres;
+data.klantpostcode = klant.postcode;
+data.klantplaats = klant.plaats;
+data.klantAdresVolledig = klant.volledig;
 
-  try {
-    data.containertypeCode = await getContainerTypeCode(data.containertype, supabase) || '0';
-  } catch (e) {
-    console.error('❌ Supabase fout bij containertype lookup:', e);
-    data.containertypeCode = '0';
-  }
-
-  try {
-    data.klantAdresVolledig = await getKlantData(data.klantnaam, supabase) || '0';
-  } catch (e) {
-    console.error('❌ Supabase fout bij klant lookup:', e);
-    data.klantAdresVolledig = '0';
-  }
 
   Object.entries(data).forEach(([key, value]) => {
     if (!value || value === '') {
