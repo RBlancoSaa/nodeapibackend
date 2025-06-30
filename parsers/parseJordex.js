@@ -8,7 +8,30 @@ import {
   getKlantData
 } from '../utils/lookups/terminalLookup.js';
 
-export default async function parseJordex(pdfBuffer) {
+export default async function parseJordex(pdfBuffer, klantAlias = null) {
+    // Als bekend is dat het een Jordex-opdracht is via e-mail, gebruik dat direct:
+const data = {
+  klantnaam: '0',
+  klantadres: '0',
+  klantpostcode: '0',
+  klantplaats: '0',
+  klantAdresVolledig: '0'
+};
+
+if (klantAlias) {
+  try {
+    const klant = await getKlantData(klantAlias);
+    data.klantnaam = klant.naam || klantAlias;
+    data.klantadres = klant.adres || '0';
+    data.klantpostcode = klant.postcode || '0';
+    data.klantplaats = klant.plaats || '0';
+    data.klantAdresVolledig = klant.volledig || '0';
+    console.log('📌 Klantgegevens direct geladen op basis van alias:', klantAlias);
+  } catch (e) {
+    console.warn('⚠️ klantAlias lookup faalt:', e);
+  }
+}
+
   if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) return null;
 
   const parsed = await pdfParse(pdfBuffer);
