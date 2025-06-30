@@ -33,15 +33,22 @@ async function fetchList(name) {
 export async function generateXmlFromJson(data) {
   console.log('📄 Input voor XML-generator:', JSON.stringify(data, null, 2));
 
-    // 🔁 Zet klantvelden over naar opdrachtgevervelden
+// 🔁 Zet klantvelden over naar opdrachtgevervelden
 data.opdrachtgeverNaam = data.klantnaam;
-data.opdrachtgeverAdres = data.klantadres || '0';
-data.opdrachtgeverPostcode = data.klantpostcode || '0';
-data.opdrachtgeverPlaats = data.klantplaats || '0';
-data.opdrachtgeverTelefoon = data.telefoon || '0';
-data.opdrachtgeverEmail = data.email || '0';
-data.opdrachtgeverBTW = data.btw || '0';
-data.opdrachtgeverKVK = data.kvk || '0';
+data.opdrachtgeverAdres = data.klantadres;
+data.opdrachtgeverPostcode = data.klantpostcode;
+data.opdrachtgeverPlaats = data.klantplaats;
+data.opdrachtgeverTelefoon = data.telefoon;
+data.opdrachtgeverEmail = data.email;
+data.opdrachtgeverBTW = data.btw;
+data.opdrachtgeverKVK = data.kvk;
+
+// ⛔️ Vul lege velden met '0'
+data.opdrachtgeverTelefoon = data.opdrachtgeverTelefoon || '0';
+data.opdrachtgeverEmail = data.opdrachtgeverEmail || '0';
+data.opdrachtgeverBTW = data.opdrachtgeverBTW || '0';
+data.opdrachtgeverKVK = data.opdrachtgeverKVK || '0';
+
   if (!data.opdrachtgeverNaam || data.opdrachtgeverNaam === '0') {
     throw new Error('❌ Opdrachtgevergegevens ontbreken');
   }
