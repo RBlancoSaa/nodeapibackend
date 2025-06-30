@@ -1,8 +1,8 @@
 // parseJordex.js
-
 import '../utils/fsPatch.js'; // ⛔️ Blokkeer testbestand vóór pdf-parse geladen wordt
 import pdfParse from 'pdf-parse';
 import { supabase } from '../services/supabaseClient.js';
+
 import { getTerminalInfo } from '../utils/lookups/terminalLookup.js';
 import { getRederijNaam } from '../utils/lookups/rederijLookup.js';
 import { getContainerTypeCode } from '../utils/lookups/containerTypeLookup.js';
