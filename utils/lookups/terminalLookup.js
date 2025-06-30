@@ -53,27 +53,33 @@ export async function getContainerTypeCode(type) {
 }
 
 export async function getKlantData(klantAlias) {
-  const { data, error } = await supabase
-    .from('klanten')
-    .select('*')
-    .ilike('Bedrijfsnaam', `%${klantAlias}%`);
+  try {
+    const url = `${SUPABASE_LIST_URL}/klanten.json`;
+    const res = await fetch(url);
+    const lijst = await res.json();
 
-  if (error || !data || data.length === 0) {
-    console.warn(`⚠️ Supabase lookup gefaald voor klant: ${klantAlias}`, error || 'Geen data');
+    const gevonden = lijst.find(item =>
+      item.Bedrijfsnaam?.toLowerCase().includes(klantAlias.toLowerCase())
+    );
+
+    if (!gevonden) {
+      console.warn(`⚠️ klant ${klantAlias} niet gevonden in klanten.json`);
+      return {};
+    }
+
+    return {
+      naam: gevonden.Bedrijfsnaam || klantAlias,
+      adres: gevonden.Adres || '0',
+      postcode: gevonden.Postcode || '0',
+      plaats: gevonden.Plaats || '0',
+      volledig: `${gevonden.Adres || ''}, ${gevonden.Postcode || ''} ${gevonden.Plaats || ''}`.trim(),
+      telefoon: gevonden.Telefoon || '',
+      email: gevonden.Email || '',
+      btw: gevonden.BTW_nummer || '',
+      kvk: gevonden['Deb. nr'] || ''
+    };
+  } catch (e) {
+    console.error('❌ getKlantData error:', e);
     return {};
   }
-
-  const klant = data[0];
-
-  return {
-    naam: klant.Bedrijfsnaam || klantAlias,
-    adres: klant.Adres || '0',
-    postcode: klant.Postcode || '0',
-    plaats: klant.Plaats || '0',
-    volledig: `${klant.Adres || ''}, ${klant.Postcode || ''} ${klant.Plaats || ''}`.trim(),
-    telefoon: klant.Telefoon || '',
-    email: klant.Email || '',
-    btw: klant.BTW_nummer || '',
-    kvk: klant['Deb. nr'] || ''
-  };
 }

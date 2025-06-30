@@ -27,29 +27,101 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   };
 
   const data = {
-    referentie: multiExtract([/Our reference[:\s]*([A-Z0-9]+)/i]) || '0',
-    rederij: multiExtract([/Carrier[:\s]*(.+)/i]) || '0',
-    bootnaam: multiExtract([/Vessel[:\s]*(.+)/i]) || '0',
-    containertype: multiExtract([/Container type[:\s]*([A-Z0-9]{4})/i, /Cargo[:\s]*.*?(\d{2}[GRU1]+)/i]) || '0',
-    containernummer: multiExtract([/Container no[:\s]*(\w{4}U\d{7})/i, /(\w{4}U\d{7})/]) || '0',
-    temperatuur: multiExtract([/Temperature[:\s]*([\-\d]+°C)/i]) || '0',
-    datum: multiExtract([/Date[:\s]*(\d{2}\s\w+\s\d{4})/i, /Closing[:\s]*(\d{2}[-/]\d{2}[-/]\d{4})/i]) || '0',
-    tijd: multiExtract([/\b(\d{2}:\d{2})\b/]) || '0',
-    laadreferentie: multiExtract([/Pick-up reference[:\s]*(\S+)/i]) || '0',
-    inleverreferentie: multiExtract([/Drop-off reference[:\s]*(\S+)/i]) || '0',
-    inleverBestemming: multiExtract([/Final destination[:\s]*(.+)/i]) || '0',
-    dropoffTerminal: multiExtract([/Drop[-\s]?off terminal[:\s]*(.+)/i]) || '0',
-    pickupTerminal: multiExtract([/Pick[-\s]?up terminal[:\s]*(.+)/i]) || '0',
-    gewicht: multiExtract([/Weight[:\s]*(\d+\s?kg)/i]) || '0',
-    volume: multiExtract([/Volume[:\s]*(\d+(\.\d+)?\s?m3)/i]) || '0',
-    colli: multiExtract([/Colli[:\s]*(\d+)/i]) || '0',
-    lading: multiExtract([/Description of goods[:\s]*(.+)/i]) || '0',
-    imo: multiExtract([/IMO[:\s]*(\d+)/i]) || '0',
-    unnr: multiExtract([/UN[:\s]*(\d+)/i]) || '0',
-    brix: multiExtract([/Brix[:\s]*(\d+)/i]) || '0',
-    klantnaam: '0', klantadres: '0', klantpostcode: '0', klantplaats: '0', klantAdresVolledig: '0',
-    terminal: '0', rederijCode: '0', containertypeCode: '0'
-  };
+  referentie: multiExtract([
+    /Our reference[:\t ]+([A-Z0-9\-]+)/i,
+    /Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i
+  ]) || '0',
+
+  rederij: multiExtract([
+    /Carrier[:\t ]+(.+)/i
+  ]) || '0',
+
+  bootnaam: multiExtract([
+    /Vessel[:\t ]+(.+)/i
+  ]) || '0',
+
+  containertype: multiExtract([
+    /Container type[:\t ]+([A-Z0-9]{4})/i,
+    /Cargo[:\t ]+.*?(\d{2}[GRU1]+)/i
+  ]) || '0',
+
+  containernummer: multiExtract([
+    /Container no[:\t ]+(\w{4}U\d{7})/i,
+    /(\w{4}U\d{7})/
+  ]) || '0',
+
+  temperatuur: multiExtract([
+    /Temperature[:\t ]+([\-\d]+°C)/i
+  ]) || '0',
+
+  datum: multiExtract([
+    /Date[:\t ]+(\d{2}\s\w+\s\d{4})/i,
+    /Closing[:\t ]+(\d{2}[-/]\d{2}[-/]\d{4})/i
+  ]) || '0',
+
+  tijd: multiExtract([
+    /\b(\d{2}:\d{2})\b/
+  ]) || '0',
+
+  laadreferentie: multiExtract([
+    /Pick[-\s]?up reference[:\t ]+(\S+)/i,
+    /Reference(?:\(s\))?[:\t ]+(\S+)/i
+  ]) || '0',
+
+  inleverreferentie: multiExtract([
+    /Drop[-\s]?off reference[:\t ]+(\S+)/i
+  ]) || '0',
+
+  inleverBestemming: multiExtract([
+    /Final destination[:\t ]+(.+)/i
+  ]) || '0',
+
+  dropoffTerminal: multiExtract([
+    /Drop[-\s]?off terminal[:\t ]+(.+)/i
+  ]) || '0',
+
+  pickupTerminal: multiExtract([
+    /Pick[-\s]?up terminal[:\t ]+(.+)/i
+  ]) || '0',
+
+  gewicht: multiExtract([
+    /Weight[:\t ]+(\d+\s?kg)/i
+  ]) || '0',
+
+  volume: multiExtract([
+    /Volume[:\t ]+(\d+(?:\.\d+)?\s?m3)/i
+  ]) || '0',
+
+  colli: multiExtract([
+    /Colli[:\t ]+(\d+)/i
+  ]) || '0',
+
+  lading: multiExtract([
+    /Description of goods[:\t ]+(.+)/i,
+    /Cargo[:\t ]+(.+)/i
+  ]) || '0',
+
+  imo: multiExtract([
+    /IMO[:\t ]+(\d+)/i
+  ]) || '0',
+
+  unnr: multiExtract([
+    /UN[:\t ]+(\d+)/i
+  ]) || '0',
+
+  brix: multiExtract([
+    /Brix[:\t ]+(\d+)/i
+  ]) || '0',
+
+  klantnaam: '0',
+  klantadres: '0',
+  klantpostcode: '0',
+  klantplaats: '0',
+  klantAdresVolledig: '0',
+  terminal: '0',
+  rederijCode: '0',
+  containertypeCode: '0'
+};
 
   // ✅ Klantgegevens geforceerd instellen obv alias
   if (klantAlias) {
