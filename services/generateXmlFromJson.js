@@ -33,6 +33,16 @@ async function fetchList(name) {
 export async function generateXmlFromJson(data) {
   console.log('📄 Input voor XML-generator:', JSON.stringify(data, null, 2));
 
+    // 🔁 Zet klantvelden over naar opdrachtgevervelden
+  data.opdrachtgeverNaam = data.klantnaam;
+  data.opdrachtgeverAdres = data.klantadres;
+  data.opdrachtgeverPostcode = data.klantpostcode;
+  data.opdrachtgeverPlaats = data.klantplaats;
+  data.opdrachtgeverTelefoon = data.telefoon;
+  data.opdrachtgeverEmail = data.email;
+  data.opdrachtgeverBTW = data.btw;
+  data.opdrachtgeverKVK = data.kvk;
+
   if (!data.opdrachtgeverNaam || data.opdrachtgeverNaam === '0') {
     throw new Error('❌ Opdrachtgevergegevens ontbreken');
   }
