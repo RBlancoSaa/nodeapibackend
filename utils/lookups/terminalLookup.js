@@ -46,25 +46,28 @@ export async function getContainerTypeCode(type) {
   }
 }
 
-export async function getKlantData(klantnaam) {
-  try {
-    if (!klantnaam || typeof klantnaam !== 'string') return {
-      adres: '0', postcode: '0', plaats: '0', volledig: '0'
-    };
-    const url = `${SUPABASE_LIST_URL}/klanten.json`;
-    const res = await fetch(url);
-    const lijst = await res.json();
-    const gevonden = lijst.find(i => i.naam?.toLowerCase() === klantnaam.toLowerCase());
-    return {
-      adres: gevonden?.adres || '0',
-      postcode: gevonden?.postcode || '0',
-      plaats: gevonden?.plaats || '0',
-      volledig: gevonden?.volledig || '0'
-    };
-  } catch (e) {
-    console.error('❌ getKlantData error:', e);
-    return {
-      adres: '0', postcode: '0', plaats: '0', volledig: '0'
-    };
+export async function getKlantData(klantAlias) {
+  const bestandspad = path.resolve('data/klanten.json'); // of het juiste pad
+  const json = JSON.parse(fs.readFileSync(bestandspad, 'utf-8'));
+
+  const klant = json.find(item => {
+    return item.Bedrijfsnaam?.toLowerCase().trim() === klantAlias.toLowerCase().trim();
+  });
+
+  if (!klant) {
+    console.warn(`⚠️ Geen klant gevonden voor alias: ${klantAlias}`);
+    return {};
   }
+
+  return {
+    naam: klant.Bedrijfsnaam || klantAlias,
+    adres: klant.Adres || '0',
+    postcode: klant.Postcode || '0',
+    plaats: klant.Plaats || '0',
+    volledig: `${klant.Adres || ''}, ${klant.Postcode || ''} ${klant.Plaats || ''}`.trim(),
+    telefoon: klant.Telefoon || '',
+    email: klant.Email || '',
+    btw: klant.BTW_nummer || '',
+    kvk: klant['Deb. nr'] || ''
+  };
 }
