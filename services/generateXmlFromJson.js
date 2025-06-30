@@ -35,13 +35,13 @@ export async function generateXmlFromJson(data) {
 
     // 🔁 Zet klantvelden over naar opdrachtgevervelden
 data.opdrachtgeverNaam = data.klantnaam;
-data.opdrachtgeverAdres = data.klantadres;
-data.opdrachtgeverPostcode = data.klantpostcode;
-data.opdrachtgeverPlaats = data.klantplaats;
-data.opdrachtgeverTelefoon = data.telefoon;
-data.opdrachtgeverEmail = data.email;
-data.opdrachtgeverBTW = data.btw;
-data.opdrachtgeverKVK = data.kvk;
+data.opdrachtgeverAdres = data.klantadres || '0';
+data.opdrachtgeverPostcode = data.klantpostcode || '0';
+data.opdrachtgeverPlaats = data.klantplaats || '0';
+data.opdrachtgeverTelefoon = data.telefoon || '0';
+data.opdrachtgeverEmail = data.email || '0';
+data.opdrachtgeverBTW = data.btw || '0';
+data.opdrachtgeverKVK = data.kvk || '0';
   if (!data.opdrachtgeverNaam || data.opdrachtgeverNaam === '0') {
     throw new Error('❌ Opdrachtgevergegevens ontbreken');
   }
