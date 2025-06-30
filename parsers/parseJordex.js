@@ -3,10 +3,8 @@ import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import { supabase } from '../services/supabaseClient.js';
 
-import { getTerminalInfo } from '../utils/lookups/terminalLookup.js';
-import { getRederijNaam } from '../utils/lookups/rederijLookup.js';
-import { getContainerTypeCode } from '../utils/lookups/containerTypeLookup.js';
-import { getKlantData } from '../utils/lookups/klantLookup.js';
+import { getTerminalInfo, getRederijNaam, getContainerTypeCode, getKlantData } from '../utils/lookups/terminalLookup.js';
+
 
 export default async function parseJordex(pdfBuffer) {
   console.log('📥 Start parser...');
