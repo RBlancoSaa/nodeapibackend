@@ -3,8 +3,10 @@
 import '../utils/fsPatch.js'; // ⛔️ Blokkeer testbestand vóór pdf-parse geladen wordt
 import pdfParse from 'pdf-parse';
 import { supabase } from '../services/supabaseClient.js';
-import { getTerminalInfo } from '../helpers/terminalLookup.js';
-import { getContainerTypeCode } from '../helpers/containerTypes.js';
+import { getTerminalInfo } from '../utils/lookups/terminalLookup.js';
+import { getRederijNaam } from '../utils/lookups/rederijLookup.js';
+import { getContainerTypeCode } from '../utils/lookups/containerTypeLookup.js';
+import { getKlantData } from '../utils/lookups/klantLookup.js';
 
 export default async function parseJordex(pdfBuffer) {
   console.log('📥 Start parser...');
@@ -74,7 +76,7 @@ export default async function parseJordex(pdfBuffer) {
     if (!data.klantplaats && line.toLowerCase().includes('rotterdam')) data.klantplaats = 'Rotterdam';
   }
 
-  Object.entries(data).forEach(([key, value]) => {
+   Object.entries(data).forEach(([key, value]) => {
     if (!value) {
       console.warn(`⚠️ ${key} NIET gevonden in PDF`);
       data[key] = '0';
@@ -83,12 +85,40 @@ export default async function parseJordex(pdfBuffer) {
     }
   });
 
+  // 🔍 Terminal lookup
   const terminalInfo = await getTerminalInfo(data.referentie, supabase);
   if (terminalInfo) {
     data.terminal = terminalInfo;
     console.log('📦 Terminalinfo opgehaald:', terminalInfo);
   } else {
     console.warn('⚠️ Geen terminalinfo gevonden voor referentie', data.referentie);
+  }
+
+  // 🔍 Rederij lookup
+  const rederijCode = await getRederijNaam(data.rederij, supabase);
+  if (rederijCode) {
+    data.rederijCode = rederijCode;
+    console.log('🚢 Rederijcode:', rederijCode);
+  } else {
+    console.warn('⚠️ Geen rederijcode gevonden voor:', data.rederij);
+  }
+
+  // 🔍 Container type lookup
+  const containerCode = await getContainerTypeCode(data.containertype, supabase);
+  if (containerCode) {
+    data.containertypeCode = containerCode;
+    console.log('📦 Containercode:', containerCode);
+  } else {
+    console.warn('⚠️ Geen containertypecode gevonden voor:', data.containertype);
+  }
+
+  // 🔍 Klantgegevens aanvullen
+  const klantData = await getKlantData(data.klantnaam, supabase);
+  if (klantData) {
+    data.klantAdresVolledig = klantData;
+    console.log('🏢 Klantgegevens:', klantData);
+  } else {
+    console.warn('⚠️ Geen klantgegevens gevonden voor:', data.klantnaam);
   }
 
   return data;
