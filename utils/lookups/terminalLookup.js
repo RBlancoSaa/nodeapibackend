@@ -1,5 +1,5 @@
 // services/terminalLookup.js
-import '../utils/fsPatch.js'; // 🚨 Moet altijd als eerste
+import '../fsPatch.js'; // 🚨 Moet altijd als eerste
 import { supabase } from '../supabaseClient.js';
 
 /**

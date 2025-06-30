@@ -1,4 +1,4 @@
-import '../utils/fsPatch.js';
+import '../fsPatch.js';;
 import { supabase } from '../supabaseClient.js';
 
 /**
