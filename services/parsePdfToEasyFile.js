@@ -1,3 +1,13 @@
+// parsePdfToEasyFile.js
+
+import '../utils/fsPatch.js'; // ⛔️ Blokkeer testbestand vóór pdf-parse geladen wordt
+import fs from 'fs';
+import { createClient } from '@supabase/supabase-js';
+import parseJordex from '../parsers/parseJordex.js';
+import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
 export default async function parsePdfToEasyFile(pdfBuffer) {
   console.log('📥 Start parsePdfToEasyFile...');
 
