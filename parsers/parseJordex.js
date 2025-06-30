@@ -9,7 +9,14 @@ import {
 } from '../utils/lookups/terminalLookup.js';
 
 export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
-  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) return null;
+  console.log('📦 Ontvangen pdfBuffer:', pdfBuffer?.length, 'bytes');
+
+if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
+  console.warn('❌ Lege of ongeldige PDF buffer ontvangen');
+  return {};
+}
+
+    if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) return null;
 
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
