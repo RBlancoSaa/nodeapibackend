@@ -31,15 +31,20 @@ async function fetchList(name) {
 }
 
 export async function generateXmlFromJson(data) {
-   console.log('📄 Input voor XML-generator:', JSON.stringify(data, null, 2));
+  console.log('📄 Input voor XML-generator:', JSON.stringify(data, null, 2));
+
+  if (!data.opdrachtgeverNaam || data.opdrachtgeverNaam === '0') {
+    throw new Error('❌ Opdrachtgevergegevens ontbreken');
+  }
+
   const [rederijen, containers, klanten, charters, terminals, opAfzetten] = await Promise.all([
-  fetchList('rederijen'),
-  fetchList('containers'),
-  fetchList('klanten'),
-  fetchList('charters'),
-  fetchList('terminals'),
-  fetchList('op_afzetten')  // ✅ nieuwe toevoeging
-]);
+    fetchList('rederijen'),
+    fetchList('containers'),
+    fetchList('klanten'),
+    fetchList('charters'),
+    fetchList('terminals'),
+    fetchList('op_afzetten')
+  ]);
 
   const locaties = data.locaties || [];
   while (locaties.length < 3) {
@@ -157,5 +162,13 @@ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 </Order>`;
 
 console.log('📦 XML gegenereerd:', xml.slice(0, 500)); // preview eerste 500 tekens
+
+console.log('🔍 Opdrachtgever:', data.klantnaam);
+console.log('🔍 Container:', data.containernummer);
+console.log('🔍 Terminal:', data.terminal);
+console.log('🔍 Rederij:', data.rederij);
+console.log('🔍 Laadref:', data.laadreferentie);
+console.log('🔍 Inleverref:', data.inleverreferentie);
+
 return xml;
 }
