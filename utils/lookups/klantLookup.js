@@ -1,5 +1,5 @@
-import '../fsPatch.js';;
-import { supabase } from '../../services/supabaseClient.js';
+import '../../utils/fsPatch.js';
+import { supabase } from '../../services/supabaseClient.js'; // correcte pad én vorm
 
 /**
  * Haal klantgegevens op uit Supabase tabel 'referentielijsten/klanten'

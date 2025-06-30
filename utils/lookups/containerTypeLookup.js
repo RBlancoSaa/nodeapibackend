@@ -1,5 +1,5 @@
-import '../fsPatch.js';
-import { supabase } from '../../services/supabaseClient.js';
+import '../../utils/fsPatch.js';
+import { supabase } from '../../services/supabaseClient.js'; // correcte pad én vorm
 
 /**
  * Haal containertypecode op uit Supabase tabel 'referentielijsten/containertypes'
