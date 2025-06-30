@@ -1,104 +1,96 @@
-//.parsePdfToEasyFile.js
+// parsePdfToEasyFile.js
+
+import '../utils/fsPatch.js'; // ⛔️ Blokkeer testbestand vóór pdf-parse geladen wordt
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
 import parseJordex from '../parsers/parseJordex.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 
-console.log('✅ SUPABASE_URL in parsePdfToEasyFile:', process.env.SUPABASE_URL); // Debug
-
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-// ⛔️ Testbestand blokkeren
-const originalReadFileSync = fs.readFileSync;
-fs.readFileSync = function (path, ...args) {
-  if (typeof path === 'string' && path.includes('05-versions-space.pdf')) {
-    console.warn('⛔️ Testbestand geblokkeerd:', path);
-    return Buffer.from('');
-  }
-  return originalReadFileSync.call(this, path, ...args);
-};
-
 export default async function parsePdfToEasyFile(pdfBuffer) {
-  console.log('📥 Start parser...');
+  console.log('📥 Start parsePdfToEasyFile...');
 
   const parsedData = await parseJordex(pdfBuffer);
-  console.log('📄 Parsed data ontvangen:', parsedData);
+  console.log('📄 Parsed Jordex data:', parsedData);
 
   const result = {
-    opdrachtgever: parsedData.opdrachtgeverNaam,
-    opdrachtgever_adres: parsedData.opdrachtgeverAdres,
-    opdrachtgever_postcode: parsedData.opdrachtgeverPostcode,
-    opdrachtgever_plaats: parsedData.opdrachtgeverPlaats,
-    opdrachtgever_telefoonnummer: parsedData.opdrachtgeverTelefoon,
-    opdrachtgever_email: parsedData.opdrachtgeverEmail,
-    opdrachtgever_btw: parsedData.opdrachtgeverBTW,
-    opdrachtgever_kvk: parsedData.opdrachtgeverKVK,
-    laden_lossen: parsedData.ladenOfLossen,
-    tijd_van: parsedData.tijdVan,
-    tijd_tm: parsedData.tijdTM,
-    ritnummer: parsedData.ritnummer,
-    type: parsedData.type,
+    opdrachtgeverNaam: parsedData.klantnaam,
+    opdrachtgeverAdres: parsedData.klantadres,
+    opdrachtgeverPostcode: parsedData.klantpostcode,
+    opdrachtgeverPlaats: parsedData.klantplaats,
+    opdrachtgeverTelefoon: '',
+    opdrachtgeverEmail: '',
+    opdrachtgeverBTW: '',
+    opdrachtgeverKVK: '',
+
+    ritnummer: '',
+    ladenOfLossen: '',
+    type: '',
     datum: parsedData.datum,
+    tijdVan: parsedData.tijd,
+    tijdTM: parsedData.tijd,
     containernummer: parsedData.containernummer,
     containertype: parsedData.containertype,
     lading: parsedData.lading,
-    adr: parsedData.adr,
-    tarra: parsedData.tarra,
-    geladenGewicht: parsedData.geladenGewicht,
-    brutogewicht: parsedData.brutogewicht,
+    adr: parsedData.imo || parsedData.unnr,
+    tarra: '',
+    geladenGewicht: parsedData.gewicht,
+    brutogewicht: parsedData.gewicht,
     colli: parsedData.colli,
-    zegel: parsedData.zegel,
+    zegel: '',
     temperatuur: parsedData.temperatuur,
-    cbm: parsedData.cbm,
+    cbm: parsedData.volume,
     brix: parsedData.brix,
     referentie: parsedData.referentie,
     bootnaam: parsedData.bootnaam,
     rederij: parsedData.rederij,
-    documentatie: parsedData.documentatie,
-    tar: parsedData.tar,
+    documentatie: '',
+    tar: '',
     laadreferentie: parsedData.laadreferentie,
-    meldtijd: parsedData.meldtijd,
+    meldtijd: '',
     inleverreferentie: parsedData.inleverreferentie,
-    inleverBootnaam: parsedData.inleverBootnaam,
+    inleverBootnaam: '',
     inleverBestemming: parsedData.inleverBestemming,
-    inleverRederij: parsedData.inleverRederij,
-    inleverTAR: parsedData.inleverTAR,
-    closingDatum: parsedData.closingDatum,
-    closingTijd: parsedData.closingTijd,
-    instructies: parsedData.instructies,
-    locaties: parsedData.locaties,
-    tarief: parsedData.tarief,
-    btw: parsedData.btw,
-    adrToeslagChart: parsedData.adrToeslagChart,
-    adrBedragChart: parsedData.adrBedragChart,
-    botlekChart: parsedData.botlekChart,
-    chassishuurChart: parsedData.chassishuurChart,
-    deltaChart: parsedData.deltaChart,
-    dieselChart: parsedData.dieselChart,
-    euromaxChart: parsedData.euromaxChart,
-    extraStopChart: parsedData.extraStopChart,
-    gasMetenChart: parsedData.gasMetenChart,
-    genChart: parsedData.genChart,
-    handrailChart: parsedData.handrailChart,
-    keurenChart: parsedData.keurenChart,
-    kilometersChart: parsedData.kilometersChart,
-    loeverChart: parsedData.loeverChart,
-    loodsChart: parsedData.loodsChart,
-    mautChart: parsedData.mautChart,
-    mv2Chart: parsedData.mv2Chart,
-    scannenChart: parsedData.scannenChart,
-    tolChart: parsedData.tolChart,
-    blanco1Chart: parsedData.blanco1Chart,
-    blanco1Text: parsedData.blanco1Text,
-    blanco2Chart: parsedData.blanco2Chart,
-    blanco2Text: parsedData.blanco2Text,
-    ...parsedData
+    inleverRederij: parsedData.rederij,
+    inleverTAR: '',
+    closingDatum: parsedData.datum,
+    closingTijd: parsedData.tijd,
+    instructies: '',
+
+    locaties: parsedData.terminal?.locaties || [],
+
+    tarief: '',
+    btw: '',
+    adrToeslagChart: '',
+    adrBedragChart: '',
+    botlekChart: '',
+    chassishuurChart: '',
+    deltaChart: '',
+    dieselChart: '',
+    euromaxChart: '',
+    extraStopChart: '',
+    gasMetenChart: '',
+    genChart: '',
+    handrailChart: '',
+    keurenChart: '',
+    kilometersChart: '',
+    loeverChart: '',
+    loodsChart: '',
+    mautChart: '',
+    mv2Chart: '',
+    scannenChart: '',
+    tolChart: '',
+    blanco1Chart: '',
+    blanco1Text: '',
+    blanco2Chart: '',
+    blanco2Text: ''
   };
 
-  console.log('🧾 Result object opgebouwd:', result);
+  console.log('🧾 Result object voor XML-opbouw:', result);
 
   const xml = await generateXmlFromJson(result);
-  console.log('📦 XML gegenereerd:', xml.slice(0, 500));
+  console.log('📦 XML preview:', xml.slice(0, 500));
 
   return xml;
 }
