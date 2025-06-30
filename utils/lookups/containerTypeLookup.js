@@ -1,37 +1,17 @@
 import '../../utils/fsPatch.js';
-import { supabase } from '../../services/supabaseClient.js'; // correcte pad én vorm
+import { supabase } from '../../services/supabaseClient.js';
 
-/**
- * Haal containertypecode op uit Supabase tabel 'referentielijsten/containertypes'
- * @param {string} input - bijv. '40DV' of '45R1'
- * @returns {string|null}
- */
-export async function getContainerTypeCode(input) {
-  try {
-    if (!input || typeof input !== 'string') {
-      console.warn('⚠️ Ongeldig containertype opgegeven:', input);
-      return null;
-    }
+export function getContainerTypeCode(line) {
+  if (!line || typeof line !== 'string') return null;
 
-    const { data, error } = await supabase
-      .from('referentielijsten/containertypes')
-      .select('*')
-      .ilike('code', `%${input}%`);
+  const match = line.match(/\b(22G1|22R1|42G1|45G1|45R1|42U1|LEG1)\b/i);
+  const code = match ? match[1].toUpperCase() : null;
 
-    if (error) {
-      console.error('❌ Supabase fout bij ophalen containertype:', error);
-      return null;
-    }
-
-    if (!data || data.length === 0) {
-      console.warn('⚠️ Geen containertype gevonden voor:', input);
-      return null;
-    }
-
-    console.log(`📦 Containertypecode gevonden voor ${input}:`, data[0].code);
-    return data[0].code;
-  } catch (err) {
-    console.error('❌ Fout in getContainerTypeCode:', err);
-    return null;
+  if (code) {
+    console.log(`📦 Containertype herkend: ${code}`);
+  } else {
+    console.warn(`⚠️ Geen containertype gevonden in regel:`, line);
   }
+
+  return code;
 }

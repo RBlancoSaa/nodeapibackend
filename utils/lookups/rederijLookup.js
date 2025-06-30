@@ -1,38 +1,33 @@
-// services/terminalLookup.js
+// rederijLookup.js
 import '../../utils/fsPatch.js';
-import { supabase } from '../../services/supabaseClient.js'; // correcte pad én vorm
+import { supabase } from '../../services/supabaseClient.js';
 
-/**
- * Haal terminalinfo op uit Supabase tabel 'referentielijsten/op_afzetten.json'
- * @param {string} referentie - klantreferentie zoals 'OE2516811'
- * @returns {object|null} terminalinfo of null
- */
-export async function getTerminalInfo(referentie) {
+export async function getRederijNaam(rederijRuweNaam) {
   try {
-    if (!referentie || typeof referentie !== 'string') {
-      console.warn('⚠️ Ongeldige referentie voor terminalLookup:', referentie);
+    if (!rederijRuweNaam || typeof rederijRuweNaam !== 'string') {
+      console.warn('⚠️ Ongeldige rederijnaam:', rederijRuweNaam);
       return null;
     }
 
     const { data, error } = await supabase
-      .from('referentielijsten/op_afzetten')
+      .from('referentielijsten/rederijen')
       .select('*')
-      .ilike('referentie', `%${referentie}%`);
+      .ilike('alias', `%${rederijRuweNaam}%`);
 
     if (error) {
-      console.error('❌ Supabase fout bij ophalen terminalinfo:', error);
+      console.error('❌ Supabase fout bij rederij lookup:', error);
       return null;
     }
 
     if (!data || data.length === 0) {
-      console.warn('⚠️ Geen terminal gevonden voor referentie:', referentie);
+      console.warn('⚠️ Geen rederij gevonden voor alias:', rederijRuweNaam);
       return null;
     }
 
-    console.log(`📦 Terminalinformatie gevonden voor ${referentie}:`, data[0]);
-    return data[0];
+    console.log(`🚢 Rederij gevonden voor "${rederijRuweNaam}":`, data[0].naam);
+    return data[0].naam;
   } catch (err) {
-    console.error('❌ Fout in getTerminalInfo:', err);
+    console.error('❌ Fout in getRederijNaam:', err);
     return null;
   }
 }

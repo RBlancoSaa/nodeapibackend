@@ -1,34 +1,29 @@
 import '../../utils/fsPatch.js';
-import { supabase } from '../../services/supabaseClient.js'; // correcte pad én vorm
+import { supabase } from '../../services/supabaseClient.js';
 
-/**
- * Haal klantgegevens op uit Supabase tabel 'referentielijsten/klanten'
- * @param {string} naam - klantnaam zoals 'Jordex'
- * @returns {object|null}
- */
-export async function getKlantData(naam) {
+export async function getKlantData(klantnaamRuw) {
   try {
-    if (!naam || typeof naam !== 'string') {
-      console.warn('⚠️ Ongeldige klantnaam opgegeven:', naam);
+    if (!klantnaamRuw || typeof klantnaamRuw !== 'string') {
+      console.warn('⚠️ Ongeldige klantnaam opgegeven voor lookup:', klantnaamRuw);
       return null;
     }
 
     const { data, error } = await supabase
       .from('referentielijsten/klanten')
       .select('*')
-      .ilike('naam', `%${naam}%`);
+      .ilike('alias', `%${klantnaamRuw}%`);
 
     if (error) {
-      console.error('❌ Supabase fout bij ophalen klantgegevens:', error);
+      console.error('❌ Supabase fout bij klant lookup:', error);
       return null;
     }
 
     if (!data || data.length === 0) {
-      console.warn('⚠️ Geen klant gevonden voor naam:', naam);
+      console.warn(`⚠️ Geen klantgegevens gevonden voor: ${klantnaamRuw}`);
       return null;
     }
 
-    console.log(`🏢 Klantgegevens gevonden voor ${naam}:`, data[0]);
+    console.log(`👤 Klantgegevens gevonden voor "${klantnaamRuw}":`, data[0]);
     return data[0];
   } catch (err) {
     console.error('❌ Fout in getKlantData:', err);
