@@ -53,6 +53,16 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
 
   // ✅ Klantgegevens geforceerd instellen obv alias
   if (klantAlias) {
+    // 🔁 Alias normaliseren
+    const klantAliasMap = {
+      'jordex': 'JORDEX FORWARDING',
+      'jordex forwarding': 'JORDEX FORWARDING',
+      'jordex chartering': 'JORDEX CHARTERING & PROJECTS',
+      'tiaro': 'Tiaro Transport',
+      'tiaro transport': 'Tiaro Transport'
+    };
+    klantAlias = klantAliasMap[klantAlias.toLowerCase()] || klantAlias;
+
     try {
       const klant = await getKlantData(klantAlias);
       data.klantnaam = klant.naam || klantAlias;
