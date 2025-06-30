@@ -16,110 +16,76 @@ export default async function parseJordex(pdfBuffer) {
     return null;
   }
 
-  const { text } = await pdfParse(pdfBuffer);
+  const parsed = await pdfParse(pdfBuffer);
+  const text = parsed.text;
+  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+
   console.log('📎 pdfBuffer lengte:', pdfBuffer.length);
   console.log('🧪 Eerste 100 tekens tekst:', text.slice(0, 100));
 
-  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
   const data = {
-    referentie: null,
-    rederij: null,
-    bootnaam: null,
-    containertype: null,
-    containernummer: null,
-    temperatuur: null,
-    datum: null,
-    tijd: null,
-    laadreferentie: null,
-    inleverreferentie: null,
-    inleverBestemming: null,
-    gewicht: null,
-    volume: null,
-    colli: null,
-    lading: null,
-    imo: null,
-    unnr: null,
-    brix: null,
-    klantnaam: null,
-    klantadres: null,
-    klantpostcode: null,
-    klantplaats: null
+    referentie: extract(lines, /Our reference[:\s]*([A-Z0-9]+)/i) || '0',
+    rederij: extract(lines, /Carrier[:\s]*(.+)/i) || '0',
+    bootnaam: extract(lines, /Vessel[:\s]*(.+)/i) || '0',
+    containertype: extract(lines, /Container type[:\s]*(\S+)/i) || '0',
+    containernummer: extract(lines, /Container no[:\s]*(\S+)/i) || '0',
+    temperatuur: extract(lines, /Temperature[:\s]*([\-\d]+°C)/i) || '0',
+    datum: extract(lines, /Closing[:\s]*(\d{2}[-/]\d{2}[-/]\d{4})/i) || '0',
+    tijd: extract(lines, /Closing[:\s]*\d{2}[-/]\d{2}[-/]\d{4}.*?(\d{2}:\d{2})/i) || '0',
+    laadreferentie: extract(lines, /Pick-up reference[:\s]*(\S+)/i) || '0',
+    inleverreferentie: extract(lines, /Drop-off reference[:\s]*(\S+)/i) || '0',
+    inleverBestemming: extract(lines, /Final destination[:\s]*(.+)/i) || '0',
+    gewicht: extract(lines, /Weight[:\s]*(\d+ ?kg)?/i) || '0',
+    volume: extract(lines, /Volume[:\s]*(\d+(\.\d+)? ?m3)?/i) || '0',
+    colli: extract(lines, /Colli[:\s]*(\d+)/i) || '0',
+    lading: extract(lines, /Description of goods[:\s]*(.+)/i) || '0',
+    imo: extract(lines, /IMO[:\s]*(\d+)/i) || '0',
+    unnr: extract(lines, /UN[:\s]*(\d+)/i) || '0',
+    brix: extract(lines, /Brix[:\s]*(\d+)/i) || '0',
+    klantnaam: '0',
+    klantadres: '0',
+    klantpostcode: '0',
+    klantplaats: '0',
+    terminal: '0',
+    rederijCode: '0',
+    containertypeCode: '0',
+    klantAdresVolledig: '0'
   };
 
   for (const line of lines) {
-    if (line.includes('Our reference:')) data.referentie = line.split(':')[1]?.trim();
-    if (line.toLowerCase().includes('carrier')) data.rederij = line.split(':').pop().trim();
-    if (line.toLowerCase().includes('vessel')) data.bootnaam = line.split(':').pop().trim();
-    if (line.toLowerCase().includes('container type')) data.containertype = getContainerTypeCode(line);
-    if (line.toLowerCase().includes('container no')) data.containernummer = line.split(':')[1]?.trim();
-    if (line.toLowerCase().includes('temperature')) data.temperatuur = line.split(':')[1]?.trim();
-    if (line.toLowerCase().includes('closing')) {
-      const parts = line.split(/[: ]+/);
-      data.datum = parts[1];
-      data.tijd = parts[2];
+    if (!line.toLowerCase().includes('tiaro')) {
+      if (data.klantnaam === '0' && line.match(/(b\.v\.|transport|logistics|import|group|bv)/i)) data.klantnaam = line;
+      if (data.klantadres === '0' && line.match(/^\d+\w*\s+[a-z\s]+$/i)) data.klantadres = line;
+      if (data.klantpostcode === '0' && line.match(/\d{4}\s?[A-Z]{2}/)) data.klantpostcode = line.match(/\d{4}\s?[A-Z]{2}/)[0];
+      if (data.klantplaats === '0' && line.toLowerCase().includes('rotterdam')) data.klantplaats = 'Rotterdam';
     }
-    if (line.toLowerCase().includes('pick-up reference')) data.laadreferentie = line.split(':')[1]?.trim();
-    if (line.toLowerCase().includes('drop-off reference')) data.inleverreferentie = line.split(':')[1]?.trim();
-    if (line.toLowerCase().includes('final destination')) data.inleverBestemming = line.split(':')[1]?.trim();
-    if (line.toLowerCase().includes('weight')) data.gewicht = line.split(':')[1]?.trim();
-    if (line.toLowerCase().includes('volume')) data.volume = line.split(':')[1]?.trim();
-    if (line.toLowerCase().includes('colli')) data.colli = line.split(':')[1]?.trim();
-    if (line.toLowerCase().includes('description of goods')) data.lading = line.split(':')[1]?.trim();
-    if (line.toLowerCase().includes('imo')) data.imo = line.split(':')[1]?.trim();
-    if (line.toLowerCase().includes('un')) data.unnr = line.split(':')[1]?.trim();
-    if (line.toLowerCase().includes('brix')) data.brix = line.split(':')[1]?.trim();
-
-    // Klantgegevens (meestal pick-up locatie)
-    if (!data.klantnaam && line.toLowerCase().includes('tiaro transport')) data.klantnaam = line;
-    if (!data.klantadres && line.toLowerCase().includes('mariniersweg')) data.klantadres = line;
-    if (!data.klantpostcode && line.match(/\d{4}[A-Z]{2}/)) data.klantpostcode = line.match(/\d{4}[A-Z]{2}/)[0];
-    if (!data.klantplaats && line.toLowerCase().includes('rotterdam')) data.klantplaats = 'Rotterdam';
   }
 
-   Object.entries(data).forEach(([key, value]) => {
-    if (!value) {
-      console.warn(`⚠️ ${key} NIET gevonden in PDF`);
+  if (data.klantnaam.toLowerCase().includes('tiaro')) {
+    data.klantnaam = data.klantadres = data.klantpostcode = data.klantplaats = '0';
+  }
+
+  data.terminal = await getTerminalInfo(data.referentie, supabase) || '0';
+  data.rederijCode = await getRederijNaam(data.rederij, supabase) || '0';
+  data.containertypeCode = await getContainerTypeCode(data.containertype, supabase) || '0';
+  data.klantAdresVolledig = await getKlantData(data.klantnaam, supabase) || '0';
+
+  Object.entries(data).forEach(([key, value]) => {
+    if (!value || value === '') {
       data[key] = '0';
+      console.warn(`⚠️ ${key} NIET gevonden`);
     } else {
-      console.log(`✅ ${key}:`, value);
+      console.log(`✅ ${key}: ${value}`);
     }
   });
 
-  // 🔍 Terminal lookup
-  const terminalInfo = await getTerminalInfo(data.referentie, supabase);
-  if (terminalInfo) {
-    data.terminal = terminalInfo;
-    console.log('📦 Terminalinfo opgehaald:', terminalInfo);
-  } else {
-    console.warn('⚠️ Geen terminalinfo gevonden voor referentie', data.referentie);
-  }
-
-  // 🔍 Rederij lookup
-  const rederijCode = await getRederijNaam(data.rederij, supabase);
-  if (rederijCode) {
-    data.rederijCode = rederijCode;
-    console.log('🚢 Rederijcode:', rederijCode);
-  } else {
-    console.warn('⚠️ Geen rederijcode gevonden voor:', data.rederij);
-  }
-
-  // 🔍 Container type lookup
-  const containerCode = await getContainerTypeCode(data.containertype, supabase);
-  if (containerCode) {
-    data.containertypeCode = containerCode;
-    console.log('📦 Containercode:', containerCode);
-  } else {
-    console.warn('⚠️ Geen containertypecode gevonden voor:', data.containertype);
-  }
-
-  // 🔍 Klantgegevens aanvullen
-  const klantData = await getKlantData(data.klantnaam, supabase);
-  if (klantData) {
-    data.klantAdresVolledig = klantData;
-    console.log('🏢 Klantgegevens:', klantData);
-  } else {
-    console.warn('⚠️ Geen klantgegevens gevonden voor:', data.klantnaam);
-  }
-
   return data;
+}
+
+function extract(lines, pattern) {
+  for (const line of lines) {
+    const match = line.match(pattern);
+    if (match && match[1]) return match[1].trim();
+  }
+  return null;
 }
