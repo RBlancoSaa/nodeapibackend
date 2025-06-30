@@ -1,6 +1,6 @@
 // services/terminalLookup.js
 import '../fsPatch.js'; // 🚨 Moet altijd als eerste
-import { supabase } from '../supabaseClient.js';
+import supabase from '../supabaseClient.js'; // ✅
 
 /**
  * Haal terminalinfo op uit Supabase tabel 'referentielijsten/op_afzetten.json'
