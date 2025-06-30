@@ -1,12 +1,6 @@
-// services/terminalLookup.js
-import '../fsPatch.js'; // 🚨 Moet altijd als eerste
-import { supabase } from '../../services/supabaseClient.js';
+import '../../utils/fsPatch.js';
+import { supabase } from '../../services/supabaseClient.js'; // correcte pad én vorm
 
-/**
- * Haal terminalinfo op uit Supabase tabel 'referentielijsten/op_afzetten.json'
- * @param {string} referentie - klantreferentie zoals 'OE2516811'
- * @returns {object|null} terminalinfo of null
- */
 export async function getTerminalInfo(referentie) {
   try {
     if (!referentie || typeof referentie !== 'string') {
