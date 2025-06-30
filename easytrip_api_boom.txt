@@ -1,0 +1,43 @@
+Index.js
+├── /api/check-inbox.js
+│   └── findAttachmentsAndUpload.js
+│       └── Supabase upload (.pdf)
+│
+├── /api/upload-from-inbox.js
+│   ├── parseAttachmentsFromEmails.js
+│   │   └── mailparser (parsed.attachments)
+│   └── uploadPdfAttachmentsToSupabase.js
+│       ├── parsePdfToEasyFile.js
+│       │   ├── pdf-parse
+│       │   └── parseJordex.js
+│       │       └── Supabase .json lookups
+│       └── fetch → /api/generate-easy-files
+│           ├── generateXmlFromJson.js
+│           ├── fs.writeFileSync
+│           ├── Supabase upload (.easy)
+│           └── nodemailer.sendMail
+│
+├── /api/parse-uploaded-pdf.js
+│   ├── Supabase download (.pdf)
+│   ├── parsePdfToJson.js
+│   │   └── parseJordex.js
+│   ├── generateXmlFromJson.js
+│   ├── fs.writeFileSync (.easy)
+│   ├── uploadPdfAttachmentsToSupabase.js (zelfde als hierboven)
+│   └── sendEmailWithAttachments.js
+│       └── nodemailer
+│
+├── /api/generate-easy-files.js
+│   ├── generateXmlFromJson.js
+│   ├── fs.writeFileSync (.easy)
+│   ├── Supabase upload
+│   └── nodemailer.sendMail
+│
+├── /api/send-final-email.js
+│   ├── generateXmlFromJson.js
+│   ├── convertXmlToEasyfile.js
+│   │   └── Supabase upload
+│   └── sendEmailWithAttachments.js
+│
+└── /api/generate-xml.js
+    └── generateXmlFromJson.js
