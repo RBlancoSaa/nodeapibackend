@@ -1,101 +1,103 @@
-// parseJordex.js
+// parsers/parseJordex.js
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
-import { supabase } from '../services/supabaseClient.js';
-
 import {
   getTerminalInfo,
   getRederijNaam,
-  getKlantData,
-  getContainerTypeCode
+  getContainerTypeCode,
+  getKlantData
 } from '../utils/lookups/terminalLookup.js';
 
 export default async function parseJordex(pdfBuffer) {
-  console.log('📥 Start parser...');
-
-  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
-    console.warn('⚠️ Geen geldig PDF-buffer ontvangen');
-    return null;
-  }
+  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) return null;
 
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
-  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-  console.log('📎 pdfBuffer lengte:', pdfBuffer.length);
-  console.log('🧪 Eerste 100 tekens tekst:', text.slice(0, 100));
+  const multiExtract = (patterns) => {
+    for (const pattern of patterns) {
+      const found = lines.find(line => pattern.test(line));
+      if (found) {
+        const match = found.match(pattern);
+        if (match?.[1]) return match[1].trim();
+      }
+    }
+    return null;
+  };
 
   const data = {
-    referentie: extract(lines, /Our reference[:\s]*([A-Z0-9]+)/i) || '0',
-    rederij: extract(lines, /Carrier[:\s]*(.+)/i) || '0',
-    bootnaam: extract(lines, /Vessel[:\s]*(.+)/i) || '0',
-    containertype: extract(lines, /Container type[:\s]*([A-Z0-9]{4})/i) || '0',
-    containernummer: extract(lines, /Container no[:\s]*(\S+)/i) || '0',
-    temperatuur: extract(lines, /Temperature[:\s]*([-\d]+°C)/i) || '0',
-    datum: extract(lines, /Closing[:\s]*(\d{2}[-/]\d{2}[-/]\d{4})/i) || '0',
-    tijd: extract(lines, /Closing[:\s]*\d{2}[-/]\d{2}[-/]\d{4}.*?(\d{2}:\d{2})/i) || '0',
-    laadreferentie: extract(lines, /Pick-up reference[:\s]*(\S+)/i) || '0',
-    inleverreferentie: extract(lines, /Drop-off reference[:\s]*(\S+)/i) || '0',
-    inleverBestemming: extract(lines, /Final destination[:\s]*(.+)/i) || '0',
-    gewicht: extract(lines, /Weight[:\s]*(\d+ ?kg)?/i) || '0',
-    volume: extract(lines, /Volume[:\s]*(\d+(\.\d+)? ?m3)?/i) || '0',
-    colli: extract(lines, /Colli[:\s]*(\d+)/i) || '0',
-    lading: extract(lines, /Description of goods[:\s]*(.+)/i) || '0',
-    imo: extract(lines, /IMO[:\s]*(\d+)/i) || '0',
-    unnr: extract(lines, /UN[:\s]*(\d+)/i) || '0',
-    brix: extract(lines, /Brix[:\s]*(\d+)/i) || '0',
-    klantnaam: '0',
-    klantadres: '0',
-    klantpostcode: '0',
-    klantplaats: '0',
-    terminal: '0',
-
-    rederijCode: '0',
-    containertypeCode: '0',
-    klantAdresVolledig: '0'
+    referentie: multiExtract([/Our reference[:\s]*([A-Z0-9]+)/i]) || '0',
+    rederij: multiExtract([/Carrier[:\s]*(.+)/i]) || '0',
+    bootnaam: multiExtract([/Vessel[:\s]*(.+)/i]) || '0',
+    containertype: multiExtract([/Container type[:\s]*([A-Z0-9]{4})/i, /Cargo[:\s]*.*?(\d{2}[GRU1]+)/i]) || '0',
+    containernummer: multiExtract([/Container no[:\s]*(\w{4}U\d{7})/i, /(\w{4}U\d{7})/]) || '0',
+    temperatuur: multiExtract([/Temperature[:\s]*([-\d]+°C)/i]) || '0',
+    datum: multiExtract([/Date[:\s]*(\d{2}\s\w+\s\d{4})/i, /Closing[:\s]*(\d{2}[-/]\d{2}[-/]\d{4})/i]) || '0',
+    tijd: multiExtract([/\b(\d{2}:\d{2})\b/]) || '0',
+    laadreferentie: multiExtract([/Pick-up reference[:\s]*(\S+)/i]) || '0',
+    inleverreferentie: multiExtract([/Drop-off reference[:\s]*(\S+)/i]) || '0',
+    inleverBestemming: multiExtract([/Final destination[:\s]*(.+)/i]) || '0',
+    gewicht: multiExtract([/Weight[:\s]*(\d+\s?kg)/i]) || '0',
+    volume: multiExtract([/Volume[:\s]*(\d+(\.\d+)?\s?m3)/i]) || '0',
+    colli: multiExtract([/Colli[:\s]*(\d+)/i]) || '0',
+    lading: multiExtract([/Description of goods[:\s]*(.+)/i]) || '0',
+    imo: multiExtract([/IMO[:\s]*(\d+)/i]) || '0',
+    unnr: multiExtract([/UN[:\s]*(\d+)/i]) || '0',
+    brix: multiExtract([/Brix[:\s]*(\d+)/i]) || '0',
+    klantnaam: '0', klantadres: '0', klantpostcode: '0', klantplaats: '0', klantAdresVolledig: '0',
+    terminal: '0', rederijCode: '0', containertypeCode: '0'
   };
 
   for (const line of lines) {
-    if (!line.toLowerCase().includes('tiaro')) {
-      if (data.klantnaam === '0' && line.match(/(b\.v\.|transport|logistics|import|group|bv)/i)) data.klantnaam = line;
-      if (data.klantadres === '0' && line.match(/^\d+\w*\s+[a-z\s]+$/i)) data.klantadres = line;
-      if (data.klantpostcode === '0' && line.match(/\d{4}\s?[A-Z]{2}/)) data.klantpostcode = line.match(/\d{4}\s?[A-Z]{2}/)[0];
-      if (data.klantplaats === '0' && line.toLowerCase().includes('rotterdam')) data.klantplaats = 'Rotterdam';
+    const lower = line.toLowerCase();
+    if (!lower.includes('tiaro')) {
+      if (data.klantnaam === '0' && /(jordex|b\.v\.|logistics|group|bv)/i.test(line)) data.klantnaam = line;
+      if (data.klantadres === '0' && /\d{4}\s?[A-Z]{2}\s+.+/i.test(line)) data.klantadres = line;
+      if (data.klantpostcode === '0') {
+        const pc = line.match(/(\d{4}\s?[A-Z]{2})/);
+        if (pc) data.klantpostcode = pc[1];
+      }
+      if (data.klantplaats === '0' && lower.includes('rotterdam')) data.klantplaats = 'Rotterdam';
     }
   }
 
-  if (data.klantnaam.toLowerCase().includes('tiaro')) {
-    data.klantnaam = data.klantadres = data.klantpostcode = data.klantplaats = '0';
+  try {
+    const klant = await getKlantData(data.klantnaam);
+    data.klantadres = klant.adres || data.klantadres;
+    data.klantpostcode = klant.postcode || data.klantpostcode;
+    data.klantplaats = klant.plaats || data.klantplaats;
+    data.klantAdresVolledig = klant.volledig || '0';
+  } catch (e) {
+    console.warn('⚠️ klant lookup faalt:', e);
   }
 
-// ... extracties en klantnaamdetectie
+  try {
+    data.terminal = await getTerminalInfo(data.referentie) || '0';
+  } catch (e) {
+    console.warn('⚠️ terminal lookup faalt:', e);
+  }
 
-data.terminal = await getTerminalInfo(data.referentie);
-data.rederijCode = await getRederijNaam(data.rederij);
-data.containertypeCode = await getContainerTypeCode(data.containertype);
-const klant = await getKlantData(data.klantnaam);
-data.klantadres = klant.adres;
-data.klantpostcode = klant.postcode;
-data.klantplaats = klant.plaats;
-data.klantAdresVolledig = klant.volledig;
+  try {
+    data.rederijCode = await getRederijNaam(data.rederij) || '0';
+  } catch (e) {
+    console.warn('⚠️ rederij lookup faalt:', e);
+  }
 
+  try {
+    data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
+  } catch (e) {
+    console.warn('⚠️ containertype lookup faalt:', e);
+  }
 
-  Object.entries(data).forEach(([key, value]) => {
-    if (!value || value === '') {
+  for (const [key, val] of Object.entries(data)) {
+    if (!val || val === '') {
       data[key] = '0';
       console.warn(`⚠️ ${key} NIET gevonden`);
     } else {
-      console.log(`✅ ${key}: ${value}`);
+      console.log(`✅ ${key}: ${val}`);
     }
-  });
+  }
 
   return data;
-}
-
-function extract(lines, pattern) {
-  for (const line of lines) {
-    const match = line.match(pattern);
-    if (match && match[1]) return match[1].trim();
-  }
-  return null;
 }
