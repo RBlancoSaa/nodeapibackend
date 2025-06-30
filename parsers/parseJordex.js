@@ -50,17 +50,21 @@ export default async function parseJordex(pdfBuffer) {
   };
 
   for (const line of lines) {
-    const lower = line.toLowerCase();
-    if (!lower.includes('tiaro')) {
-      if (data.klantnaam === '0' && /(jordex|b\.v\.|logistics|group|bv)/i.test(line)) data.klantnaam = line;
-      if (data.klantadres === '0' && /\d{4}\s?[A-Z]{2}\s+.+/i.test(line)) data.klantadres = line;
-      if (data.klantpostcode === '0') {
-        const pc = line.match(/(\d{4}\s?[A-Z]{2})/);
-        if (pc) data.klantpostcode = pc[1];
-      }
-      if (data.klantplaats === '0' && lower.includes('rotterdam')) data.klantplaats = 'Rotterdam';
-    }
+  if (data.klantnaam === '0' && /(jordex|b\.v\.|logistics|group|bv)/i.test(line)) {
+    data.klantnaam = line;
   }
+}
+
+try {
+  const klant = await getKlantData(data.klantnaam);
+  data.klantadres = klant.adres || '0';
+  data.klantpostcode = klant.postcode || '0';
+  data.klantplaats = klant.plaats || '0';
+  data.klantAdresVolledig = klant.volledig || '0';
+} catch (e) {
+  console.warn('⚠️ klant lookup faalt:', e);
+}
+
 
   try {
     const klant = await getKlantData(data.klantnaam);
@@ -99,7 +103,7 @@ export default async function parseJordex(pdfBuffer) {
     }
   }
 
-  data.opdrachtgeverNaam = data.klantnaam || '0';
+data.opdrachtgeverNaam = data.klantnaam || '0';
 data.opdrachtgeverAdres = data.klantadres || '0';
 data.opdrachtgeverPostcode = data.klantpostcode || '0';
 data.opdrachtgeverPlaats = data.klantplaats || '0';
