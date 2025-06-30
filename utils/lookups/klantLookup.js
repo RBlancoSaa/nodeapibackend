@@ -1,5 +1,5 @@
 import '../fsPatch.js';;
-import { supabase } from '../supabaseClient.js';
+import { supabase } from '../../services/supabaseClient.js';
 
 /**
  * Haal klantgegevens op uit Supabase tabel 'referentielijsten/klanten'

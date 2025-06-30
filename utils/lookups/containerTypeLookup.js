@@ -1,5 +1,5 @@
 import '../fsPatch.js';
-import { supabase } from '../supabaseClient.js';
+import { supabase } from '../../services/supabaseClient.js';
 
 /**
  * Haal containertypecode op uit Supabase tabel 'referentielijsten/containertypes'
