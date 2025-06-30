@@ -1,6 +1,7 @@
 // utils/lookups/terminalLookup.js
 import '../../utils/fsPatch.js';
 import fetch from 'node-fetch';
+import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
