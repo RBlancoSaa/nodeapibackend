@@ -1,3 +1,4 @@
+import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import parseJordex from '../parsers/parseJordex.js';
 

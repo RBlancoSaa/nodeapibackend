@@ -1,4 +1,5 @@
 // .api/upload-from-inbox.js
+import '../utils/fsPatch.js';
 import { parseAttachmentsFromEmails } from '../services/parseAttachments.js';
 import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
 import { ImapFlow } from 'imapflow';

@@ -1,5 +1,5 @@
 // .uploadPdfAttachmentsToSupabas.js
-import '../utils/fsPatch.js'; // 👈 eerste regel vóór pdf-parse import
+import '../utils/fsPatch.js';                      // 🚫 patch fs vóór pdf-parse
 import { createClient } from '@supabase/supabase-js';
 import parsePdfToJson from './parsePdfToJson.js';
 import { generateXmlFromJson } from './generateXmlFromJson.js';

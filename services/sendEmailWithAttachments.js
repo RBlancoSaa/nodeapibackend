@@ -1,5 +1,5 @@
 // 📁 services/sendEmailWithAttachments.js
-
+import '../utils/fsPatch.js';
 import fs from 'fs';
 import transporter from '../utils/smtpTransport.js';
 
