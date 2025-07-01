@@ -49,9 +49,21 @@ data.opdrachtgeverEmail = data.opdrachtgeverEmail || '0';
 data.opdrachtgeverBTW = data.opdrachtgeverBTW || '0';
 data.opdrachtgeverKVK = data.opdrachtgeverKVK || '0';
 
-  if (!data.opdrachtgeverNaam || data.opdrachtgeverNaam === '0') {
-    throw new Error('❌ Opdrachtgevergegevens ontbreken');
+  const verplichteVelden = [
+  'opdrachtgeverNaam',
+  'opdrachtgeverAdres',
+  'opdrachtgeverPostcode',
+  'opdrachtgeverPlaats',
+  'opdrachtgeverEmail',
+  'opdrachtgeverBTW',
+  'opdrachtgeverKVK'
+];
+
+for (const veld of verplichteVelden) {
+  if (!data[veld] || data[veld] === '0') {
+    console.warn(`⚠️ Ontbrekend opdrachtgeverveld: ${veld}`);
   }
+}
 
   const [rederijen, containers, klanten, charters, terminals, opAfzetten] = await Promise.all([
     fetchList('rederijen'),
