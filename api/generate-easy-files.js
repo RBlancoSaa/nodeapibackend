@@ -3,7 +3,7 @@ import '../utils/fsPatch.js';
 import fs from 'fs';
 import path from 'path';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { uploadEasyFileToSupabase } from '../services/uploadEasyFileToSupabase.js';
+import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 
 export default async function handler(req, res) {
@@ -30,7 +30,7 @@ export default async function handler(req, res) {
 
     fs.writeFileSync(localPath, xml, 'utf8');
 
-    await uploadEasyFileToSupabase(localPath, bestandsnaam);
+    await uploadPdfAttachmentsToSupabase (localPath, bestandsnaam);
 
     await sendEmailWithAttachments({
       reference: data.reference,
