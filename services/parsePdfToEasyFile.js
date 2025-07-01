@@ -13,15 +13,16 @@ export default async function parsePdfToEasyFile(pdfBuffer) {
 
   const parsedData = await parseJordex(pdfBuffer);
   console.log('📄 Parsed data ontvangen:', parsedData);
-// 🔁 Zet klantvelden over naar opdrachtgevervelden
-parsedData.opdrachtgeverNaam = parsedData.klantnaam || '0';
-parsedData.opdrachtgeverAdres = parsedData.klantadres || '0';
-parsedData.opdrachtgeverPostcode = parsedData.klantpostcode || '0';
-parsedData.opdrachtgeverPlaats = parsedData.klantplaats || '0';
-parsedData.opdrachtgeverTelefoon = parsedData.telefoon || '0';
-parsedData.opdrachtgeverEmail = parsedData.email || '0';
-parsedData.opdrachtgeverBTW = parsedData.btw || '0';
-parsedData.opdrachtgeverKVK = parsedData.kvk || '0';
+
+  // 🔁 Zet klantvelden over naar opdrachtgevervelden
+  parsedData.opdrachtgeverNaam = parsedData.klantnaam || '0';
+  parsedData.opdrachtgeverAdres = parsedData.klantadres || '0';
+  parsedData.opdrachtgeverPostcode = parsedData.klantpostcode || '0';
+  parsedData.opdrachtgeverPlaats = parsedData.klantplaats || '0';
+  parsedData.opdrachtgeverTelefoon = parsedData.telefoon || '0';
+  parsedData.opdrachtgeverEmail = parsedData.email || '0';
+  parsedData.opdrachtgeverBTW = parsedData.btw || '0';
+  parsedData.opdrachtgeverKVK = parsedData.kvk || '0';
 
   const result = {
     opdrachtgeverNaam: parsedData.opdrachtgeverNaam || '0',
@@ -35,7 +36,7 @@ parsedData.opdrachtgeverKVK = parsedData.kvk || '0';
     ladenOfLossen: parsedData.ladenOfLossen || '0',
     tijdVan: parsedData.tijdVan || '0',
     tijdTM: parsedData.tijdTM || '0',
-    ritnummer: '0', // Altijd leeg, wordt gegenereerd door Easytrip
+    ritnummer: '0',
     type: parsedData.type || '0',
     datum: parsedData.datum || '0',
     containernummer: parsedData.containernummer || '0',
@@ -90,16 +91,15 @@ parsedData.opdrachtgeverKVK = parsedData.kvk || '0';
     blanco1Chart: parsedData.blanco1Chart || '0',
     blanco1Text: parsedData.blanco1Text || '0',
     blanco2Chart: parsedData.blanco2Chart || '0',
-    blanco2Text: parsedData.blanco2Text || '0'
+    blanco2Text: parsedData.blanco2Text || '0',
+    klantnaam: parsedData.klantnaam || '0',
+    klantadres: parsedData.klantadres || '0',
+    klantpostcode: parsedData.klantpostcode || '0',
+    klantplaats: parsedData.klantplaats || '0',
+    email: parsedData.email || '0',
+    telefoon: parsedData.telefoon || '0',
+    kvk: parsedData.kvk || '0'
   };
-
-  result.klantnaam = parsedData.klantnaam || '0';
-result.klantadres = parsedData.klantadres || '0';
-result.klantpostcode = parsedData.klantpostcode || '0';
-result.klantplaats = parsedData.klantplaats || '0';
-result.email = parsedData.email || '0';
-result.telefoon = parsedData.telefoon || '0';
-result.kvk = parsedData.kvk || '0';
 
   console.log('🧾 Result object opgebouwd:', result);
 
