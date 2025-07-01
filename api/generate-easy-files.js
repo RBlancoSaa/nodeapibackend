@@ -12,6 +12,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+
 // ✉️ E-mail setup
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
