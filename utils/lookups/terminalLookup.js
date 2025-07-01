@@ -66,7 +66,7 @@ export async function getKlantData(klantAlias) {
       console.warn(`⚠️ klant ${klantAlias} niet gevonden in klanten.json`);
       return {};
     }
-
+    
     return {
       naam: gevonden.Bedrijfsnaam || klantAlias,
       adres: gevonden.Adres || '0',
@@ -78,6 +78,8 @@ export async function getKlantData(klantAlias) {
       btw: gevonden.BTW_nummer || '',
       kvk: gevonden['Deb. nr'] || ''
     };
+
+    
   } catch (e) {
     console.error('❌ getKlantData error:', e);
     return {};

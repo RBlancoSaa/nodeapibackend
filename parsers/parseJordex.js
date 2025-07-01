@@ -15,8 +15,7 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
   console.warn('❌ Lege of ongeldige PDF buffer ontvangen');
   return {};
 }
-
-    if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) return null;
+  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) return null;
 
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
@@ -120,14 +119,22 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
     /Brix[:\t ]+(\d+)/i
   ]) || '0',
 
-  klantnaam: '0',
-  klantadres: '0',
-  klantpostcode: '0',
-  klantplaats: '0',
-  klantAdresVolledig: '0',
-  terminal: '0',
-  rederijCode: '0',
-  containertypeCode: '0'
+    klantnaam: '0',
+    klantadres: '0',
+    klantpostcode: '0',
+    klantplaats: '0',
+    klantAdresVolledig: '0',
+    opdrachtgeverNaam: '0',
+    opdrachtgeverAdres: '0',
+    opdrachtgeverPostcode: '0',
+    opdrachtgeverPlaats: '0',
+    opdrachtgeverTelefoon: '0',
+    opdrachtgeverEmail: '0',
+    opdrachtgeverBTW: '0',
+    opdrachtgeverKVK: '0',
+    terminal: '0',
+    rederijCode: '0',
+    containertypeCode: '0'
 };
 
   // ✅ Klantgegevens geforceerd instellen obv alias
@@ -142,19 +149,35 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
     };
     klantAlias = klantAliasMap[klantAlias.toLowerCase()] || klantAlias;
 
-    try {
+try {
       const klant = await getKlantData(klantAlias);
       data.klantnaam = klant.naam || klantAlias;
       data.klantadres = klant.adres || '0';
       data.klantpostcode = klant.postcode || '0';
       data.klantplaats = klant.plaats || '0';
+      data.telefoon = klant.telefoon || '0';
+      data.email = klant.email || '0';
+      data.btw = klant.btw || '0';
+      data.kvk = klant.kvk || '0';
       data.klantAdresVolledig = klant.volledig || '0';
+
+      // 🔁 Zet klantgegevens om naar opdrachtgevervelden
+      data.opdrachtgeverNaam = data.klantnaam;
+      data.opdrachtgeverAdres = data.klantadres;
+      data.opdrachtgeverPostcode = data.klantpostcode;
+      data.opdrachtgeverPlaats = data.klantplaats;
+      data.opdrachtgeverTelefoon = data.telefoon;
+      data.opdrachtgeverEmail = data.email;
+      data.opdrachtgeverBTW = data.btw;
+      data.opdrachtgeverKVK = data.kvk;
+
       console.log('📌 Klantgegevens geladen via alias:', klantAlias);
     } catch (e) {
       console.warn('⚠️ klantAlias lookup faalt:', e);
     }
   }
 
+  
   try {
     const baseRederij = data.rederij.includes(' - ') ? data.rederij.split(' - ')[1] : data.rederij;
     console.log('🔎 Zoek rederijcode voor:', baseRederij);
