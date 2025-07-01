@@ -175,8 +175,29 @@ try {
     } catch (e) {
       console.warn('⚠️ klantAlias lookup faalt:', e);
     }
-  }
+       // ⛔️ Fallback instellen om Easytrip error te voorkomen
+  data.klantnaam = klantAlias || 'ONBEKEND';
+  data.klantadres = '0';
+  data.klantpostcode = '0';
+  data.klantplaats = '0';
+  data.telefoon = '0';
+  data.email = '0';
+  data.btw = '0';
+  data.kvk = '0';
+  data.klantAdresVolledig = '0';
 
+  // 🔁 Zet alsnog de opdrachtgevervelden
+  data.opdrachtgeverNaam = data.klantnaam;
+  data.opdrachtgeverAdres = data.klantadres;
+  data.opdrachtgeverPostcode = data.klantpostcode;
+  data.opdrachtgeverPlaats = data.klantplaats;
+  data.opdrachtgeverTelefoon = data.telefoon;
+  data.opdrachtgeverEmail = data.email;
+  data.opdrachtgeverBTW = data.btw;
+  data.opdrachtgeverKVK = data.kvk;
+
+  console.warn(`⚠️ Fallback gebruikt voor klantAlias: ${data.klantnaam}`);
+}
   
   try {
     const baseRederij = data.rederij.includes(' - ') ? data.rederij.split(' - ')[1] : data.rederij;
