@@ -1,5 +1,4 @@
 // utils/notifyError.js
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -7,23 +6,32 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export default async function notifyError(attachment, message) {
-  const log = {
-    tijd: new Date().toISOString(),
-    bestandsnaam: attachment?.filename || 'onbekend',
-    referentie: attachment?.reference || 'onbekend',
-    foutmelding: message
-  };
+/**
+ * Logt een foutmelding naar de Supabase-tabel "error_logs"
+ * @param {Object} att - Bijlage info (mag leeg object zijn)
+ * @param {String} msg - De foutmelding
+ */
+export default async function notifyError(att = {}, msg = '') {
+  const bestand = att.filename || 'onbekend.pdf';
+  const referentie = att.referentie || 'geen referentie';
+  const tijd = new Date().toISOString();
 
-  console.error('🚨 ERROR MELDING:', log);
+  console.log(`🪵 Logging error naar Supabase: ${msg}`);
 
   const { error } = await supabase
     .from('error_logs')
-    .insert([log]);
+    .insert([
+      {
+        tijd,
+        bestandsnaam: bestand,
+        referentie,
+        foutmelding: msg
+      }
+    ]);
 
   if (error) {
-    console.error('❌ Supabase fout bij opslaan errorlog:', error.message);
+    console.error('❌ Kon fout niet loggen naar Supabase:', error.message);
   } else {
-    console.log('✅ Errorlog succesvol opgeslagen in Supabase');
+    console.log('✅ Fout gelogd in Supabase');
   }
 }
