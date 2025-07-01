@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import parsePdfToEasyFile from './parsePdfToEasyFile.js';
 import fetch from 'node-fetch';
 import nodemailer from 'nodemailer';
-import notifyError from '../utils/notifyError.js';
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
