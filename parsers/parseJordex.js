@@ -138,65 +138,53 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
 };
 
   // ✅ Klantgegevens geforceerd instellen obv alias
-  if (klantAlias) {
-    // 🔁 Alias normaliseren
-    const klantAliasMap = {
-      'jordex': 'JORDEX FORWARDING',
-      'jordex forwarding': 'JORDEX FORWARDING',
-      'jordex chartering': 'JORDEX CHARTERING & PROJECTS',
-      'tiaro': 'Tiaro Transport',
-      'tiaro transport': 'Tiaro Transport'
-    };
-    klantAlias = klantAliasMap[klantAlias.toLowerCase()] || klantAlias;
+if (klantAlias) {
+  // 🔁 Alias normaliseren
+  const klantAliasMap = {
+    'jordex': 'JORDEX FORWARDING',
+    'jordex forwarding': 'JORDEX FORWARDING',
+    'jordex chartering': 'JORDEX CHARTERING & PROJECTS',
+    'tiaro': 'Tiaro Transport',
+    'tiaro transport': 'Tiaro Transport'
+  };
+  klantAlias = klantAliasMap[klantAlias.toLowerCase()] || klantAlias;
 
-try {
-      const klant = await getKlantData(klantAlias);
-      data.klantnaam = klant.naam || klantAlias;
-      data.klantadres = klant.adres || '0';
-      data.klantpostcode = klant.postcode || '0';
-      data.klantplaats = klant.plaats || '0';
-      data.telefoon = klant.telefoon || '0';
-      data.email = klant.email || '0';
-      data.btw = klant.btw || '0';
-      data.kvk = klant.kvk || '0';
-      data.klantAdresVolledig = klant.volledig || '0';
+  try {
+    const klant = await getKlantData(klantAlias);
+    data.klantnaam = klant.naam || klantAlias;
+    data.klantadres = klant.adres || '0';
+    data.klantpostcode = klant.postcode || '0';
+    data.klantplaats = klant.plaats || '0';
+    data.telefoon = klant.telefoon || '0';
+    data.email = klant.email || '0';
+    data.btw = klant.btw || '0';
+    data.kvk = klant.kvk || '0';
+    data.klantAdresVolledig = klant.volledig || '0';
 
-      // 🔁 Zet klantgegevens om naar opdrachtgevervelden
-      data.opdrachtgeverNaam = data.klantnaam;
-      data.opdrachtgeverAdres = data.klantadres;
-      data.opdrachtgeverPostcode = data.klantpostcode;
-      data.opdrachtgeverPlaats = data.klantplaats;
-      data.opdrachtgeverTelefoon = data.telefoon;
-      data.opdrachtgeverEmail = data.email;
-      data.opdrachtgeverBTW = data.btw;
-      data.opdrachtgeverKVK = data.kvk;
+    // 🔁 Zet klantgegevens om naar opdrachtgevervelden
+    data.opdrachtgeverNaam = data.klantnaam;
+    data.opdrachtgeverAdres = data.klantadres;
+    data.opdrachtgeverPostcode = data.klantpostcode;
+    data.opdrachtgeverPlaats = data.klantplaats;
+    data.opdrachtgeverTelefoon = data.telefoon;
+    data.opdrachtgeverEmail = data.email;
+    data.opdrachtgeverBTW = data.btw;
+    data.opdrachtgeverKVK = data.kvk;
 
-      console.log('📌 Klantgegevens geladen via alias:', klantAlias);
-    } catch (e) {
-      console.warn('⚠️ klantAlias lookup faalt:', e);
-    }
-       // ⛔️ Fallback instellen om Easytrip error te voorkomen
-  data.klantnaam = klantAlias || 'ONBEKEND';
-  data.klantadres = '0';
-  data.klantpostcode = '0';
-  data.klantplaats = '0';
-  data.telefoon = '0';
-  data.email = '0';
-  data.btw = '0';
-  data.kvk = '0';
-  data.klantAdresVolledig = '0';
+    console.log('📌 Klantgegevens geladen via alias:', klantAlias);
+  } catch (e) {
+    console.warn('⚠️ klantAlias lookup faalt:', e);
 
-  // 🔁 Zet alsnog de opdrachtgevervelden
-  data.opdrachtgeverNaam = data.klantnaam;
-  data.opdrachtgeverAdres = data.klantadres;
-  data.opdrachtgeverPostcode = data.klantpostcode;
-  data.opdrachtgeverPlaats = data.klantplaats;
-  data.opdrachtgeverTelefoon = data.telefoon;
-  data.opdrachtgeverEmail = data.email;
-  data.opdrachtgeverBTW = data.btw;
-  data.opdrachtgeverKVK = data.kvk;
-
-  console.warn(`⚠️ Fallback gebruikt voor klantAlias: ${data.klantnaam}`);
+    // ⛔️ Fallback zodat Easytrip het bestand toch accepteert
+    data.opdrachtgeverNaam = klantAlias;
+    data.opdrachtgeverAdres = '0';
+    data.opdrachtgeverPostcode = '0';
+    data.opdrachtgeverPlaats = '0';
+    data.opdrachtgeverTelefoon = '0';
+    data.opdrachtgeverEmail = '0';
+    data.opdrachtgeverBTW = '0';
+    data.opdrachtgeverKVK = '0';
+  }
 }
   
   try {
