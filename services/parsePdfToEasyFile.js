@@ -93,6 +93,14 @@ parsedData.opdrachtgeverKVK = parsedData.kvk || '0';
     blanco2Text: parsedData.blanco2Text || '0'
   };
 
+  result.klantnaam = parsedData.klantnaam || '0';
+result.klantadres = parsedData.klantadres || '0';
+result.klantpostcode = parsedData.klantpostcode || '0';
+result.klantplaats = parsedData.klantplaats || '0';
+result.email = parsedData.email || '0';
+result.telefoon = parsedData.telefoon || '0';
+result.kvk = parsedData.kvk || '0';
+
   console.log('🧾 Result object opgebouwd:', result);
 
   const xml = await generateXmlFromJson(result);
