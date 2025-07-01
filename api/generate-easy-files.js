@@ -1,4 +1,5 @@
 // 📁 /api/generate-easy-files.js
+import '../utils/fsPatch.js';
 import fs from 'fs';
 import path from 'path';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
