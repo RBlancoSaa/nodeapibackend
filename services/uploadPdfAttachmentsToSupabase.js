@@ -1,3 +1,5 @@
+// .uploadPdfAttachmentsToSupabas.js
+import './utils/fsPatch.js'; // 👈 eerste regel vóór pdf-parse import
 import { createClient } from '@supabase/supabase-js';
 import parsePdfToJson from './parsePdfToJson.js';
 import { generateXmlFromJson } from './generateXmlFromJson.js';
