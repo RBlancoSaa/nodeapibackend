@@ -31,7 +31,7 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
     }
     return null;
   };
-
+  
   const data = {
   referentie: multiExtract([
     /Our reference[:\t ]+([A-Z0-9\-]+)/i,
@@ -137,6 +137,7 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
     containertypeCode: '0'
 };
 
+
   // ✅ Klantgegevens geforceerd instellen obv alias
 if (klantAlias) {
   // 🔁 Alias normaliseren
@@ -186,7 +187,18 @@ if (klantAlias) {
     data.opdrachtgeverKVK = '0';
   }
 }
-  
+  if (!data.laadplaats && data.klantplaats && data.klantplaats !== '0') {
+  data.laadplaats = data.klantplaats;
+}
+
+if (data.referentie === '0' && text.includes('Our reference:')) {
+  const refMatch = text.match(/Our reference:\s*([A-Z0-9]+)/);
+  if (refMatch) {
+    data.referentie = refMatch[1];
+  }
+}
+
+
   try {
     const baseRederij = data.rederij.includes(' - ') ? data.rederij.split(' - ')[1] : data.rederij;
     console.log('🔎 Zoek rederijcode voor:', baseRederij);
