@@ -11,7 +11,8 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 export default async function parsePdfToEasyFile(pdfBuffer) {
   console.log('📥 Start parsePdfToEasyFile...');
 
-  const parsedData = await parseJordex(pdfBuffer);
+const parsedData = await parseJordex(pdfBuffer, 'jordex');
+
   console.log('📄 Parsed data ontvangen:', parsedData);
 
   // 🔁 Zet klantvelden over naar opdrachtgevervelden
