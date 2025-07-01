@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import parsePdfToEasyFile from './parsePdfToEasyFile.js';
+import parsePdfToJson from './parsePdfToJson.js';
+import { generateXmlFromJson } from './generateXmlFromJson.js';
 import fetch from 'node-fetch';
 import nodemailer from 'nodemailer';
 
@@ -116,16 +117,24 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       console.log(`✅ Upload gelukt: ${att.filename}`);
 
       // PDF -> .easy genereren
-      let xml;
-      try {
-        console.log(`📘 Start parser`);
-        xml = await parsePdfToEasyFile(contentBuffer);
-      } catch (err) {
-        const msg = `⚠️ Parserfout: ${err.message}`;
-        console.error(msg);
-        await notifyError(att, msg);
-        continue;
-      }
+      let json;
+let xml;
+
+try {
+  console.log(`📘 Start parser naar JSON`);
+  json = await parsePdfToJson(contentBuffer);
+  if (!json || Object.keys(json).length === 0) {
+    throw new Error('Parser gaf geen bruikbare data terug');
+  }
+
+  console.log(`🛠️ XML genereren uit JSON`);
+  xml = await generateXmlFromJson(json);
+} catch (err) {
+  const msg = `⚠️ Parserfout: ${err.message}`;
+  console.error(msg);
+  await notifyError(att, msg);
+  continue;
+}
 
       // xml → generate-easy-files POST
       const referenceMatch = xml.match(/<Klantreferentie>(.*?)<\/Klantreferentie>/);
@@ -136,9 +145,8 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       const xmlBase64 = Buffer.from(xml).toString('base64');
 
 const payload = {
-  xmlBase64,
-  reference,
-  laadplaats
+  ...json, // bevat alle opdrachtgever-, referentie- en containerdata
+  xmlBase64
 };
 
 console.log('📡 Versturen naar generate-easy-files', {
