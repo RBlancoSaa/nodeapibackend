@@ -1,4 +1,7 @@
 // 📁 /services/generateXmlFromJson.js
+import '../utils/fsPatch.js'; // ✅ Eerst patchen!
+import fs from 'fs';
+import path from 'path';
 import fetch from 'node-fetch';
 
 const SUPABASE_LIST_URL = (process.env.SUPABASE_LIST_PUBLIC_URL || '').replace(/\/$/, '');
@@ -30,7 +33,7 @@ async function fetchList(name) {
 export async function generateXmlFromJson(data) {
   console.log('📄 Input voor XML-generator:', JSON.stringify(data, null, 2));
 
-  // Zet klant over naar opdrachtgever
+  // ✅ Zet klantvelden om naar opdrachtgever
   data.opdrachtgeverNaam = data.klantnaam;
   data.opdrachtgeverAdres = data.klantadres;
   data.opdrachtgeverPostcode = data.klantpostcode;
@@ -40,20 +43,28 @@ export async function generateXmlFromJson(data) {
   data.opdrachtgeverBTW = data.btw;
   data.opdrachtgeverKVK = data.kvk;
 
+  // 🛑 Waarschuwing bij ontbrekende velden
   const verplichteVelden = ['opdrachtgeverNaam', 'opdrachtgeverAdres', 'opdrachtgeverPostcode', 'opdrachtgeverPlaats', 'opdrachtgeverEmail', 'opdrachtgeverBTW', 'opdrachtgeverKVK'];
   for (const veld of verplichteVelden) {
     if (!data[veld] || data[veld] === '') console.warn(`⚠️ Ontbrekend opdrachtgeverveld: ${veld}`);
   }
 
+  // 🔄 Ophalen referentielijsten
   const [rederijen, containers] = await Promise.all([
     fetchList('rederijen'),
     fetchList('containers')
   ]);
 
+  // 📌 Vul locaties aan tot 3 stuks
   const locaties = data.locaties || [];
-  while (locaties.length < 3) locaties.push({ actie: '', naam: '', adres: '', postcode: '', plaats: '', land: '', voorgemeld: '', aankomst_verw: '', tijslot_van: '', tijslot_tm: '', portbase_code: '', bicsCode: '' });
+  while (locaties.length < 3) locaties.push({
+    actie: '', naam: '', adres: '', postcode: '', plaats: '', land: '',
+    voorgemeld: '', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
+    portbase_code: '', bicsCode: ''
+  });
 
-  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+  console.log('📄 Start XML-generatie');
+ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Order>
 <Dossiers><Dossier>
 <Opdrachtgever>
@@ -68,17 +79,17 @@ export async function generateXmlFromJson(data) {
 </Opdrachtgever>
 <Container>
   <Ritnr>${clean(data.ritnummer)}</Ritnr>
-  <Laden_Lossen>${clean(data.ladenOfLossen)}</Laden_Lossen>
-  <Type>${clean(data.type)}</Type>
+  <Laden_Lossen>${clean(data.actie)}</Laden_Lossen>
+  <Type>${clean(data.containertype)}</Type>
   <Datum>${clean(data.datum)}</Datum>
-  <TijdVan>${clean(data.tijdVan)}</TijdVan>
-  <TijdTM>${clean(data.tijdTM)}</TijdTM>
-  <Container>${clean(data.containernummer)}</Container>
-  <ContainerType>${match(data.containertype, containers)}</ContainerType>
+  <TijdVan>${clean(data.tijd)}</TijdVan>
+  <TijdTm>${clean(data.tijd)}</TijdTm>
+  <Containernummer>${clean(data.containernummer)}</Containernummer>
+  <Containertype>${clean(data.containertype)}</Containertype>
   <Lading>${clean(data.lading)}</Lading>
   <ADR>${clean(data.adr)}</ADR>
-  <Tarra>${clean(data.tarra)}</Tarra>
-  <GeladenGewicht>${clean(data.geladenGewicht)}</GeladenGewicht>
+  <TAR>${clean(data.tar)}</TAR>
+  <Gewicht>${clean(data.gewicht)}</Gewicht>
   <Brutogewicht>${clean(data.brutogewicht)}</Brutogewicht>
   <Colli>${clean(data.colli)}</Colli>
   <Zegel>${clean(data.zegel)}</Zegel>
@@ -90,15 +101,13 @@ export async function generateXmlFromJson(data) {
   <Rederij>${match(data.rederij, rederijen)}</Rederij>
   <Documentatie>${clean(data.documentatie)}</Documentatie>
   <TAR>${clean(data.tar)}</TAR>
-  <Laadrefentie>${clean(data.laadreferentie)}</Laadrefentie>
+  <Laadreferentie>${clean(data.laadreferentie)}</Laadreferentie>
   <Meldtijd>${clean(data.meldtijd)}</Meldtijd>
-  <Inleverrefentie>${clean(data.inleverreferentie)}</Inleverrefentie>
+  <Inleverreferentie>${clean(data.inleverreferentie)}</Inleverreferentie>
   <InleverBootnaam>${clean(data.inleverBootnaam)}</InleverBootnaam>
   <InleverBestemming>${clean(data.inleverBestemming)}</InleverBestemming>
-  <InleverRederij>${clean(data.inleverRederij)}</InleverRederij>
-  <Inlever_TAR>${clean(data.inleverTAR)}</Inlever_TAR>
-  <Closing_datum>${clean(data.closingDatum)}</Closing_datum>
-  <Closing_tijd>${clean(data.closingTijd)}</Closing_tijd>
+  <InleverRederij>${match(data.inleverRederij, rederijen)}</InleverRederij>
+  <Closing_tijd>${clean(data.closing_tijd)}</Closing_tijd>
   <Instructies>${clean(data.instructies)}</Instructies>
 </Container>
 <Locaties>
@@ -117,44 +126,46 @@ ${locaties.map(loc => `
     <Tijslot_tm>${clean(loc.tijslot_tm)}</Tijslot_tm>
     <Portbase_code>${clean(loc.portbase_code)}</Portbase_code>
     <bicsCode>${clean(loc.bicsCode)}</bicsCode>
-  </Locatie>`).join('\n')}
+  </Locatie>
+`.trim()).join('\n')}
 </Locaties>
 <Financieel>
   <Tarief>${fallback0(data.tarief)}</Tarief>
   <BTW>${fallback0(data.btw)}</BTW>
-  <ADR_toeslag_Chart>${fallback0(data.adrToeslagChart)}</ADR_toeslag_Chart>
-  <ADR_bedrag_Chart>${fallback0(data.adrBedragChart)}</ADR_bedrag_Chart>
-  <Botlek_Chart>${fallback0(data.botlekChart)}</Botlek_Chart>
-  <Chassishuur_Bedrag_chart>${fallback0(data.chassishuurChart)}</Chassishuur_Bedrag_chart>
-  <Delta_Chart>${fallback0(data.deltaChart)}</Delta_Chart>
-  <Diesel_toeslag_Chart>${fallback0(data.dieselChart)}</Diesel_toeslag_Chart>
-  <Euromax_Chart>${fallback0(data.euromaxChart)}</Euromax_Chart>
-  <ExtraStop_Chart>${fallback0(data.extraStopChart)}</ExtraStop_Chart>
-  <GasMeten_Chart>${fallback0(data.gasMetenChart)}</GasMeten_Chart>
-  <Gen_Chart>${fallback0(data.genChart)}</Gen_Chart>
-  <Handrail_Bedrag_chart>${fallback0(data.handrailChart)}</Handrail_Bedrag_chart>
-  <Keuren_Chart>${fallback0(data.keurenChart)}</Keuren_Chart>
-  <Kilometers_Chart>${fallback0(data.kilometersChart)}</Kilometers_Chart>
-  <LOever_Chart>${fallback0(data.loeverChart)}</LOever_Chart>
-  <Loods_Chart>${fallback0(data.loodsChart)}</Loods_Chart>
-  <Maut_Chart>${fallback0(data.mautChart)}</Maut_Chart>
-  <MV2_Chart>${fallback0(data.mv2Chart)}</MV2_Chart>
-  <Scannen_Chart>${fallback0(data.scannenChart)}</Scannen_Chart>
-  <Tol_Chart>${fallback0(data.tolChart)}</Tol_Chart>
-  <Blanco1_Chart>${fallback0(data.blanco1Chart)}</Blanco1_Chart>
-  <Blanco1_Text>${fallback0(data.blanco1Text)}</Blanco1_Text>
-  <Blanco2_Chart>${fallback0(data.blanco2Chart)}</Blanco2_Chart>
-  <Blanco2_Text>${fallback0(data.blanco2Text)}</Blanco2_Text>
+  <ADR_toeslag_Chart>${fallback0(data.adr_chart)}</ADR_toeslag_Chart>
+  <ADR_bedrag_Chart>${fallback0(data.adr_bedrag_chart)}</ADR_bedrag_Chart>
+  <Botlek_Chart>${fallback0(data.botlek_chart)}</Botlek_Chart>
+  <Chassishuurb_Chart>${fallback0(data.chassishuurb_chart)}</Chassishuurb_Chart>
+  <Delta_Chart>${fallback0(data.delta_chart)}</Delta_Chart>
+  <Diesel_toeslag_Chart>${fallback0(data.diesel_toeslag_chart)}</Diesel_toeslag_Chart>
+  <Euromax_Chart>${fallback0(data.euromax_chart)}</Euromax_Chart>
+  <ExtraStop_Chart>${fallback0(data.extraStop_chart)}</ExtraStop_Chart>
+  <GasMeten_Chart>${fallback0(data.gasMeten_chart)}</GasMeten_Chart>
+  <Gen_Chart>${fallback0(data.gen_chart)}</Gen_Chart>
+  <Handrail_Bedrag_chart>${fallback0(data.handrail_bedrag_chart)}</Handrail_Bedrag_chart>
+  <Keuren_Chart>${fallback0(data.keuren_chart)}</Keuren_Chart>
+  <Kilometers_Chart>${fallback0(data.kilometers_chart)}</Kilometers_Chart>
+  <LOever_Chart>${fallback0(data.loever_chart)}</LOever_Chart>
+  <Loods_Chart>${fallback0(data.loods_chart)}</Loods_Chart>
+  <Maut_Chart>${fallback0(data.maut_chart)}</Maut_Chart>
+  <MV2_Chart>${fallback0(data.mv2_chart)}</MV2_Chart>
+  <Scannen_Chart>${fallback0(data.scannen_chart)}</Scannen_Chart>
+  <Tol_Chart>${fallback0(data.tol_chart)}</Tol_Chart>
+  <Blanco1_Chart>${fallback0(data.blanco1_chart)}</Blanco1_Chart>
+  <Blanco1_Text>${fallback0(data.blanco1_text)}</Blanco1_Text>
+  <Blanco2_Chart>${fallback0(data.blanco2_chart)}</Blanco2_Chart>
+  <Blanco2_Text>${fallback0(data.blanco2_text)}</Blanco2_Text>
 </Financieel>
 </Dossier></Dossiers>
 </Order>`;
 
-  console.log('📦 XML gegenereerd:', xml.slice(0, 500));
+  console.log('📦 XML gegenereerd:', xml.slice(0, 600));
   console.log('🔍 Opdrachtgever:', data.klantnaam);
   console.log('🔍 Container:', data.containernummer);
   console.log('🔍 Terminal:', data.terminal);
   console.log('🔍 Rederij:', data.rederij);
   console.log('🔍 Laadref:', data.laadreferentie);
   console.log('🔍 Inleverref:', data.inleverreferentie);
+
   return xml;
 }
