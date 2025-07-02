@@ -21,6 +21,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+
 async function notifyError(att, reason) {
   const meta = att.emailMeta || {};
   const subject = `🚨 Fout bij verwerken van ${att.filename || 'onbekend bestand'}`;
@@ -141,16 +142,13 @@ try {
       // xml → generate-easy-files POST
       const referenceMatch = xml.match(/<Klantreferentie>(.*?)<\/Klantreferentie>/);
       const laadplaatsMatch = xml.match(/<Naam>(.*?)<\/Naam>/);
-      const reference = referenceMatch?.[1] || 'Onbekend';
-      const laadplaats = laadplaatsMatch?.[1] || 'Onbekend';
-
       const xmlBase64 = Buffer.from(xml).toString('base64');
 
-const { referentie, laadplaats = '0', ...rest } = parsedData;
-
+const laadplaats = json.laadplaats || '0';
+const reference = json.referentie || 'Onbekend';
 const payload = {
-  ...rest,
-  reference: referentie,
+  ...json,
+  reference,
   laadplaats
 };
 
@@ -161,34 +159,11 @@ console.log('📡 Versturen naar generate-easy-files', {
   url: `${process.env.PUBLIC_URL}/api/generate-easy-files`
 });
 
-const { referentie, laadplaats = '0', ...rest } = mail.parsedData;
-
-const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
+await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    ...rest,
-    reference: referentie,
-    laadplaats
-  })
-
-      const responseText = await resp.text();
-      console.log("📥 Antwoord van endpoint:", responseText);
-
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch {
-        result = { success: false, message: 'Kon response niet parsen als JSON' };
-      }
-
-      if (!result.success) {
-        const msg = `⚠️ Easy-bestand fout: ${result.message}`;
-        console.error(msg);
-        await notifyError(att, msg);
-      } else {
-        console.log(`✅ Easy-bestand succesvol: ${result.fileName}`);
-      }
+  body: JSON.stringify(payload)
+});
 
       uploadedFiles.push({
         filename: att.filename,
