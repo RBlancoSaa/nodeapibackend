@@ -2,6 +2,8 @@
 import '../utils/fsPatch.js';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
+import parsePdfToJson from '../parsers/parsePdfToJson.js';
+import generateXmlFromJson from '../services/generateXmlFromJson.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -113,6 +115,34 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       }
 
       console.log(`✅ Upload gelukt: ${att.filename}`);
+
+      
+try {
+  const json = await parsePdfToJson(contentBuffer);
+  if (!json || Object.keys(json).length === 0) throw new Error('Parser gaf geen bruikbare data terug');
+
+  const xml = await generateXmlFromJson(json);
+  const xmlBase64 = Buffer.from(xml).toString('base64');
+
+  const payload = {
+    ...json,
+    reference: json.referentie || json.reference || 'Onbekend',
+    laadplaats: json.laadplaats || json.klantplaats || '0',
+    xmlBase64
+  };
+
+  console.log('📡 Versturen naar generate-easy-files:', payload.reference);
+  await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+} catch (err) {
+  const msg = `⚠️ Easy-bestand fout: ${err.message}`;
+  console.error(msg);
+  await notifyError(att, msg);
+}
 
       uploadedFiles.push({
         filename: att.filename,
