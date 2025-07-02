@@ -58,15 +58,17 @@ export async function getKlantData(klantAlias) {
     const res = await fetch(url);
     const lijst = await res.json();
 
-    const gevonden = lijst.find(item =>
-      item.Bedrijfsnaam?.toLowerCase().includes(klantAlias.toLowerCase())
-    );
+   const gevonden = lijst.find(item =>
+  [item.Bedrijfsnaam, item.zoekcode, item.alias]
+    .filter(Boolean)
+    .some(val => val.toLowerCase() === klantAlias.toLowerCase())
+);
 
     if (!gevonden) {
       console.warn(`⚠️ klant ${klantAlias} niet gevonden in klanten.json`);
       return {};
     }
-    
+
     return {
       naam: gevonden.Bedrijfsnaam || klantAlias,
       adres: gevonden.Adres || '0',
