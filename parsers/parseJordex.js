@@ -32,14 +32,14 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
     return null;
   };
   
-
-  const data = {
-
     const descBlockMatch = text.match(/Description\s*([\s\S]*?)Extra Information/i);
 if (descBlockMatch) {
   const cleaned = descBlockMatch[1].replace(/\s+/g, ' ').trim();
   if (cleaned.length > 5) data.lading = cleaned;
 }
+  const data = {
+
+
 
   referentie: multiExtract([
     /Our reference[:\t ]+([A-Z0-9\-]+)/i,
