@@ -32,7 +32,15 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
     return null;
   };
   
+
   const data = {
+
+    const descBlockMatch = text.match(/Description\s*([\s\S]*?)Extra Information/i);
+if (descBlockMatch) {
+  const cleaned = descBlockMatch[1].replace(/\s+/g, ' ').trim();
+  if (cleaned.length > 5) data.lading = cleaned;
+}
+
   referentie: multiExtract([
     /Our reference[:\t ]+([A-Z0-9\-]+)/i,
     /Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i
@@ -47,10 +55,9 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
   ]) || '0',
 
   containertype: multiExtract([
-    /Container type[:\t ]+([A-Z0-9]{4})/i,
-    /Cargo[:\t ]+.*?(\d{2}[GRU1]+)/i
-  ]) || '0',
-
+  /Cargo[:\t]+(.+)/i
+]) || '0',
+ 
   containernummer: multiExtract([
     /Container no[:\t ]+(\w{4}U\d{7})/i,
     /(\w{4}U\d{7})/
@@ -65,9 +72,11 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
     /Closing[:\t ]+(\d{2}[-/]\d{2}[-/]\d{4})/i
   ]) || '0',
 
-  tijd: multiExtract([
-    /\b(\d{2}:\d{2})\b/
-  ]) || '0',
+  tijd: (() => {
+  const pickUpLine = lines.find(line => /Pick-up/i.test(line) && /Date[:\t ]/.test(line));
+  const timeMatch = pickUpLine?.match(/(\d{2}:\d{2})/);
+  return timeMatch ? timeMatch[1] : '0';
+})(),
 
   laadreferentie: multiExtract([
   /Pick[-\s]?up reference[:\t ]+(\S+)/i,
@@ -137,6 +146,8 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
     containertypeCode: '0'
 };
 
+ console.log('🔎 Zoek containertypecode voor:', data.containertype);
+data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
 
   // ✅ Klantgegevens geforceerd instellen obv alias
 if (klantAlias) {
@@ -236,5 +247,31 @@ if (data.referentie === '0' && text.includes('Our reference:')) {
     }
   }
 
+  data.locaties = [
+  {
+    volgorde: '0',
+    actie: 'Opzetten',
+    naam: 'Pick-up terminal',
+    adres: data.pickupTerminal || '-',
+    postcode: '0',
+    plaats: '0'
+  },
+  {
+    volgorde: '0',
+    actie: 'Laden',
+    naam: 'Constellation Varsseveld',
+    adres: 'Albert Schweitzerstraat 25',
+    postcode: '7131 PG',
+    plaats: 'Lichtenvoorde'
+  },
+  {
+    volgorde: '0',
+    actie: 'Inleveren',
+    naam: data.dropoffTerminal || 'ECT Delta Terminal',
+    adres: 'Europaweg 875',
+    postcode: '3199 LD',
+    plaats: 'Rotterdam-Maasvlakte'
+  }
+];
   return data;
 }
