@@ -14,7 +14,10 @@ function fallback0(value) {
   const str = typeof value === 'string' ? value.trim() : '';
   return str !== '' ? str : '0';
 }
-
+function match(value, list) {
+  const cleaned = typeof value === 'string' ? value.trim() : '';
+  return list.includes(cleaned) ? cleaned : '';
+}
 async function fetchList(name) {
   const url = `${SUPABASE_LIST_URL}/${name}.json`;
   console.log(`🌍 Ophalen lijst: ${url}`);
