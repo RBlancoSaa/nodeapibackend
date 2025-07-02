@@ -1,9 +1,6 @@
-// .uploadPdfAttachmentsToSupabas.js
-import '../utils/fsPatch.js';                      // 🚫 patch fs vóór pdf-parse
+// services/uploadPdfAttachmentsToSupabase.js
+import '../utils/fsPatch.js';
 import { createClient } from '@supabase/supabase-js';
-import parsePdfToJson from './parsePdfToJson.js';
-import { generateXmlFromJson } from './generateXmlFromJson.js';
-import fetch from 'node-fetch';
 import nodemailer from 'nodemailer';
 
 const supabase = createClient(
@@ -98,7 +95,6 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
       continue;
     }
 
-    // Upload naar Supabase
     try {
       console.log(`📤 Upload naar Supabase: ${att.filename}`);
       const { error } = await supabase.storage
@@ -118,85 +114,13 @@ export async function uploadPdfAttachmentsToSupabase(attachments) {
 
       console.log(`✅ Upload gelukt: ${att.filename}`);
 
-      // PDF -> .easy genereren
-      let json;
-let xml;
-
-try {
-  console.log(`📘 Start parser naar JSON`);
-  json = await parsePdfToJson(contentBuffer);
-  if (!json || Object.keys(json).length === 0) {
-    throw new Error('Parser gaf geen bruikbare data terug');
-  }
-
-  console.log(`🛠️ XML genereren uit JSON`);
-  xml = await generateXmlFromJson(json);
-} catch (err) {
-  const msg = `⚠️ Parserfout: ${err.message}`;
-  console.error(msg);
-  await notifyError(att, msg);
-  continue;
-}
-
-      // xml → generate-easy-files POST
-      const referenceMatch = xml.match(/<Klantreferentie>(.*?)<\/Klantreferentie>/);
-      const laadplaatsMatch = xml.match(/<Naam>(.*?)<\/Naam>/);
-      const reference = referenceMatch?.[1] || 'Onbekend';
-      const laadplaats = laadplaatsMatch?.[1] || 'Onbekend';
-
-      const xmlBase64 = Buffer.from(xml).toString('base64');
-
-const { referentie, laadplaats = '0', ...rest } = parsedData;
-
-const payload = {
-  ...rest,
-  reference: referentie,
-  laadplaats
-};
-
-console.log('📡 Versturen naar generate-easy-files', {
-  xmlBase64,
-  reference,
-  laadplaats,
-  url: `${process.env.PUBLIC_URL}/api/generate-easy-files`
-});
-
-const { referentie, laadplaats = '0', ...rest } = mail.parsedData;
-
-const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    ...rest,
-    reference: referentie,
-    laadplaats
-  })
-
-      const responseText = await resp.text();
-      console.log("📥 Antwoord van endpoint:", responseText);
-
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch {
-        result = { success: false, message: 'Kon response niet parsen als JSON' };
-      }
-
-      if (!result.success) {
-        const msg = `⚠️ Easy-bestand fout: ${result.message}`;
-        console.error(msg);
-        await notifyError(att, msg);
-      } else {
-        console.log(`✅ Easy-bestand succesvol: ${result.fileName}`);
-      }
-
       uploadedFiles.push({
         filename: att.filename,
         url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${att.filename}`
       });
 
     } catch (err) {
-      const msg = `💥 Upload/parsing crash: ${err.message || err}`;
+      const msg = `💥 Upload crash: ${err.message || err}`;
       console.error(msg);
       await notifyError(att, msg);
     }
