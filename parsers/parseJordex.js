@@ -172,7 +172,7 @@ if (klantAlias) {
     data.opdrachtgeverBTW = data.btw;
     data.opdrachtgeverKVK = data.kvk;
 
-    console.log('📌 Klantgegevens geladen via alias:', klantAlias);
+    console.log('📌 Klantgegevens geladen via alias:', data.opdrachtgeverNaam);
   } catch (e) {
     console.warn('⚠️ klantAlias lookup faalt:', e);
 
