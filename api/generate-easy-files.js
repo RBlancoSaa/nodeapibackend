@@ -30,7 +30,19 @@ export default async function handler(req, res) {
 
     fs.writeFileSync(localPath, xml, 'utf8');
 
-    await uploadPdfAttachmentsToSupabase (localPath, bestandsnaam);
+    await uploadPdfAttachmentsToSupabase([
+  {
+    filename: bestandsnaam,
+    content: fs.readFileSync(localPath),
+    contentType: 'application/xml',
+    emailMeta: {
+      from: 'Easytrip Automator',
+      subject: `XML voor ${bestandsnaam}`,
+      received: new Date().toISOString(),
+      attachments: [bestandsnaam]
+    }
+  }
+]);
 
     await sendEmailWithAttachments({
       reference: data.reference,
