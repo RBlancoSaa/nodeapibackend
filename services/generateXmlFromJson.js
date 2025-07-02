@@ -14,9 +14,7 @@ function fallback0(value) {
   const str = typeof value === 'string' ? value.trim() : '';
   return str !== '' ? str : '0';
 }
-function match(value, list) {
-  return list.includes(value?.trim()) ? value.trim() : '';
-}
+
 async function fetchList(name) {
   const url = `${SUPABASE_LIST_URL}/${name}.json`;
   console.log(`🌍 Ophalen lijst: ${url}`);
@@ -28,6 +26,14 @@ async function fetchList(name) {
     console.error(`💥 Fout bij lijst "${name}":`, err.message);
     throw err;
   }
+}
+
+// 🔁 Haalt containertype-code op op basis van omschrijving
+function getContainerCodeFromOmschrijving(omschrijving, containerList) {
+  const entry = containerList.find(item =>
+    item.omschrijving?.toLowerCase().trim() === omschrijving?.toLowerCase().trim()
+  );
+  return entry?.code || '';
 }
 
 export async function generateXmlFromJson(data) {
@@ -62,6 +68,8 @@ export async function generateXmlFromJson(data) {
     voorgemeld: '', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
     portbase_code: '', bicsCode: ''
   });
+  // 📌 Match containertype-omschrijving → code
+  data.containertype = getContainerCodeFromOmschrijving(data.containertypeOmschrijving, containers);
 
   console.log('📄 Start XML-generatie');
  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
