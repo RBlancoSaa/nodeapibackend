@@ -16,7 +16,7 @@ export default async function parsePdfToJson(buffer) {
     return {};
   }
 
-  const isJordex = text.includes('Jordex Shipping & Forwarding');
+const isJordex = text.toLowerCase().includes('jordex');
 
   if (isJordex) {
     console.log('🔍 Jordex PDF herkend');
