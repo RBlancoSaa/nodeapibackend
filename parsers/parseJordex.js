@@ -70,9 +70,9 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
   ]) || '0',
 
   laadreferentie: multiExtract([
-    /Pick[-\s]?up reference[:\t ]+(\S+)/i,
-    /Reference(?:\(s\))?[:\t ]+(\S+)/i
-  ]) || '0',
+  /Pick[-\s]?up reference[:\t ]+(\S+)/i,
+  /^Reference(?:\(s\))?[:\t ]+(\S+)/i  // ^ = moet BEGIN regel zijn
+]) || '0',
 
   inleverreferentie: multiExtract([
     /Drop[-\s]?off reference[:\t ]+(\S+)/i

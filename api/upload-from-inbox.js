@@ -38,12 +38,17 @@ export default async function handler(req, res) {
 
 // Na upload van PDF's, verwerk ze tot .easy-bestanden
 for (const mail of mails) {
-  if (mail.source === 'Jordex' && mail.parsedData) {
+  if (mail.source === 'Jordex' && mail.parsedData && mail.xmlBase64) {
     try {
       const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mail.parsedData)
+        body: JSON.stringify({
+          xmlBase64: mail.xmlBase64,
+          reference: mail.parsedData.referentie || 'Onbekend',
+          laadplaats: mail.parsedData.laadplaats || '0',
+          url: `${process.env.BASE_URL}/api/generate-easy-files`
+        })
       });
 
       const result = await response.json();
