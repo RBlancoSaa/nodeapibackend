@@ -146,9 +146,12 @@ try {
 
       const xmlBase64 = Buffer.from(xml).toString('base64');
 
+const { referentie, laadplaats = '0', ...rest } = parsedData;
+
 const payload = {
-  ...json, // bevat alle opdrachtgever-, referentie- en containerdata
-  xmlBase64
+  ...rest,
+  reference: referentie,
+  laadplaats
 };
 
 console.log('📡 Versturen naar generate-easy-files', {
@@ -158,11 +161,16 @@ console.log('📡 Versturen naar generate-easy-files', {
   url: `${process.env.PUBLIC_URL}/api/generate-easy-files`
 });
 
-const resp = await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
+const { referentie, laadplaats = '0', ...rest } = mail.parsedData;
+
+const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(payload)
-});
+  body: JSON.stringify({
+    ...rest,
+    reference: referentie,
+    laadplaats
+  })
 
       const responseText = await resp.text();
       console.log("📥 Antwoord van endpoint:", responseText);
