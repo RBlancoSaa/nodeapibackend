@@ -21,7 +21,7 @@ export default async function parsePdfToJson(buffer) {
   if (isJordex) {
     console.log('🔍 Jordex PDF herkend');
     console.log('📄 TEXT IN PDF:\n', text.slice(0, 500));
-    return await parseJordex(buffer, text);
+    return await parseJordex(buffer, 'jordex'); // ✅ juiste alias doorgeven
   }
 
   console.warn('⚠️ Onbekende klant, geen parser uitgevoerd');
