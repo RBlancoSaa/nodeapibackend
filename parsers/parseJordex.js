@@ -151,6 +151,8 @@ if (klantAlias) {
   klantAlias = klantAliasMap[klantAlias.toLowerCase()] || klantAlias;
 
   try {
+    console.log('🔍 klantAlias gebruikt bij lookup:', klantAlias);
+
     const klant = await getKlantData(klantAlias);
     data.klantnaam = klant.naam || klantAlias;
     data.klantadres = klant.adres || '0';
