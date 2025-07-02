@@ -2,8 +2,8 @@
 import '../utils/fsPatch.js';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
-import parsePdfToJson from '../services/parsePdfToJson.js';
-import generateXmlFromJson from '../services/generateXmlFromJson.js';
+import parsePdfToJson from './parsePdfToJson.js'; 
+import generateXmlFromJson from './generateXmlFromJson.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
