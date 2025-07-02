@@ -44,11 +44,11 @@ for (const mail of mails) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          xmlBase64: mail.xmlBase64,
-          reference: mail.parsedData.referentie || 'Onbekend',
-          laadplaats: mail.parsedData.laadplaats || '0',
-          url: `${process.env.BASE_URL}/api/generate-easy-files`
-        })
+  xmlBase64: mail.xmlBase64,
+  reference: mail.parsedData.referentie || 'Onbekend',
+  laadplaats: mail.parsedData.laadplaats || '0',
+  url: `${process.env.BASE_URL}/api/generate-easy-files`
+})
       });
 
       const result = await response.json();
