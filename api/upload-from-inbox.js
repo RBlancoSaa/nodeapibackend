@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     await client.connect();
     await client.mailboxOpen('INBOX');
 
-    let uids = await client.search({ seen: false });
+    const uids = await client.search({ seen: false });
     if (uids.length === 0) {
       await client.logout();
       return res.status(200).json({ message: 'Geen ongelezen mails' });
@@ -35,31 +35,30 @@ export default async function handler(req, res) {
     );
 
     const uploadedFiles = await uploadPdfAttachmentsToSupabase(pdfAttachments);
+  // Na upload van PDF's, verwerk ze tot .easy-bestanden
+    for (const mail of mails) {
+      if (mail.source === 'Jordex' && mail.parsedData && mail.xmlBase64) {
+        try {
+          const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reference: mail.parsedData.referentie,  // ✅ FIX: rename veld
+              laadplaats: mail.parsedData.laadplaats || '0',
+              ...mail.parsedData
+            })
+          });
 
-// Na upload van PDF's, verwerk ze tot .easy-bestanden
-for (const mail of mails) {
-  if (mail.source === 'Jordex' && mail.parsedData && mail.xmlBase64) {
-    try {
-      const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({
-  xmlBase64: mail.xmlBase64,
-  reference: mail.parsedData.referentie || 'Onbekend', // 🔁 hier fix je het
-  laadplaats: mail.parsedData.laadplaats || '0',
-  ...mail.parsedData // de rest mag blijven
-})
-      });
-
-      const result = await response.json();
-      console.log('📤 generate-easy-files resultaat:', result);
-    } catch (err) {
-      console.warn('⚠️ Fout bij genereren van .easy:', err.message);
+          const result = await response.json();
+          console.log('📤 generate-easy-files resultaat:', result);
+        } catch (err) {
+          console.warn('⚠️ Fout bij genereren van .easy:', err.message);
+        }
+      } else {
+        console.log('⏭️ Geen geldige parserdata of niet Jordex');
+      }
     }
-  } else {
-    console.log('⏭️ Geen geldige parserdata of niet Jordex');
-  }
-}
+
 
 await client.logout();
 
