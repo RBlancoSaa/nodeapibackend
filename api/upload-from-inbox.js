@@ -43,11 +43,11 @@ for (const mail of mails) {
       const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+body: JSON.stringify({
   xmlBase64: mail.xmlBase64,
-  reference: mail.parsedData.referentie || 'Onbekend',
+  reference: mail.parsedData.referentie || 'Onbekend', // 🔁 hier fix je het
   laadplaats: mail.parsedData.laadplaats || '0',
-  url: `${process.env.BASE_URL}/api/generate-easy-files`
+  ...mail.parsedData // de rest mag blijven
 })
       });
 
