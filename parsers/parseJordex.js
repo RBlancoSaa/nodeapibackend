@@ -111,10 +111,10 @@ if (descBlockMatch) {
     /Colli[:\t ]+(\d+)/i
   ]) || '0',
 
-  lading: multiExtract([
-    /Description of goods[:\t ]+(.+)/i,
-    /Cargo[:\t ]+(.+)/i
-  ]) || '0',
+ lading: ladingFromBlock || multiExtract([
+  /Description of goods[:\t ]+(.+)/i,
+  /Cargo[:\t ]+(.+)/i
+]) || '0',
 
   imo: multiExtract([
     /IMO[:\t ]+(\d+)/i
