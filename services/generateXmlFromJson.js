@@ -102,7 +102,7 @@ export async function generateXmlFromJson(data) {
   <Opdrachtgever_KVK>${clean(data.opdrachtgeverKVK)}</Opdrachtgever_KVK>
 </Opdrachtgever>
 <Container>
-  <Ritnr>${clean(data.ritnummer)}</Ritnr>
+  <Ritnr>${clean(data.referentie)}</Ritnr>
   <Laden_Lossen>${clean(data.actie)}</Laden_Lossen>
   <Type></Type>
   <Datum>${clean(data.datum)}</Datum>
