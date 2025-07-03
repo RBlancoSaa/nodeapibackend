@@ -32,10 +32,11 @@ if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
     return null;
   };
   
-    const descBlockMatch = text.match(/Description\s*([\s\S]*?)Extra Information/i);
+const descBlockMatch = text.match(/Description\s*([\s\S]*?)Extra Information/i);
+let ladingFromBlock = '0';
 if (descBlockMatch) {
   const cleaned = descBlockMatch[1].replace(/\s+/g, ' ').trim();
-  if (cleaned.length > 5) data.lading = cleaned;
+  if (cleaned.length > 5) ladingFromBlock = cleaned;
 }
   const data = {
 
