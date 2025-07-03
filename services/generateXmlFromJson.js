@@ -18,6 +18,18 @@ function match(value, list) {
   const cleaned = typeof value === 'string' ? value.trim() : '';
   return list.includes(cleaned) ? cleaned : '';
 }
+function fallbackOnwaar(value) {
+  const str = typeof value === 'string' ? value.trim() : '';
+  return str !== '' ? str : 'Onwaar';
+}
+function bevatADR(data) {
+  const adrTekst = `${data.adr || ''} ${data.imo || ''} ${data.lading || ''}`.toUpperCase();
+  return (
+    adrTekst.includes('ADR') ||
+    /UN\s?\d{4}/.test(adrTekst) ||
+    (data.imo && data.imo.trim() !== '')
+  );
+}
 async function fetchList(name) {
   const url = `${SUPABASE_LIST_URL}/${name}.json`;
   console.log(`🌍 Ophalen lijst: ${url}`);
@@ -91,14 +103,14 @@ export async function generateXmlFromJson(data) {
 <Container>
   <Ritnr>${clean(data.ritnummer)}</Ritnr>
   <Laden_Lossen>${clean(data.actie)}</Laden_Lossen>
-  <Type>${clean(data.containertype)}</Type>
+  <Type></Type>
   <Datum>${clean(data.datum)}</Datum>
   <TijdVan>${clean(data.tijd)}</TijdVan>
   <TijdTm>${clean(data.tijd)}</TijdTm>
   <Containernummer>${clean(data.containernummer)}</Containernummer>
   <Containertype>${clean(data.containertype)}</Containertype>
   <Lading>${clean(data.lading)}</Lading>
-  <ADR>${clean(data.adr)}</ADR>
+  <ADR>${bevatADR(data) ? 'Waar' : 'Onwaar'}</ADR>
   <TAR>${clean(data.tar)}</TAR>
   <Gewicht>${clean(data.gewicht)}</Gewicht>
   <Brutogewicht>${clean(data.brutogewicht)}</Brutogewicht>
@@ -177,6 +189,12 @@ ${locaties.map(loc => `
   console.log('🔍 Rederij:', data.rederij);
   console.log('🔍 Laadref:', data.laadreferentie);
   console.log('🔍 Inleverref:', data.inleverreferentie);
+  console.log('🧪 ADR check:', {
+  adr: data.adr,
+  imo: data.imo,
+  lading: data.lading,
+  adrStatus: bevatADR(data) ? 'Waar' : 'Onwaar'
+});
 
   return xml;
 }
