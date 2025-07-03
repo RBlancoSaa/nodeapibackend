@@ -84,7 +84,8 @@ export async function generateXmlFromJson(data) {
     portbase_code: '', bicsCode: ''
   });
   // 📌 Match containertype-omschrijving → code
-  data.containertype = getContainerCodeFromOmschrijving(data.containertypeOmschrijving, containers);
+ data.containertype = clean(data.containertypeCode);
+
 
   console.log('📄 Start XML-generatie');
  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
@@ -133,6 +134,13 @@ export async function generateXmlFromJson(data) {
   <Closing_tijd>${clean(data.closing_tijd)}</Closing_tijd>
   <Instructies>${clean(data.instructies)}</Instructies>
 </Container>
+<ADR>
+  <Ritnr>${clean(data.ritnummer)}</Ritnr>
+  <UN>${clean(data.un)}</UN>
+  <Productnaam>${clean(data.adr_productnaam)}</Productnaam>
+  <Milieu>${fallbackOnwaar(data.adr_milieu)}</Milieu>
+  <Afval>${fallbackOnwaar(data.adr_afval)}</Afval>
+</ADR>
 <Locaties>
 ${locaties.map(loc => `
   <Locatie>
