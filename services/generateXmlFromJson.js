@@ -104,9 +104,13 @@ export async function generateXmlFromJson(data) {
     voorgemeld: '', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
     portbase_code: '', bicsCode: ''
   });
-  
-// 📌 Match containertype-omschrijving → code
-data.containertype = data.containertypeCode;
+
+// 📌 Match containertype-omschrijving → code uit containerslijst
+const code = getContainerCodeFromOmschrijving(data.containertype, containers);
+if (!code) {
+  throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
+}
+data.containertype = code;
 
 // ✅ Minimale vereisten check – verplaatst naar ná code-matching
 if (!data.containertype || data.containertype === '0') {
