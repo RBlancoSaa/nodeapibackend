@@ -104,12 +104,14 @@ export async function generateXmlFromJson(data) {
     voorgemeld: '', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
     portbase_code: '', bicsCode: ''
   });
+  
+// 📌 Match containertype-omschrijving → code
+data.containertype = data.containertypeCode;
 
-  data.containertype = data.containertypeCode;
-
-  if (!data.containertype || data.containertype === '0') {
-    throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
-  }
+// ✅ Minimale vereisten check – verplaatst naar ná code-matching
+if (!data.containertype || data.containertype === '0') {
+  throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
+}
 
   console.log('📄 Start XML-generatie');
  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
