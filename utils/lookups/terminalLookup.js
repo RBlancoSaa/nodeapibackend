@@ -10,14 +10,25 @@ const supabase = createClient(
 
 const SUPABASE_LIST_URL = process.env.SUPABASE_LIST_PUBLIC_URL?.replace(/\/$/, '');
 
+function normalizeContainerOmschrijving(str) {
+  return (str || '')
+    .toLowerCase()
+    .replace(/^(\d+)\s*x\s*/i, '')     // verwijder "1 x", "2 x", etc.
+    .replace(/[^a-z0-9]/g, '')         // verwijder spaties, symbolen
+    .trim();
+}
+
 export async function getTerminalInfo(referentie) {
   try {
     if (!referentie || typeof referentie !== 'string') return '0';
     const url = `${SUPABASE_LIST_URL}/op_afzetten.json`;
     const res = await fetch(url);
     const lijst = await res.json();
-    const gevonden = lijst.find(i => i.referentie?.toLowerCase() === referentie.toLowerCase());
-    return gevonden?.terminal || '0';
+    const norm = referentie.toLowerCase().replace(/\s+/g, '').trim();
+    const gevonden = lijst.find(i =>
+      i.referentie?.toLowerCase().replace(/\s+/g, '').trim() === norm
+    );
+return gevonden?.terminal || '0';
   } catch (e) {
     console.error('❌ getTerminalInfo error:', e);
     return '0';
@@ -30,8 +41,11 @@ export async function getRederijNaam(rederij) {
     const url = `${SUPABASE_LIST_URL}/rederijen.json`;
     const res = await fetch(url);
     const lijst = await res.json();
-    const gevonden = lijst.find(i => i.naam?.toLowerCase() === rederij.toLowerCase());
-    return gevonden?.code || '0';
+    const norm = rederij.toLowerCase().replace(/\s+/g, '').trim();
+    const gevonden = lijst.find(i =>
+      i.naam?.toLowerCase().replace(/\s+/g, '').trim() === norm
+);
+   return gevonden?.code || '0';
   } catch (e) {
     console.error('❌ getRederijNaam error:', e);
     return '0';
@@ -41,19 +55,20 @@ export async function getRederijNaam(rederij) {
 export async function getContainerTypeCode(type) {
   try {
     if (!type || typeof type !== 'string') return '0';
+
     const url = `${SUPABASE_LIST_URL}/containers.json`;
     const res = await fetch(url);
     const lijst = await res.json();
-    const norm = type.toLowerCase().replace(/[^a-z0-9']/g, '').trim();
+
+    const norm = normalizeContainerOmschrijving(type);
 
     for (const item of lijst) {
       const opties = [
-        item.naam?.toLowerCase().replace(/[^a-z0-9']/g, '').trim(),
-        item.label?.toLowerCase().replace(/[^a-z0-9']/g, '').trim(),
-        ...(item.altLabels || []).map(l =>
-          l.toLowerCase().replace(/[^a-z0-9']/g, '').trim()
-        )
-      ];
+        item.naam,
+        item.label,
+        ...(item.altLabels || [])
+      ].map(normalizeContainerOmschrijving);
+
       if (opties.includes(norm)) return item.code;
     }
 
