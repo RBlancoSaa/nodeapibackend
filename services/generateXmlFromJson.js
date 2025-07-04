@@ -117,13 +117,11 @@ if (!data.containertype || data.containertype === '0') {
   throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
 }
 
-if (!data.actie) {
-  const acties = (data.locaties || []).map(l => l.actie?.toLowerCase());
-  if (acties.includes('laden')) data.actie = 'Laden';
-  else if (acties.includes('lossen')) data.actie = 'Lossen';
-  else data.actie = 'Laden'; // fallback
+if (!data.actie || data.actie === '0') {
+  const acties = (data.locaties || []).map(loc => loc.actie?.toLowerCase());
+  if (acties.includes('lossen')) data.actie = 'Lossen';
+  else data.actie = 'Laden';
 }
-
 
   console.log('📄 Start XML-generatie');
  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
