@@ -30,6 +30,14 @@ function bevatADR(data) {
     (data.imo && data.imo.trim() !== '')
   );
 }
+function normalizeContainerOmschrijving(str) {
+  return (str || '')
+    .toLowerCase()
+    .replace(/^(\d+)\s*x\s*/i, '')     // verwijder "1 x", "2 x", etc.
+    .replace(/[^a-z0-9]/g, '')         // verwijder spaties, symbolen
+    .trim();
+}
+
 async function fetchList(name) {
   const url = `${SUPABASE_LIST_URL}/${name}.json`;
   console.log(`🌍 Ophalen lijst: ${url}`);
@@ -45,17 +53,18 @@ async function fetchList(name) {
 
 // 🔁 Haalt containertype-code op op basis van omschrijving
 function getContainerCodeFromOmschrijving(omschrijving, containerList) {
-  if (!omschrijving) return '';
-  const norm = omschrijving.toLowerCase().replace(/[^a-z0-9']/g, '').trim();
+  const norm = normalizeContainerOmschrijving(omschrijving);
 
   for (const item of containerList) {
-    const labels = [
-      item.label?.toLowerCase().replace(/[^a-z0-9']/g, '').trim(),
-      ...(item.altLabels || []).map(l => l.toLowerCase().replace(/[^a-z0-9']/g, '').trim())
-    ];
-    if (labels.includes(norm)) return item.code;
+    const opties = [
+      item.label,
+      ...(item.altLabels || [])
+    ].map(normalizeContainerOmschrijving);
+
+    if (opties.includes(norm)) return item.code;
   }
-return '';
+
+  return '';
 }
 
 export async function generateXmlFromJson(data) {

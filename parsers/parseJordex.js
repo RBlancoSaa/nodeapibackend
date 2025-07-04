@@ -5,7 +5,8 @@ import {
   getTerminalInfo,
   getRederijNaam,
   getContainerTypeCode,
-  getKlantData
+  getKlantData,
+  normalizeContainerOmschrijving,
 } from '../utils/lookups/terminalLookup.js';
 
 export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
@@ -149,8 +150,7 @@ if (descBlockMatch) {
 };
 
  console.log('🔎 Zoek containertypecode voor:', data.containertype);
-data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
-
+data.containertype = normalizeContainerOmschrijving(data.containertype);
 if (data.containertype?.toLowerCase().includes("container")) {
   data.containertype = data.containertype.replace(/^1\s*x\s*/i, '').trim();  // "1 x 20' container" → "20' container"
 }
