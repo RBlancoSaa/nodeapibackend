@@ -63,7 +63,18 @@ function getContainerCodeFromOmschrijving(omschrijving, containerList) {
     if (opties.includes(norm)) return item.code;
   }
 
-  return '';
+// 📆 Datum fix voor EasyTrip
+function formatDatumVoorEasyTrip(input) {
+  const months = {
+    Jan: '01', Feb: '02', Mar: '03', Apr: '04',
+    May: '05', Jun: '06', Jul: '07', Aug: '08',
+    Sep: '09', Oct: '10', Nov: '11', Dec: '12'
+  };
+  const [dag, maandStr, jaar] = input.split(' ');
+  const maand = months[maandStr] || '00';
+  return `${dag.padStart(2, '0')}-${maand}-${jaar}`;
+}
+return null; // ✅ nodig om correct af te sluiten
 }
 
 export async function generateXmlFromJson(data) {
@@ -91,7 +102,7 @@ export async function generateXmlFromJson(data) {
   data.documentatie = data.documentatie || '';
   data.tar = data.tar || '';
   data.type = ''; // EasyTrip gebruikt 'Type' alleen bij specialisatie, niet bij containers
-
+  data.datum = formatDatumVoorEasyTrip(data.datum); // 👈 HIER PLAATSEN
 
   const verplichteVelden = ['opdrachtgeverNaam', 'opdrachtgeverAdres', 'opdrachtgeverPostcode', 'opdrachtgeverPlaats', 'opdrachtgeverEmail', 'opdrachtgeverBTW', 'opdrachtgeverKVK'];
   for (const veld of verplichteVelden) {
