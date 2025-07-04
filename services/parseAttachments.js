@@ -26,17 +26,21 @@ if (attachments.some(a => a.filename === '05-versions-space.pdf')) {
         }))
       );
 
+      const pdfAttachment = attachments.find(att => att.filename?.toLowerCase().endsWith('.pdf'));
+
       mails.push({
         uid: message.uid,
         subject: message.envelope.subject || '(geen onderwerp)',
         from: message.envelope.from.map(f => `${f.name ?? ''} <${f.address}>`.trim()).join(', '),
         date: message.envelope.date,
+        originalPdfFilename: pdfAttachment?.filename || null, // ✅ toegevoegd
         attachments: attachments.map(att => ({
           filename: att.filename,
           contentType: att.contentType,
           content: att.content
         }))
       });
+
 
       allAttachments.push(...attachments.map(att => ({
         uid: message.uid,
