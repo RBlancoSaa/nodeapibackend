@@ -18,11 +18,4 @@ export async function sendEmailWithAttachments({ reference, attachments }) {
   };
 
   await transporter.sendMail(mailOptions);
-  await sendEmailWithAttachments({
-  reference: data.reference,
-  attachments: [
-    { filename: bestandsnaam, path: localPath },
-    { filename: originelePdfNaam, path: padOriginelePdf }
-  ]
-});
 }

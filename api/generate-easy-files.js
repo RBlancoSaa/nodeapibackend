@@ -32,11 +32,17 @@ export default async function handler(req, res) {
     const originelePdfNaam = data.pdfBestandsnaam || `origineel_${data.reference}.pdf`;
     const padOriginelePdf = path.join('/tmp', originelePdfNaam);
 
- // 🧾 Bewaar originele PDF op padOriginelePdf
+let originelePdfBestaat = false;
+
 if (data.originalPdfBase64) {
-  const originelePdfBuffer = Buffer.from(data.originalPdfBase64, 'base64');
-  fs.writeFileSync(padOriginelePdf, originelePdfBuffer);
-  console.log(`✅ Originele PDF opgeslagen: ${padOriginelePdf}`);
+  try {
+    const originelePdfBuffer = Buffer.from(data.originalPdfBase64, 'base64');
+    fs.writeFileSync(padOriginelePdf, originelePdfBuffer);
+    originelePdfBestaat = true;
+    console.log(`✅ Originele PDF opgeslagen: ${padOriginelePdf}`);
+  } catch (err) {
+    console.warn('⚠️ Fout bij opslaan originele PDF:', err.message);
+  }
 } else {
   console.warn('⚠️ Geen originele PDF meegegeven als base64 – wordt niet meegestuurd');
 }
