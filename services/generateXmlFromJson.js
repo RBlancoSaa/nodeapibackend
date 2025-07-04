@@ -161,9 +161,9 @@ if (!data.actie || data.actie === '0') {
   <Type></Type>
   <Datum>${clean(data.datum)}</Datum>
   <TijdVan>${clean(data.tijd)}</TijdVan>
-  <TijdTm>${clean(data.tijd)}</TijdTm>
+  <TijdTM>${clean(data.tijd)}</TijdTM>
   <Containernummer>${clean(data.containernummer)}</Containernummer>
-  <Containertype>${clean(data.containertype)}</Containertype>
+  <ContainerType>${clean(data.containertype)}</ContainerType>
   <Lading>${clean(data.lading)}</Lading>
   <ADR>${bevatADR(data) ? 'Waar' : 'Onwaar'}</ADR>
   <TAR>${clean(data.tar)}</TAR>
@@ -179,12 +179,14 @@ if (!data.actie || data.actie === '0') {
   <Rederij>${match(data.rederij, rederijen)}</Rederij>
   <Documentatie>${clean(data.documentatie)}</Documentatie>
   <TAR>${clean(data.tar)}</TAR>
-  <Laadreferentie>${clean(data.laadreferentie)}</Laadreferentie>
+  <Closing_datum>${clean(data.closing_tijd)}</Closing_datum>
+  <Laadrefentie>${clean(data.laadreferentie)}</Laadrefentie>
   <Meldtijd>${clean(data.meldtijd)}</Meldtijd>
-  <Inleverreferentie>${clean(data.inleverreferentie)}</Inleverreferentie>
+  <Inleverrefentie>${clean(data.inleverreferentie)}</Inleverrefentie>
   <InleverBootnaam>${clean(data.inleverBootnaam)}</InleverBootnaam>
   <InleverBestemming>${clean(data.inleverBestemming)}</InleverBestemming>
   <InleverRederij>${match(data.inleverRederij, rederijen)}</InleverRederij>
+  <Inlever_TAR>${clean(data.inleverBestemming)}</Inlever_TAR>
   <Closing_tijd>${clean(data.closing_tijd)}</Closing_tijd>
   <Instructies>${clean(data.instructies)}</Instructies>
 </Container>
