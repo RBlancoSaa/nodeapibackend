@@ -112,7 +112,7 @@ if (data.containertype?.includes("'")) {
 }
 
   // 📌 Match containertype-omschrijving → code
-data.containertype = getContainerCodeFromOmschrijving(data.containertype, containers);
+data.containertype = clean(data.containertypeCode);
 
 if (!data.containertype || data.containertype === '0') {
   throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
