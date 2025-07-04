@@ -10,11 +10,11 @@ const supabase = createClient(
 
 const SUPABASE_LIST_URL = process.env.SUPABASE_LIST_PUBLIC_URL?.replace(/\/$/, '');
 
-function normalizeContainerOmschrijving(str) {
+export function normalizeContainerOmschrijving(str) {
   return (str || '')
     .toLowerCase()
-    .replace(/^(\d+)\s*x\s*/i, '')     // verwijder "1 x", "2 x", etc.
-    .replace(/[^a-z0-9]/g, '')         // verwijder spaties, symbolen
+    .replace(/^(\d+)\s*x\s*/i, '')
+    .replace(/[^a-z0-9]/g, '')
     .trim();
 }
 
