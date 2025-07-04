@@ -112,14 +112,6 @@ export async function generateXmlFromJson(data) {
     portbase_code: '', bicsCode: ''
   });
 
-  // Strip prefix zoals "1 x"
-if (data.containertype?.includes("'")) {
-  const match = data.containertype.match(/(\d{1,2}'[^ ]+)/);
-  if (match) {
-    data.containertype = match[1]; // bijv. "20' container"
-  }
-}
-
   // 📌 Match containertype-omschrijving → code
 data.containertype = data.containertypeCode;
 
