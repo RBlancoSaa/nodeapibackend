@@ -33,8 +33,8 @@ function bevatADR(data) {
 function normalizeContainerOmschrijving(str) {
   return (str || '')
     .toLowerCase()
-    .replace(/^(\d+)\s*x\s*/i, '')     // verwijder "1 x", "2 x", etc.
-    .replace(/[^a-z0-9]/g, '')         // verwijder spaties, symbolen
+    .replace(/^(\d+)\s*x\s*/i, '')
+    .replace(/[^a-z0-9]/g, '')
     .trim();
 }
 
@@ -51,7 +51,6 @@ async function fetchList(name) {
   }
 }
 
-// 🔁 Haalt containertype-code op op basis van omschrijving
 function getContainerCodeFromOmschrijving(omschrijving, containerList) {
   const norm = normalizeContainerOmschrijving(omschrijving);
 
@@ -68,8 +67,6 @@ function getContainerCodeFromOmschrijving(omschrijving, containerList) {
 }
 
 export async function generateXmlFromJson(data) {
-
-    // ✅ Minimale vereisten check
   if (!data.containertype || data.containertype === '0') {
     throw new Error('Containertype ontbreekt. Bestand wordt niet gegenereerd.');
   }
@@ -82,7 +79,6 @@ export async function generateXmlFromJson(data) {
 
   console.log('📄 Input voor XML-generator:', JSON.stringify(data, null, 2));
 
-  // ✅ Zet klantvelden om naar opdrachtgever
   data.opdrachtgeverNaam = data.klantnaam;
   data.opdrachtgeverAdres = data.klantadres;
   data.opdrachtgeverPostcode = data.klantpostcode;
@@ -92,19 +88,16 @@ export async function generateXmlFromJson(data) {
   data.opdrachtgeverBTW = data.btw;
   data.opdrachtgeverKVK = data.kvk;
 
-  // 🛑 Waarschuwing bij ontbrekende velden
   const verplichteVelden = ['opdrachtgeverNaam', 'opdrachtgeverAdres', 'opdrachtgeverPostcode', 'opdrachtgeverPlaats', 'opdrachtgeverEmail', 'opdrachtgeverBTW', 'opdrachtgeverKVK'];
   for (const veld of verplichteVelden) {
     if (!data[veld] || data[veld] === '') console.warn(`⚠️ Ontbrekend opdrachtgeverveld: ${veld}`);
   }
 
-  // 🔄 Ophalen referentielijsten
   const [rederijen, containers] = await Promise.all([
     fetchList('rederijen'),
     fetchList('containers')
   ]);
 
-  // 📌 Vul locaties aan tot 3 stuks
   const locaties = data.locaties || [];
   while (locaties.length < 3) locaties.push({
     actie: '', naam: '', adres: '', postcode: '', plaats: '', land: '',
@@ -112,13 +105,12 @@ export async function generateXmlFromJson(data) {
     portbase_code: '', bicsCode: ''
   });
 
-  // 📌 Match containertype-omschrijving → code
-data.containertype = data.containertypeCode;
+  data.containertype = data.containertypeCode;
 
+  if (!data.containertype || data.containertype === '0') {
+    throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
+  }
 
-if (!data.containertype || data.containertype === '0') {
-  throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
-}
   console.log('📄 Start XML-generatie');
  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Order>
