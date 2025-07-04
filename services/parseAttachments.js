@@ -26,7 +26,11 @@ if (attachments.some(a => a.filename === '05-versions-space.pdf')) {
         }))
       );
 
-      const pdfAttachment = attachments.find(att => att.filename?.toLowerCase().endsWith('.pdf'));
+ const pdfAttachment = attachments.find(att => att.filename?.toLowerCase().endsWith('.pdf'));
+const pdfBase64 = pdfAttachment?.content?.toString('base64') || null;
+
+mail.originalPdfFilename = pdfAttachment?.filename || null;
+mail.originalPdfBase64 = pdfBase64;
 
       mails.push({
         uid: message.uid,

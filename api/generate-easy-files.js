@@ -31,7 +31,17 @@ export default async function handler(req, res) {
 
     const originelePdfNaam = data.pdfBestandsnaam || `origineel_${data.reference}.pdf`;
     const padOriginelePdf = path.join('/tmp', originelePdfNaam);
- 
+
+ // 🧾 Bewaar originele PDF op padOriginelePdf
+if (data.originalPdfBase64) {
+  const originelePdfBuffer = Buffer.from(data.originalPdfBase64, 'base64');
+  fs.writeFileSync(padOriginelePdf, originelePdfBuffer);
+  console.log(`✅ Originele PDF opgeslagen: ${padOriginelePdf}`);
+} else {
+  console.warn('⚠️ Geen originele PDF meegegeven als base64 – wordt niet meegestuurd');
+}
+
+
     // ⬆️ Beide bestanden uploaden naar Supabase
     await uploadPdfAttachmentsToSupabase([
       {
@@ -45,6 +55,7 @@ export default async function handler(req, res) {
           attachments: [bestandsnaam]
         }
       },
+      
       {
         filename: originelePdfNaam,
         content: fs.readFileSync(padOriginelePdf),
