@@ -38,6 +38,18 @@ function normalizeContainerOmschrijving(str) {
     .trim();
 }
 
+// 📆 Datum fix voor EasyTrip
+function formatDatumVoorEasyTrip(input) {
+  const months = {
+    Jan: '01', Feb: '02', Mar: '03', Apr: '04',
+    May: '05', Jun: '06', Jul: '07', Aug: '08',
+    Sep: '09', Oct: '10', Nov: '11', Dec: '12'
+  };
+  const [dag, maandStr, jaar] = input.split(' ');
+  const maand = months[maandStr] || '00';
+  return `${dag.padStart(2, '0')}-${maand}-${jaar}`;
+}
+
 async function fetchList(name) {
   const url = `${SUPABASE_LIST_URL}/${name}.json`;
   console.log(`🌍 Ophalen lijst: ${url}`);
@@ -63,18 +75,7 @@ function getContainerCodeFromOmschrijving(omschrijving, containerList) {
     if (opties.includes(norm)) return item.code;
   }
 
-// 📆 Datum fix voor EasyTrip
-function formatDatumVoorEasyTrip(input) {
-  const months = {
-    Jan: '01', Feb: '02', Mar: '03', Apr: '04',
-    May: '05', Jun: '06', Jul: '07', Aug: '08',
-    Sep: '09', Oct: '10', Nov: '11', Dec: '12'
-  };
-  const [dag, maandStr, jaar] = input.split(' ');
-  const maand = months[maandStr] || '00';
-  return `${dag.padStart(2, '0')}-${maand}-${jaar}`;
-}
-return null; // ✅ nodig om correct af te sluiten
+  return null; // ✅ HIER NOG TOEVOEGEN!
 }
 
 export async function generateXmlFromJson(data) {
