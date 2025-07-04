@@ -45,11 +45,16 @@ async function fetchList(name) {
 
 // 🔁 Haalt containertype-code op op basis van omschrijving
 function getContainerCodeFromOmschrijving(omschrijving, containerList) {
-  const entry = containerList.find(item =>
-    item.omschrijving?.toLowerCase().trim() === omschrijving?.toLowerCase().trim()
-  );
-  return entry?.code || '';
-}
+  if (!omschrijving) return '';
+  const norm = omschrijving.toLowerCase().replace(/[^a-z0-9']/g, '').trim();
+
+  for (const item of containerList) {
+    const labels = [
+      item.label?.toLowerCase().replace(/[^a-z0-9']/g, '').trim(),
+      ...(item.altLabels || []).map(l => l.toLowerCase().replace(/[^a-z0-9']/g, '').trim())
+    ];
+    if (labels.includes(norm)) return item.code;
+  }
 
 
 export async function generateXmlFromJson(data) {
