@@ -58,6 +58,7 @@ if (descBlockMatch) {
   containertype: multiExtract([
   /Cargo[:\t]+(.+)/i
 ]) || '0',
+
  
   containernummer: multiExtract([
     /Container no[:\t ]+(\w{4}U\d{7})/i,
@@ -149,6 +150,10 @@ if (descBlockMatch) {
 
  console.log('🔎 Zoek containertypecode voor:', data.containertype);
 data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
+
+if (data.containertype?.toLowerCase().includes("container")) {
+  data.containertype = data.containertype.replace(/^1\s*x\s*/i, '').trim();  // "1 x 20' container" → "20' container"
+}
 
   // ✅ Klantgegevens geforceerd instellen obv alias
 if (klantAlias) {

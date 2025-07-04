@@ -44,8 +44,20 @@ export async function getContainerTypeCode(type) {
     const url = `${SUPABASE_LIST_URL}/containers.json`;
     const res = await fetch(url);
     const lijst = await res.json();
-    const gevonden = lijst.find(i => i.naam?.toLowerCase() === type.toLowerCase());
-    return gevonden?.code || '0';
+    const norm = type.toLowerCase().replace(/[^a-z0-9']/g, '').trim();
+
+    for (const item of lijst) {
+      const opties = [
+        item.naam?.toLowerCase().replace(/[^a-z0-9']/g, '').trim(),
+        item.label?.toLowerCase().replace(/[^a-z0-9']/g, '').trim(),
+        ...(item.altLabels || []).map(l =>
+          l.toLowerCase().replace(/[^a-z0-9']/g, '').trim()
+        )
+      ];
+      if (opties.includes(norm)) return item.code;
+    }
+
+    return '0';
   } catch (e) {
     console.error('❌ getContainerTypeCode error:', e);
     return '0';
