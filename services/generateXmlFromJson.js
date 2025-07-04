@@ -87,6 +87,11 @@ export async function generateXmlFromJson(data) {
   data.opdrachtgeverEmail = data.email;
   data.opdrachtgeverBTW = data.btw;
   data.opdrachtgeverKVK = data.kvk;
+  data.zegel = data.zegel || '';
+  data.documentatie = data.documentatie || '';
+  data.tar = data.tar || '';
+  data.type = ''; // EasyTrip gebruikt 'Type' alleen bij specialisatie, niet bij containers
+
 
   const verplichteVelden = ['opdrachtgeverNaam', 'opdrachtgeverAdres', 'opdrachtgeverPostcode', 'opdrachtgeverPlaats', 'opdrachtgeverEmail', 'opdrachtgeverBTW', 'opdrachtgeverKVK'];
   for (const veld of verplichteVelden) {
@@ -233,6 +238,10 @@ ${locaties.map(loc => `
   console.log('🔍 Rederij:', data.rederij);
   console.log('🔍 Laadref:', data.laadreferentie);
   console.log('🔍 Inleverref:', data.inleverreferentie);
+  console.log('🔎 Actie:', data.actie);
+console.log('🔎 Zegel:', data.zegel);
+console.log('🔎 Type:', data.type);
+console.log('🔎 Documentatie:', data.documentatie);
   console.log('🧪 ADR check:', {
   adr: data.adr,
   imo: data.imo,
