@@ -45,6 +45,7 @@ export default async function handler(req, res) {
             body: JSON.stringify({
               reference: mail.parsedData.referentie,  // ✅ FIX: rename veld
               laadplaats: mail.parsedData.laadplaats || '0',
+              pdfBestandsnaam: mail.originalPdfFilename || 'origineel.pdf',
               ...mail.parsedData
             })
           });

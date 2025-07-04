@@ -24,30 +24,47 @@ export default async function handler(req, res) {
     }
 
     const xml = await generateXmlFromJson(data);
-
     const bestandsnaam = `Order_${data.reference}_${data.laadplaats}.easy`;
     const localPath = path.join('/tmp', bestandsnaam);
 
     fs.writeFileSync(localPath, xml, 'utf8');
 
+    const originelePdfNaam = data.pdfBestandsnaam || `origineel_${data.reference}.pdf`;
+    const padOriginelePdf = path.join('/tmp', originelePdfNaam);
+ 
+    // ⬆️ Beide bestanden uploaden naar Supabase
     await uploadPdfAttachmentsToSupabase([
-  {
-    filename: bestandsnaam,
-    content: fs.readFileSync(localPath),
-    contentType: 'application/xml',
-    emailMeta: {
-      from: 'Easytrip Automator',
-      subject: `XML voor ${bestandsnaam}`,
-      received: new Date().toISOString(),
-      attachments: [bestandsnaam]
-    }
-  }
-]);
+      {
+        filename: bestandsnaam,
+        content: fs.readFileSync(localPath),
+        contentType: 'application/xml',
+        emailMeta: {
+          from: 'Easytrip Automator',
+          subject: `XML voor ${bestandsnaam}`,
+          received: new Date().toISOString(),
+          attachments: [bestandsnaam]
+        }
+      },
+      {
+        filename: originelePdfNaam,
+        content: fs.readFileSync(padOriginelePdf),
+        contentType: 'application/pdf',
+        emailMeta: {
+          from: 'Easytrip Automator',
+          subject: `Originele opdracht PDF voor ${data.reference}`,
+          received: new Date().toISOString(),
+          attachments: [originelePdfNaam]
+        }
+      }
+    ]);
 
+    // ✅ Verstuur mail met beide bijlagen
     await sendEmailWithAttachments({
       reference: data.reference,
-      filePath: localPath,
-      filename: bestandsnaam
+      attachments: [
+        { filename: bestandsnaam, path: localPath },
+        { filename: originelePdfNaam, path: padOriginelePdf }
+      ]
     });
 
     return res.status(200).json({ success: true, filename: bestandsnaam });

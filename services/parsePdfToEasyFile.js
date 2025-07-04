@@ -107,5 +107,6 @@ const parsedData = await parseJordex(pdfBuffer, 'jordex');
   const xml = await generateXmlFromJson(result);
   console.log('📦 XML gegenereerd:', xml.slice(0, 500));
 
+  
   return xml;
 }
