@@ -55,7 +55,8 @@ function getContainerCodeFromOmschrijving(omschrijving, containerList) {
     ];
     if (labels.includes(norm)) return item.code;
   }
-
+return '';
+}
 
 export async function generateXmlFromJson(data) {
 
