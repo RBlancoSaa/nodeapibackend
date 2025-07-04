@@ -5,6 +5,9 @@ import path from 'path';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -26,33 +29,28 @@ export default async function handler(req, res) {
     const xml = await generateXmlFromJson(data);
     const bestandsnaam = `Order_${data.reference}_${data.laadplaats}.easy`;
     const localPath = path.join('/tmp', bestandsnaam);
-
     fs.writeFileSync(localPath, xml, 'utf8');
 
+    // PDF ophalen uit Supabase
     const originelePdfNaam = data.pdfBestandsnaam || `origineel_${data.reference}.pdf`;
-    const padOriginelePdf = path.join('/tmp', originelePdfNaam);
+    let originelePdfBuffer = null;
+    const { data: downloadData, error: downloadError } = await supabase
+      .storage
+      .from(process.env.SUPABASE_BUCKET)
+      .download(originelePdfNaam);
 
-let originelePdfBestaat = false;
+    if (downloadError) {
+      console.warn(`⚠️ PDF niet gevonden in Supabase: ${downloadError.message}`);
+    } else {
+      originelePdfBuffer = Buffer.from(await downloadData.arrayBuffer());
+      console.log(`✅ PDF gedownload uit Supabase: ${originelePdfNaam}`);
+    }
 
-if (data.originalPdfBase64) {
-  try {
-    const originelePdfBuffer = Buffer.from(data.originalPdfBase64, 'base64');
-    fs.writeFileSync(padOriginelePdf, originelePdfBuffer);
-    originelePdfBestaat = true;
-    console.log(`✅ Originele PDF opgeslagen: ${padOriginelePdf}`);
-  } catch (err) {
-    console.warn('⚠️ Fout bij opslaan originele PDF:', err.message);
-  }
-} else {
-  console.warn('⚠️ Geen originele PDF meegegeven als base64 – wordt niet meegestuurd');
-}
-
-
-    // ⬆️ Beide bestanden uploaden naar Supabase
+    // Upload XML + PDF naar Supabase
     await uploadPdfAttachmentsToSupabase([
       {
         filename: bestandsnaam,
-        content: fs.readFileSync(localPath),
+        content: fs.readFileSync(localPath), // ✅ XML
         contentType: 'application/xml',
         emailMeta: {
           from: 'Easytrip Automator',
@@ -61,10 +59,9 @@ if (data.originalPdfBase64) {
           attachments: [bestandsnaam]
         }
       },
-      
-      {
+      ...(originelePdfBuffer ? [{
         filename: originelePdfNaam,
-        content: fs.readFileSync(padOriginelePdf),
+        content: originelePdfBuffer,
         contentType: 'application/pdf',
         emailMeta: {
           from: 'Easytrip Automator',
@@ -72,15 +69,15 @@ if (data.originalPdfBase64) {
           received: new Date().toISOString(),
           attachments: [originelePdfNaam]
         }
-      }
+      }] : [])
     ]);
 
-    // ✅ Verstuur mail met beide bijlagen
+    // Verstuur e-mail met beide bijlagen
     await sendEmailWithAttachments({
       reference: data.reference,
       attachments: [
         { filename: bestandsnaam, path: localPath },
-        { filename: originelePdfNaam, path: padOriginelePdf }
+        ...(originelePdfBuffer ? [{ filename: originelePdfNaam, content: originelePdfBuffer }] : [])
       ]
     });
 
