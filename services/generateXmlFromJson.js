@@ -40,6 +40,8 @@ function normalizeContainerOmschrijving(str) {
 
 // 📆 Datum fix voor EasyTrip
 function formatDatumVoorEasyTrip(input) {
+  if (!input || input.includes('-')) return input; // ✅ voorkomt dubbele conversie
+
   const months = {
     Jan: '01', Feb: '02', Mar: '03', Apr: '04',
     May: '05', Jun: '06', Jul: '07', Aug: '08',
@@ -49,7 +51,6 @@ function formatDatumVoorEasyTrip(input) {
   const maand = months[maandStr] || '00';
   return `${dag.padStart(2, '0')}-${maand}-${jaar}`;
 }
-
 async function fetchList(name) {
   const url = `${SUPABASE_LIST_URL}/${name}.json`;
   console.log(`🌍 Ophalen lijst: ${url}`);
