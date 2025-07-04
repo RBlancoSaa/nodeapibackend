@@ -51,7 +51,20 @@ function getContainerCodeFromOmschrijving(omschrijving, containerList) {
   return entry?.code || '';
 }
 
+
 export async function generateXmlFromJson(data) {
+
+    // ✅ Minimale vereisten check
+  if (!data.containertype || data.containertype === '0') {
+    throw new Error('Containertype ontbreekt. Bestand wordt niet gegenereerd.');
+  }
+  if (!data.datum) {
+    throw new Error('Datum ontbreekt. Bestand wordt niet gegenereerd.');
+  }
+  if (!data.klantnaam) {
+    throw new Error('Klantnaam ontbreekt. Bestand wordt niet gegenereerd.');
+  }
+
   console.log('📄 Input voor XML-generator:', JSON.stringify(data, null, 2));
 
   // ✅ Zet klantvelden om naar opdrachtgever
@@ -84,9 +97,11 @@ export async function generateXmlFromJson(data) {
     portbase_code: '', bicsCode: ''
   });
   // 📌 Match containertype-omschrijving → code
- data.containertype = clean(data.containertypeCode);
+data.containertype = getContainerCodeFromOmschrijving(data.containertype, containers);
 
-
+if (!data.containertype || data.containertype === '0') {
+  throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
+}
   console.log('📄 Start XML-generatie');
  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Order>
