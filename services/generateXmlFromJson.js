@@ -144,7 +144,8 @@ if (!data.actie || data.actie === '0') {
   console.log('📄 Start XML-generatie');
  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Order>
-<Dossiers><Dossier>
+<Dossiers>
+<Dossier>
 <Opdrachtgever>
   <Opdrachtgever>${clean(data.opdrachtgeverNaam)}</Opdrachtgever>
   <Opdrachtgever_Adres>${clean(data.opdrachtgeverAdres)}</Opdrachtgever_Adres>
@@ -162,12 +163,13 @@ if (!data.actie || data.actie === '0') {
   <Datum>${clean(data.datum)}</Datum>
   <TijdVan>${clean(data.tijd)}</TijdVan>
   <TijdTM>${clean(data.tijd)}</TijdTM>
+  <Container></Container>
   <Containernummer>${clean(data.containernummer)}</Containernummer>
   <ContainerType>${clean(data.containertype)}</ContainerType>
   <Lading>${clean(data.lading)}</Lading>
   <ADR>${bevatADR(data) ? 'Waar' : 'Onwaar'}</ADR>
-  <TAR>${clean(data.tar)}</TAR>
-  <Gewicht>${clean(data.gewicht)}</Gewicht>
+  <Tarra>0</Tarra>
+  <GeladenGewicht>${clean(data.gewicht)}</GeladenGewicht>
   <Brutogewicht>${clean(data.brutogewicht)}</Brutogewicht>
   <Colli>${clean(data.colli)}</Colli>
   <Zegel>${clean(data.zegel)}</Zegel>
@@ -179,7 +181,6 @@ if (!data.actie || data.actie === '0') {
   <Rederij>${match(data.rederij, rederijen)}</Rederij>
   <Documentatie>${clean(data.documentatie)}</Documentatie>
   <TAR>${clean(data.tar)}</TAR>
-  <Closing_datum>${clean(data.closing_tijd)}</Closing_datum>
   <Laadrefentie>${clean(data.laadreferentie)}</Laadrefentie>
   <Meldtijd>${clean(data.meldtijd)}</Meldtijd>
   <Inleverrefentie>${clean(data.inleverreferentie)}</Inleverrefentie>
@@ -187,9 +188,11 @@ if (!data.actie || data.actie === '0') {
   <InleverBestemming>${clean(data.inleverBestemming)}</InleverBestemming>
   <InleverRederij>${match(data.inleverRederij, rederijen)}</InleverRederij>
   <Inlever_TAR>${clean(data.inleverBestemming)}</Inlever_TAR>
-  <Closing_tijd>${clean(data.closing_tijd)}</Closing_tijd>
+  <Closing_datum></Closing_datum>
+  <Closing_tijd></Closing_tijd>
   <Instructies>${clean(data.instructies)}</Instructies>
 </Container>
+
 <ADR>
   <Ritnr>${clean(data.ritnummer)}</Ritnr>
   <UN>${clean(data.un)}</UN>
@@ -197,6 +200,7 @@ if (!data.actie || data.actie === '0') {
   <Milieu>${fallbackOnwaar(data.adr_milieu)}</Milieu>
   <Afval>${fallbackOnwaar(data.adr_afval)}</Afval>
 </ADR>
+
 <Locaties>
 ${locaties.map(loc => `
   <Locatie>
