@@ -91,9 +91,9 @@ export async function generateXmlFromJson(data) {
   if (!data.datum) {
     throw new Error('Datum ontbreekt. Bestand wordt niet gegenereerd.');
   }
-  if (!data.klantnaam) 
-    console.warn('⚠️ Klantnaam ontbreekt – bestand wordt wel gegenereerd');
-  
+ if (!data.klantnaam) {
+  console.warn('⚠️ Klantnaam ontbreekt – bestand wordt wel gegenereerd');
+}
 
   console.log('📄 Input voor XML-generator:', JSON.stringify(data, null, 2));
 
