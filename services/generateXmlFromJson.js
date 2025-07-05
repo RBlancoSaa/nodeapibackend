@@ -53,7 +53,6 @@ function normalizeContainerOmschrijving(str) {
 // 📆 Datum fix voor EasyTrip
 function formatDatumVoorEasyTrip(input) {
   if (!input || input.includes('-')) return input; // ✅ voorkomt dubbele conversie
-
   const months = {
     Jan: '01', Feb: '02', Mar: '03', Apr: '04',
     May: '05', Jun: '06', Jul: '07', Aug: '08',
@@ -78,16 +77,10 @@ async function fetchList(name) {
 
 function getContainerCodeFromOmschrijving(omschrijving, containerList) {
   const norm = normalizeContainerOmschrijving(omschrijving);
-
   for (const item of containerList) {
-    const opties = [
-      item.label,
-      ...(item.altLabels || [])
-    ].map(normalizeContainerOmschrijving);
-
+    const opties = [item.label, ...(item.altLabels || [])].map(normalizeContainerOmschrijving);
     if (opties.includes(norm)) return item.code;
   }
-
   return null; // ✅ HIER NOG TOEVOEGEN!
 }
 
@@ -263,9 +256,9 @@ ${locaties.map(loc => `
   console.log('🔍 Laadref:', data.laadreferentie);
   console.log('🔍 Inleverref:', data.inleverreferentie);
   console.log('🔎 Actie:', data.actie);
-console.log('🔎 Zegel:', data.zegel);
-console.log('🔎 Type:', data.type);
-console.log('🔎 Documentatie:', data.documentatie);
+  console.log('🔎 Zegel:', data.zegel);
+  console.log('🔎 Type:', data.type);
+  console.log('🔎 Documentatie:', data.documentatie);
   console.log('🧪 ADR check:', {
   adr: data.adr,
   imo: data.imo,
