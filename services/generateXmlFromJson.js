@@ -197,25 +197,52 @@ ${data.adr === 'Waar' ? `
   <Productnaam>${clean(data.adr_productnaam)}</Productnaam>
   <Milieu>${fallbackOnwaar(data.adr_milieu)}</Milieu>
   <Afval>${fallbackOnwaar(data.adr_afval)}</Afval>
-</ADR>` : ''}
-<Locaties>
-${locaties.map(loc => `
+</ADR>` : ''}<Locaties>
   <Locatie>
     <Volgorde>0</Volgorde>
-    <Actie>${clean(loc.actie)}</Actie>
-    <Naam>${clean(loc.naam)}</Naam>
-    <Adres>${clean(loc.adres)}</Adres>
-    <Postcode>${clean(loc.postcode)}</Postcode>
-    <Plaats>${clean(loc.plaats)}</Plaats>
-    <Land>${clean(loc.land)}</Land>
-    <Voorgemeld>${clean(loc.voorgemeld)}</Voorgemeld>
-    <Aankomst_verw>${clean(loc.aankomst_verw)}</Aankomst_verw>
-    <Tijslot_van>${clean(loc.tijslot_van)}</Tijslot_van>
-    <Tijslot_tm>${clean(loc.tijslot_tm)}</Tijslot_tm>
-    <Portbase_code>${clean(loc.portbase_code)}</Portbase_code>
-    <bicsCode>${clean(loc.bicsCode)}</bicsCode>
+    <Actie>${clean(locaties[0]?.actie)}</Actie>
+    <Naam>${clean(locaties[0]?.naam)}</Naam>
+    <Adres>${clean(locaties[0]?.adres)}</Adres>
+    <Postcode>${clean(locaties[0]?.postcode)}</Postcode>
+    <Plaats>${clean(locaties[0]?.plaats)}</Plaats>
+    <Land>${clean(locaties[0]?.land)}</Land>
+    <Voorgemeld>${clean(locaties[0]?.voorgemeld)}</Voorgemeld>
+    <Aankomst_verw>${clean(locaties[0]?.aankomst_verw)}</Aankomst_verw>
+    <Tijslot_van>${clean(locaties[0]?.tijslot_van)}</Tijslot_van>
+    <Tijslot_tm>${clean(locaties[0]?.tijslot_tm)}</Tijslot_tm>
+    <Portbase_code>${clean(locaties[0]?.portbase_code)}</Portbase_code>
+    <bicsCode>${clean(locaties[0]?.bicsCode)}</bicsCode>
   </Locatie>
-`.trim()).join('\n')}
+  <Locatie>
+    <Volgorde>0</Volgorde>
+    <Actie>${clean(locaties[1]?.actie)}</Actie>
+    <Naam>${clean(locaties[1]?.naam)}</Naam>
+    <Adres>${clean(locaties[1]?.adres)}</Adres>
+    <Postcode>${clean(locaties[1]?.postcode)}</Postcode>
+    <Plaats>${clean(locaties[1]?.plaats)}</Plaats>
+    <Land>${clean(locaties[1]?.land)}</Land>
+    <Voorgemeld>${clean(locaties[1]?.voorgemeld)}</Voorgemeld>
+    <Aankomst_verw>${clean(locaties[1]?.aankomst_verw)}</Aankomst_verw>
+    <Tijslot_van>${clean(locaties[1]?.tijslot_van)}</Tijslot_van>
+    <Tijslot_tm>${clean(locaties[1]?.tijslot_tm)}</Tijslot_tm>
+    <Portbase_code>${clean(locaties[1]?.portbase_code)}</Portbase_code>
+    <bicsCode>${clean(locaties[1]?.bicsCode)}</bicsCode>
+  </Locatie>
+  <Locatie>
+    <Volgorde>0</Volgorde>
+    <Actie>${clean(locaties[2]?.actie)}</Actie>
+    <Naam>${clean(locaties[2]?.naam)}</Naam>
+    <Adres>${clean(locaties[2]?.adres)}</Adres>
+    <Postcode>${clean(locaties[2]?.postcode)}</Postcode>
+    <Plaats>${clean(locaties[2]?.plaats)}</Plaats>
+    <Land>${clean(locaties[2]?.land)}</Land>
+    <Voorgemeld>${clean(locaties[2]?.voorgemeld)}</Voorgemeld>
+    <Aankomst_verw>${clean(locaties[2]?.aankomst_verw)}</Aankomst_verw>
+    <Tijslot_van>${clean(locaties[2]?.tijslot_van)}</Tijslot_van>
+    <Tijslot_tm>${clean(locaties[2]?.tijslot_tm)}</Tijslot_tm>
+    <Portbase_code>${clean(locaties[2]?.portbase_code)}</Portbase_code>
+    <bicsCode>${clean(locaties[2]?.bicsCode)}</bicsCode>
+  </Locatie>
 </Locaties>
 <Financieel>
   <Tarief>${fallback0(data.tarief)}</Tarief>
