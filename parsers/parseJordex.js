@@ -9,6 +9,14 @@ import {
   normalizeContainerOmschrijving,
 } from '../utils/lookups/terminalLookup.js';
 
+function formatDatum(ddmmyyyy) {
+  if (!ddmmyyyy || typeof ddmmyyyy !== 'string') return '0';
+  const parts = ddmmyyyy.trim().split(/[-/.\s]/);
+  if (parts.length !== 3) return ddmmyyyy;
+  const [dag, maand, jaar] = parts;
+  return `${dag.padStart(2, '0')}-${maand.padStart(2, '0')}-${jaar}`;
+}
+
 export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   console.log('📦 Ontvangen pdfBuffer:', pdfBuffer?.length, 'bytes');
 
@@ -74,24 +82,31 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   /Cargo[:\t]+(.+)/i
 ]) || '0',
  
-  containernummer: multiExtract([
+  containernummer: (() => {
+  const result = multiExtract([
     /Container no[:\t ]+(\w{4}U\d{7})/i,
     /(\w{4}U\d{7})/
-  ]) || '0',
+  ]);
+  const isGeldig = /^[A-Z]{4}U\d{7}$/.test(result || '');
+  return isGeldig ? result : '';
+})(),
 
   temperatuur: multiExtract([
     /Temperature[:\t ]+([\-\d]+°C)/i
   ]) || '0',
 
-  datum: multiExtract([
-    /Date[:\t ]+(\d{2}\s\w+\s\d{4})/i,
-    /Closing[:\t ]+(\d{2}[-/]\d{2}[-/]\d{4})/i
-  ]) || '0',
+  datum: (() => {
+  const raw = multiExtract([
+    /Date[:\t ]+(\d{1,2}[-/\s]\w+[-/\s]\d{4})/i,
+    /Closing[:\t ]+(\d{1,2}[-/]\d{1,2}[-/]\d{4})/i
+  ]);
+  return formatDatum(raw || '0');
+})(),
 
   tijd: (() => {
   const pickUpLine = lines.find(line => /Pick-up/i.test(line) && /Date[:\t ]/.test(line));
   const timeMatch = pickUpLine?.match(/(\d{2}:\d{2})/);
-  return timeMatch ? timeMatch[1] : '0';
+  return timeMatch ? timeMatch[1] : '';
 })(),
 
   laadreferentie: multiExtract([

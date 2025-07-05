@@ -7,7 +7,9 @@ import fetch from 'node-fetch';
 const SUPABASE_LIST_URL = (process.env.SUPABASE_LIST_PUBLIC_URL || '').replace(/\/$/, '');
 
 function clean(value) {
-  const val = value || '0';
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' && value.trim() === '0') return '';
+  const val = value.toString();
   return val
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -150,6 +152,9 @@ if (!data.actie || data.actie === '0') {
   if (acties.includes('lossen')) data.actie = 'Lossen';
   else data.actie = 'Laden';
 }
+const containerField = data.containernummer && /^[A-Z]{4}U\d{7}$/.test(data.containernummer)
+  ? `<Container>${clean(data.containernummer)}</Container>`
+  : `<Container></Container>`;
 
   console.log('📄 Start XML-generatie');
  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
@@ -172,9 +177,9 @@ if (!data.actie || data.actie === '0') {
   <Type></Type>
   <Datum>${clean(data.datum)}</Datum>
   <TijdVan>${clean(data.tijd)}</TijdVan>
-  <TijdTm>${clean(data.tijd)}</TijdTm>
-  <Container></Container>
-  <Containernummer>${clean(data.containernummer)}</Containernummer>
+  <TijdTM>${clean(data.tijd)}</TijdTM>
+  ${containerField}
+  <Container>${clean(data.containernummer)}</Container>
   <ContainerType>${clean(data.containertype)}</ContainerType>
   <Lading>${clean(data.lading)}</Lading>
   <ADR>${bevatADR(data) ? 'Waar' : 'Onwaar'}</ADR>
