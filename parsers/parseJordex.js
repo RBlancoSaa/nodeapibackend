@@ -40,6 +40,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
   
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
   const multiExtract = (patterns) => {
@@ -60,9 +61,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   const regels = klantblok ? klantblok[1].trim().split('\n').map(l => l.trim()) : [];
   const postcodeMatch = regels[2]?.match(/(\d{4}\s?[A-Z]{2})\s+(.+)/);
 
-  const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
-
-  const data = {
+   const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
     referentie: logResult('referentie', (() => {
       const m = text.match(/Pick[-\s]?up terminal:[\s\S]+?Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
@@ -133,7 +132,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     rederijCode: '0',
     containertypeCode: '0'
   };
-  
+
   // 🧪 Bepaal laden of lossen
 data.isLossenOpdracht = !!data.containernummer && data.containernummer !== '0';
 if (!data.isLossenOpdracht) {
