@@ -231,34 +231,33 @@ if (!data.actie || data.actie === '0') {
   </Locatie>
 </Locaties>
 <Financieel>
-  <Tarief>${fallback0(data.tarief)}</Tarief>
-  <BTW>${fallback0(data.btw)}</BTW>
-  <ADR_toeslag_Chart>${fallback0(data.adr_chart)}</ADR_toeslag_Chart>
-  <ADR_bedrag_Chart>${fallback0(data.adr_bedrag_chart)}</ADR_bedrag_Chart>
-  <Botlek_Chart>${fallback0(data.botlek_chart)}</Botlek_Chart>
-  <Chassishuur_Bedrag_Chart>${fallback0(data.chassishuurb_Bedrag_chart)}</Chassishuur_Bedrag_Chart>
-  <Delta_Chart>${fallback0(data.delta_chart)}</Delta_Chart>
-  <Diesel_toeslag_Chart>${fallback0(data.diesel_toeslag_chart)}</Diesel_toeslag_Chart>
-  <Euromax_Chart>${fallback0(data.euromax_chart)}</Euromax_Chart>
-  <ExtraStop_Chart>${fallback0(data.extraStop_chart)}</ExtraStop_Chart>
-  <GasMeten_Chart>${fallback0(data.gasMeten_chart)}</GasMeten_Chart>
-  <Gen_Chart>${fallback0(data.gen_chart)}</Gen_Chart>
-  <Handrail_Bedrag_chart>${fallback0(data.handrail_bedrag_chart)}</Handrail_Bedrag_chart>
-  <Keuren_Chart>${fallback0(data.keuren_chart)}</Keuren_Chart>
-  <Kilometers_Chart>${fallback0(data.kilometers_chart)}</Kilometers_Chart>
-  <LOever_Chart>${fallback0(data.loever_chart)}</LOever_Chart>
-  <Loods_Chart>${fallback0(data.loods_chart)}</Loods_Chart>
-  <Maut_Chart>${fallback0(data.maut_chart)}</Maut_Chart>
-  <MV2_Chart>${fallback0(data.mv2_chart)}</MV2_Chart>
-  <Scannen_Chart>${fallback0(data.scannen_chart)}</Scannen_Chart>
-  <Tol_Chart>${fallback0(data.tol_chart)}</Tol_Chart>
-  <Blanco1_Chart>${fallback0(data.blanco1_chart)}</Blanco1_Chart>
-  <Blanco1_Text>${fallback0(data.blanco1_text)}</Blanco1_Text>
-  <Blanco2_Chart>${fallback0(data.blanco2_chart)}</Blanco2_Chart>
-  <Blanco2_Text>${fallback0(data.blanco2_text)}</Blanco2_Text>
+  <Tarief>0</Tarief>
+  <BTW>0</BTW>
+  <ADR_toeslag_Chart>0</ADR_toeslag_Chart>
+  <ADR_bedrag_Chart>0</ADR_bedrag_Chart>
+  <Botlek_Chart>0</Botlek_Chart>
+  <Chassishuur_Bedrag_chart>0</Chassishuur_Bedrag_chart>
+  <Delta_Chart>0</Delta_Chart>
+  <Diesel_toeslag_Chart>0</Diesel_toeslag_Chart>
+  <Euromax_Chart>0</Euromax_Chart>
+  <ExtraStop_Chart>0</ExtraStop_Chart>
+  <GasMeten_Chart>0</GasMeten_Chart>
+  <Gen_Chart>0</Gen_Chart>
+  <Handrail_Bedrag_chart>0</Handrail_Bedrag_chart>
+  <Keuren_Chart>0</Keuren_Chart>
+  <Kilometers_Chart>0</Kilometers_Chart>
+  <LOever_Chart>0</LOever_Chart>
+  <Loods_Chart>0</Loods_Chart>
+  <Maut_Chart>0</Maut_Chart>
+  <MV2_Chart>0</MV2_Chart>
+  <Scannen_Chart>0</Scannen_Chart>
+  <Tol_Chart>0</Tol_Chart>
+  <Blanco1_Chart>0</Blanco1_Chart>
+  <Blanco1_Text></Blanco1_Text>
+  <Blanco2_Chart>0</Blanco2_Chart>
+  <Blanco2_Text></Blanco2_Text>
 </Financieel>
-</Dossier></Dossiers>
-</Order>`;
+</Dossier></Dossiers></Order>`;
 
   console.log('📦 XML gegenereerd:', xml.slice(0, 600));
   console.log('🔍 Opdrachtgever:', data.klantnaam);
