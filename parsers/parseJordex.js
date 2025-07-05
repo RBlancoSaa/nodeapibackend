@@ -383,8 +383,8 @@ console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
 console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
 
 
-if (!data.ritnummer || data.ritnummer === '0') {
-  console.warn('❗️ Geen ritnummer gevonden – opdracht kan niet gegenereerd worden');
+if (!data.referentie || data.referentie === '0') {
+  console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
 }
 
   return data;
