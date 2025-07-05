@@ -27,7 +27,7 @@ const parsedData = await parseJordex(pdfBuffer, 'jordex');
     ladenOfLossen: parsedData.ladenOfLossen || '0',
     tijdVan: parsedData.tijdVan || '0',
     tijdTM: parsedData.tijdTM || '0',
-    ritnummer: '0',
+    ritnummer: parsedData.ritnummer || '0',
     type: parsedData.type || '0',
     datum: parsedData.datum || '0',
     containernummer: parsedData.containernummer || '0',
