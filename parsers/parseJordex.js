@@ -57,18 +57,11 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     }
     return '';
   };
-  const klantblok = text.match(/Pick[\s-]?up[\s:]*([\s\S]+?)Drop[\s-]?off[\s:]/i);
-  const regels = klantblok ? klantblok[1].trim().split('\n').map(l => l.trim()) : [];
-let klantPlaatsFrom = '';
-if (!klantblok) {
-  const fromLine = multiExtract([/From[:\t ]+(.+)/i]);
-  if (fromLine) {
-    klantPlaatsFrom = fromLine;
-    console.warn(`⚠️ Geen klantblok – fallback naar From: ${klantPlaatsFrom}`);
-  } else {
-    console.warn('❌ Geen klantblok en ook geen From: veld gevonden.');
-  }
-}
+
+data.klantnaam = regels[0] || klantPlaatsFrom || '';
+data.klantadres = regels[1] || '';
+data.klantpostcode = data.klantpostcode || (postcodeMatch?.[1]?.replace(/\s+/, '') || '');
+data.klantplaats = data.klantplaats || (postcodeMatch?.[2]?.trim() || klantPlaatsFrom);
 
    const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
