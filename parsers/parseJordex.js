@@ -75,10 +75,12 @@ const data = {
       return match?.[1]?.trim() || '0';
     })(),
     laadreferentie: (() => {
-  const block = text.match(/Pick[-\s]?up:[\s\S]+?Drop[-\s]?off:/i);
-  if (!block) return '0';
-  const match = block[0].match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
-  return match?.[1]?.trim() || '0';
+  const klantBlock = text.match(/Pick[-\s]?up:[\s\S]+?Drop[-\s]?off:/i);
+  if (klantBlock) {
+    const match = klantBlock[0].match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
+    return match?.[1]?.trim() || '0';
+  }
+  return '0';
 })(),
     inleverreferentie: (() => {
       const match = text.match(/Drop[-\s]?off terminal:[\s\S]+?Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
