@@ -12,7 +12,10 @@ export default async function parsePdfToEasyFile(pdfBuffer) {
   console.log('📥 Start parsePdfToEasyFile...');
 
 const parsedData = await parseJordex(pdfBuffer, 'jordex');
-
+if (!parsedData || typeof parsedData !== 'object') {
+  console.warn('⛔️ Geen geldige parserdata ontvangen');
+  return ''; // of return null; afhankelijk van je verwerking
+}
   console.log('📄 Parsed data ontvangen:', parsedData);
 
   const result = {
