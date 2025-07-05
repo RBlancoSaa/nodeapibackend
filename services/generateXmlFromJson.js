@@ -169,19 +169,19 @@ if (!data.actie || data.actie === '0') {
   <Tarra>0</Tarra>
   <GeladenGewicht>${clean(data.gewicht)}</GeladenGewicht>
   <Brutogewicht>${clean(data.brutogewicht)}</Brutogewicht>
-  <Colli>${clean(data.colli)}</Colli>
+  <Colli>${fallback0(data.colli)}</Colli>
   <Zegel>${clean(data.zegel)}</Zegel>
   <Temp>${clean(data.temperatuur)}</Temp>
-  <CBM>${clean(data.cbm)}</CBM>
-  <Brix>${clean(data.brix)}</Brix>
+  <CBM>${fallback0(data.cbm)}</CBM>
+  <Brix>${fallback0(data.brix)}</Brix>
   <Referentie>${clean(data.referentie)}</Referentie>
   <Bootnaam>${clean(data.bootnaam)}</Bootnaam>
   <Rederij>${match(data.rederij, rederijen)}</Rederij>
   <Documentatie>${clean(data.documentatie)}</Documentatie>
   <TAR>${clean(data.tar)}</TAR>
-  <Laadreferentie>${clean(data.laadreferentie)}</Laadreferentie>
+  <Laadrefentie>${clean(data.laadreferentie)}</Laadrefentie>
   <Meldtijd>${clean(data.meldtijd)}</Meldtijd>
-  <Inleverreferentie>${clean(data.inleverreferentie)}</Inleverreferentie>
+  <Inleverrefentie>${clean(data.inleverreferentie)}</Inleverrefentie>
   <InleverBootnaam>${clean(data.inleverBootnaam)}</InleverBootnaam>
   <InleverBestemming>${clean(data.inleverBestemming)}</InleverBestemming>
   <InleverRederij>${match(data.inleverRederij, rederijen)}</InleverRederij>
@@ -221,12 +221,6 @@ ${data.adr === 'Waar' ? `
     <Postcode>${clean(locaties[1]?.postcode)}</Postcode>
     <Plaats>${clean(locaties[1]?.plaats)}</Plaats>
     <Land>${clean(locaties[1]?.land)}</Land>
-    <Voorgemeld>${clean(locaties[1]?.voorgemeld)}</Voorgemeld>
-    <Aankomst_verw>${clean(locaties[1]?.aankomst_verw)}</Aankomst_verw>
-    <Tijslot_van>${clean(locaties[1]?.tijslot_van)}</Tijslot_van>
-    <Tijslot_tm>${clean(locaties[1]?.tijslot_tm)}</Tijslot_tm>
-    <Portbase_code>${clean(locaties[1]?.portbase_code)}</Portbase_code>
-    <bicsCode>${clean(locaties[1]?.bicsCode)}</bicsCode>
   </Locatie>
   <Locatie>
     <Volgorde>0</Volgorde>
@@ -250,7 +244,7 @@ ${data.adr === 'Waar' ? `
   <ADR_toeslag_Chart>${fallback0(data.adr_chart)}</ADR_toeslag_Chart>
   <ADR_bedrag_Chart>${fallback0(data.adr_bedrag_chart)}</ADR_bedrag_Chart>
   <Botlek_Chart>${fallback0(data.botlek_chart)}</Botlek_Chart>
-  <Chassishuurb_Chart>${fallback0(data.chassishuurb_chart)}</Chassishuurb_Chart>
+  <Chassishuur_Bedrag_Chart>${fallback0(data.chassishuurb_Bedrag_chart)}</Chassishuur_Bedrag_Chart>
   <Delta_Chart>${fallback0(data.delta_chart)}</Delta_Chart>
   <Diesel_toeslag_Chart>${fallback0(data.diesel_toeslag_chart)}</Diesel_toeslag_Chart>
   <Euromax_Chart>${fallback0(data.euromax_chart)}</Euromax_Chart>
