@@ -141,10 +141,9 @@ if (!data.actie || data.actie === '0') {
 }
 
   console.log('📄 Start XML-generatie');
- const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<Order>
-<Dossiers>
-<Dossier>
+ const xml = `
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<Order><Dossiers><Dossier>
 <Opdrachtgever>
   <Opdrachtgever>${clean(data.opdrachtgeverNaam)}</Opdrachtgever>
   <Opdrachtgever_Adres>${clean(data.opdrachtgeverAdres)}</Opdrachtgever_Adres>
@@ -159,24 +158,24 @@ if (!data.actie || data.actie === '0') {
   <Ritnr>${clean(data.ritnummer)}</Ritnr>
   <Laden_Lossen>${clean(data.ladenOfLossen)}</Laden_Lossen>
   <Type></Type>
-  <Datum>${clean(data.datum)}</Datum>
-  <TijdVan>${clean(data.tijd)}</TijdVan>
-  <TijdTM>${clean(data.tijd)}</TijdTM>
-  <Container>${clean(data.containernummer)}</Container>
+  <Datum>${datumFormatted}</Datum>
+  <TijdVan>${clean(data.tijd) || ''}</TijdVan>
+  <TijdTM>${clean(data.tijd) || ''}</TijdTM>
+  <Container></Container>
   <ContainerType>${clean(data.containertype)}</ContainerType>
   <Lading>${clean(data.lading)}</Lading>
-  <ADR>${clean(data.adr)}</ADR>
-  <Tarra>${fallback0(data.Tarra)}</Tarra>
-  <GeladenGewicht>${fallback0(data.gewicht)}</GeladenGewicht>
-  <Brutogewicht>${fallback0(data.brutogewicht)}</Brutogewicht>
-  <Colli>${fallback0(data.colli)}</Colli>
-  <Zegel>${clean(data.zegel)}</Zegel>
-  <Temp>${fallback0(data.temperatuur)}</Temp>
-  <CBM>${fallback0(data.cbm)}</CBM>
-  <Brix>${fallback0(data.brix)}</Brix>
+  <ADR>${data.adr || 'Onwaar'}</ADR>
+  <Tarra>0</Tarra>
+  <GeladenGewicht>0</GeladenGewicht>
+  <Brutogewicht>0</Brutogewicht>
+  <Colli>0</Colli>
+  <Zegel></Zegel>
+  <Temp>${clean(data.temperatuur) || '0'}</Temp>
+  <CBM>0</CBM>
+  <Brix>0</Brix>
   <Referentie>${clean(data.referentie)}</Referentie>
   <Bootnaam>${clean(data.bootnaam)}</Bootnaam>
-  <Rederij>${match(data.rederij, rederijen)}</Rederij>
+  <Rederij>${clean(data.rederij)}</Rederij>
   <Documentatie>${clean(data.documentatie)}</Documentatie>
   <TAR>${clean(data.tar)}</TAR>
   <Laadrefentie>${clean(data.laadreferentie)}</Laadrefentie>
@@ -184,20 +183,13 @@ if (!data.actie || data.actie === '0') {
   <Inleverrefentie>${clean(data.inleverreferentie)}</Inleverrefentie>
   <InleverBootnaam>${clean(data.inleverBootnaam)}</InleverBootnaam>
   <InleverBestemming>${clean(data.inleverBestemming)}</InleverBestemming>
-  <InleverRederij>${match(data.inleverRederij, rederijen)}</InleverRederij>
-  <Inlever_TAR>${clean(data.inleverBestemming)}</Inlever_TAR>
+  <InleverRederij>${clean(data.inleverRederij)}</InleverRederij>
+  <Inlever_TAR>${clean(data.inlever_TAR)}</Inlever_TAR>
   <Closing_datum>${clean(data.closing_datum)}</Closing_datum>
   <Closing_tijd>${clean(data.closing_tijd)}</Closing_tijd>
   <Instructies>${clean(data.instructies)}</Instructies>
 </Container>
-${data.adr === 'Waar' ? `
-<ADR>
-  <Ritnr>${clean(data.ritnummer)}</Ritnr>
-  <UN>${clean(data.un)}</UN>
-  <Productnaam>${clean(data.adr_productnaam)}</Productnaam>
-  <Milieu>${fallbackOnwaar(data.adr_milieu)}</Milieu>
-  <Afval>${fallbackOnwaar(data.adr_afval)}</Afval>
-</ADR>` : ''}<Locaties>
+<Locaties>
   <Locatie>
     <Volgorde>0</Volgorde>
     <Actie>${clean(locaties[0]?.actie)}</Actie>
