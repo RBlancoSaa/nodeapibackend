@@ -7,9 +7,15 @@ import fetch from 'node-fetch';
 const SUPABASE_LIST_URL = (process.env.SUPABASE_LIST_PUBLIC_URL || '').replace(/\/$/, '');
 
 function clean(value) {
-  const str = typeof value === 'string' ? value.trim() : '';
-  return str !== '' ? str : '';
+  const val = value || '0';
+  return val
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
+
 function fallback0(value) {
   const str = typeof value === 'string' ? value.trim() : '';
   return str !== '' ? str : '0';
