@@ -152,9 +152,6 @@ if (!data.actie || data.actie === '0') {
   if (acties.includes('lossen')) data.actie = 'Lossen';
   else data.actie = 'Laden';
 }
-const containerField = data.containernummer && /^[A-Z]{4}U\d{7}$/.test(data.containernummer)
-  ? `<Container>${clean(data.containernummer)}</Container>`
-  : `<Container></Container>`;
 
   console.log('📄 Start XML-generatie');
  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
@@ -178,7 +175,6 @@ const containerField = data.containernummer && /^[A-Z]{4}U\d{7}$/.test(data.cont
   <Datum>${clean(data.datum)}</Datum>
   <TijdVan>${clean(data.tijd)}</TijdVan>
   <TijdTM>${clean(data.tijd)}</TijdTM>
-  ${containerField}
   <Container>${clean(data.containernummer)}</Container>
   <ContainerType>${clean(data.containertype)}</ContainerType>
   <Lading>${clean(data.lading)}</Lading>
