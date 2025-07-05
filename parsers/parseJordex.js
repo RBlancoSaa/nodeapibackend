@@ -58,11 +58,6 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     return '';
   };
 
-data.klantnaam = regels[0] || klantPlaatsFrom || '';
-data.klantadres = regels[1] || '';
-data.klantpostcode = data.klantpostcode || (postcodeMatch?.[1]?.replace(/\s+/, '') || '');
-data.klantplaats = data.klantplaats || (postcodeMatch?.[2]?.trim() || klantPlaatsFrom);
-
    const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
     referentie: logResult('referentie', (() => {
