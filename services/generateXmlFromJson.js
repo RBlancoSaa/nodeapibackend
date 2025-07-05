@@ -191,14 +191,14 @@ if (!data.actie || data.actie === '0') {
   <Instructies>${clean(data.instructies)}</Instructies>
 </Container>
 
+${data.adr === 'Waar' ? `
 <ADR>
   <Ritnr>${clean(data.ritnummer)}</Ritnr>
   <UN>${clean(data.un)}</UN>
   <Productnaam>${clean(data.adr_productnaam)}</Productnaam>
   <Milieu>${fallbackOnwaar(data.adr_milieu)}</Milieu>
   <Afval>${fallbackOnwaar(data.adr_afval)}</Afval>
-</ADR>
-
+</ADR>` : ''}
 <Locaties>
 ${locaties.map(loc => `
   <Locatie>

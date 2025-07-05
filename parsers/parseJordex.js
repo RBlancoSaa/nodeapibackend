@@ -105,7 +105,6 @@ const data = {
   const maand = months[monthStr.toLowerCase().slice(0,3)];
   return `${day.padStart(2, '0')}-${maand}-${year}`;
 })(),
-ladenOfLossen: data.isLossenOpdracht ? 'Lossen' : 'Laden',
 inleverBootnaam: multiExtract([/Vessel[:\t ]+(.+)/i]) || '0',
 inleverRederij: multiExtract([/Carrier[:\t ]+(.+)/i]) || '0',
 
@@ -159,6 +158,7 @@ if (!data.isLossenOpdracht) {
     data.isLossenOpdracht = true;
   }
 }
+data.ladenOfLossen = data.isLossenOpdracht ? 'Lossen' : 'Laden';
 
   try {
     const pickupInfo = await getTerminalInfo(data.pickupTerminal) || {};
@@ -202,8 +202,6 @@ if (!data.isLossenOpdracht) {
       console.log('🆗 Ritnummer herkend uit bestandsnaam:', data.ritnummer);
     }
   }
-const pickupInfo = await getTerminalInfo(data.pickupTerminal) || { adres: '', postcode: '', plaats: '', land: 'NL' };
-const dropoffInfo = await getTerminalInfo(data.dropoffTerminal) || { adres: '', postcode: '', plaats: '', land: 'NL' };
 
   console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
   console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
