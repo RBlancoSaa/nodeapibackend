@@ -39,13 +39,13 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   // 📖 PDF uitlezen en opsplitsen
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
   const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
   
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
   const multiExtract = (patterns) => {
     for (const pattern of patterns) {
-      const found = lines.find(line => pattern.test(line));
+      const found = regels.find(line => pattern.test(line));
       if (found) {
         const match = found.match(pattern);
         if (match?.[1]) {
