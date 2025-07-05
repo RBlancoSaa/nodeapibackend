@@ -9,14 +9,18 @@ import {
   normalizeContainerOmschrijving,
 } from '../utils/lookups/terminalLookup.js';
 
-function formatDatum(ddmmyyyy) {
-  if (!ddmmyyyy || typeof ddmmyyyy !== 'string') return '0';
+function logResult(label, value) {
+  console.log(`🔍 ${label}:`, value || '[LEEG]');
+  return value;
+}
+
+function formatDatum(input) {
   const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
-  const parts = ddmmyyyy.trim().split(/[-/.\s]/);
-  if (parts.length !== 3) return '0';
-  let [dag, maand, jaar] = parts;
-  maand = maand.length === 3 ? months[maand.toLowerCase()] : maand.padStart(2, '0');
-  return `${dag.padStart(2, '0')}-${maand}-${jaar}`;
+  const match = input?.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/i);
+  if (!match) return '0';
+  const [_, day, month, year] = match;
+  const mm = months[month.toLowerCase().slice(0, 3)] || '00';
+  return `${day.padStart(2, '0')}-${mm}-${year}`;
 }
 
 export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
@@ -50,7 +54,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
         }
       }
     }
-    return null;
+    return '';
   };
 
 // Klantgegevens ophalen
@@ -60,18 +64,10 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   if (klantblok) {
     regels = klantblok[1].trim().split('\n').map(l => l.trim()).filter(Boolean);
     postcodeMatch = regels[2]?.match(/(\d{4}\s?[A-Z]{2})\s+(.+)/);
+  } else {
+    console.warn('⚠️ Geen klantblok gevonden');
   }
-  const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
-  const descBlockMatch = text.match(/Description\s*([\s\S]*?)Extra Information/i);
-  let ladingFromBlock = descBlockMatch ? descBlockMatch[1].replace(/\s+/g, ' ').trim() : '0';
-const extraKlantMatch = text.match(/(?:Customer|Consignee|Company)[:\t ]+(.+)/i);
-const extraAdresMatch = text.match(/(?:Address)[:\t ]+(.+)/i);
-const extraPostcodeMatch = text.match(/(\d{4}\s?[A-Z]{2})\s+(.+)/);
 
-data.klantnaam = regels[0] || extraKlantMatch?.[1]?.trim() || '';
-data.klantadres = regels[1] || extraAdresMatch?.[1]?.trim() || '';
-data.klantpostcode = postcodeMatch?.[1] || extraPostcodeMatch?.[1] || '';
-data.klantplaats = postcodeMatch?.[2] || extraPostcodeMatch?.[2] || '';
     // 🛠️ Hierna komt het vullen van het data-object met de extracted waarden uit de PDF
 const data = {
     ritnummer: ritnummerMatch ? ritnummerMatch[1] : '0',
@@ -117,20 +113,36 @@ tijd: (() => {
   const match = text.match(/Date[:\t ].+\s+(\d{2}:\d{2})/i);
   return match ? `${match[1]}:00` : '';
 })(),
+
+ritnummer: ritnummer || '0',
+    referentie: referentie || '0',
+    laadreferentie: laadref || '0',
+    inleverreferentie: inleverref || '0',
+    containernummer: containerNummer || '',
+    containertype: multiExtract([/Cargo[:\t]+(.+)/i]) || '0',
+    temperatuur: multiExtract([/Temperature[:\t ]+([\-\d]+°C)/i]) || '0',
+    tijd: (text.match(/Date[:\t ].+\s+(\d{2}:\d{2})/i) || [])[1]?.concat(':00') || '',
+    datum: datum,
+    inleverBootnaam: multiExtract([/Vessel[:\t ]+(.+)/i]) || '',
+    inleverRederij: multiExtract([/Carrier[:\t ]+(.+)/i]) || '',
     inleverBestemming: multiExtract([/Final destination[:\t ]+(.+)/i]) || '',
-    dropoffTerminal: multiExtract([/Drop[-\s]?off terminal[:\t ]+(.+)/i]) || '',
     pickupTerminal: multiExtract([/Pick[-\s]?up terminal[:\t ]+(.+)/i]) || '',
+    dropoffTerminal: multiExtract([/Drop[-\s]?off terminal[:\t ]+(.+)/i]) || '',
     gewicht: multiExtract([/Weight[:\t ]+(\d+\s?kg)/i]) || '0',
     volume: multiExtract([/Volume[:\t ]+(\d+(?:\.\d+)?\s?m3)/i]) || '0',
     colli: multiExtract([/Colli[:\t ]+(\d+)/i]) || '0',
-    lading: ladingFromBlock || multiExtract([/Description of goods[:\t ]+(.+)/i]) || '0',
+    lading: multiExtract([/Description of goods[:\t ]+(.+)/i]) || '0',
     imo: multiExtract([/IMO[:\t ]+(\d+)/i]) || '0',
     unnr: multiExtract([/UN[:\t ]+(\d+)/i]) || '0',
     brix: multiExtract([/Brix[:\t ]+(\d+)/i]) || '0',
-    opdrachtgeverNaam: klantAlias === 'jordex' ? 'JORDEX FORWARDING' : data.klantnaam || '',
-    opdrachtgeverAdres: klantAlias === 'jordex' ? 'AMBACHTSWEG 6' : data.klantadres || '',
-    opdrachtgeverPostcode: klantAlias === 'jordex' ? '3161GL' : data.klantpostcode || '',
-    opdrachtgeverPlaats: klantAlias === 'jordex' ? 'RHOON' : data.klantplaats || '',
+    klantnaam: regels[0] || '',
+    klantadres: regels[1] || '',
+    klantpostcode: postcodeMatch?.[1] || '',
+    klantplaats: postcodeMatch?.[2] || '',
+    opdrachtgeverNaam: 'JORDEX FORWARDING',
+    opdrachtgeverAdres: 'AMBACHTSWEG 6',
+    opdrachtgeverPostcode: '3161GL',
+    opdrachtgeverPlaats: 'RHOON',
     opdrachtgeverTelefoon: '010-1234567',
     opdrachtgeverEmail: 'TRANSPORT@JORDEX.COM',
     opdrachtgeverBTW: 'NL815340011B01',
@@ -139,16 +151,9 @@ tijd: (() => {
     rederijCode: '0',
     containertypeCode: '0'
   };
-// 🧪 ADR evaluatie op basis van IMO en UNNR
-if (data.imo !== '0' || data.unnr !== '0') {
-  data.adr = 'Waar';
-} else {
-  data.adr = 'Onwaar';
-  delete data.imo;
-  delete data.unnr;
-  delete data.brix;
-}
-  data.isLossenOpdracht = !!data.containernummer && data.containernummer !== '0';
+
+  // 🧪 Bepaal laden of lossen
+data.isLossenOpdracht = !!data.containernummer && data.containernummer !== '0';
 if (!data.isLossenOpdracht) {
   const from = multiExtract([/From[:\t ]+(.+)/i]) || '';
   const to = multiExtract([/To[:\t ]+(.+)/i]) || '';
@@ -158,8 +163,18 @@ if (!data.isLossenOpdracht) {
     data.isLossenOpdracht = true;
   }
 }
+
 data.ladenOfLossen = data.isLossenOpdracht ? 'Lossen' : 'Laden';
 
+// 🧪 ADR evaluatie op basis van IMO en UNNR
+if (data.imo !== '0' || data.unnr !== '0') {
+  data.adr = 'Waar';
+} else {
+  data.adr = 'Onwaar';
+  delete data.imo;
+  delete data.unnr;
+  delete data.brix;
+}
   try {
     
     const pickupInfo = await getTerminalInfo(data.pickupTerminal) || {};
@@ -207,6 +222,6 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
   console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
   console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
   console.log('📤 PARSE RESULTAAT:', JSON.stringify(data, null, 2));
-  
+  console.log('📤 DATA:', JSON.stringify(data, null, 2));
   return data;
 }
