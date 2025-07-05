@@ -105,6 +105,9 @@ export async function generateXmlFromJson(data) {
   data.tar = data.tar || '';
   data.type = ''; // EasyTrip gebruikt 'Type' alleen bij specialisatie, niet bij containers
   data.datum = formatDatumVoorEasyTrip(data.datum); // 👈 HIER PLAATSEN
+  data.closing_datum = data.closing_datum || '';
+  data.closing_tijd = data.closing_tijd || '';
+
 
   const verplichteVelden = ['opdrachtgeverNaam', 'opdrachtgeverAdres', 'opdrachtgeverPostcode', 'opdrachtgeverPlaats', 'opdrachtgeverEmail', 'opdrachtgeverBTW', 'opdrachtgeverKVK'];
   for (const veld of verplichteVelden) {
@@ -188,8 +191,8 @@ if (!data.actie || data.actie === '0') {
   <InleverBestemming>${clean(data.inleverBestemming)}</InleverBestemming>
   <InleverRederij>${match(data.inleverRederij, rederijen)}</InleverRederij>
   <Inlever_TAR>${clean(data.inleverBestemming)}</Inlever_TAR>
-  <Closing_datum></Closing_datum>
-  <Closing_tijd></Closing_tijd>
+  <Closing_datum>${clean(data.closing_datum)}</Closing_datum>
+  <Closing_tijd>${clean(data.closing_tijd)}</Closing_tijd>
   <Instructies>${clean(data.instructies)}</Instructies>
 </Container>
 
