@@ -64,10 +64,14 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
 
   // 🛠️ Hierna komt het vullen van het data-object met de extracted waarden uit de PDF
   const data = {
+  ritnummer: multiExtract([
+  /Our reference[:\t ]+([A-Z0-9\-]+)/i
+  ]) || '0',
 
   referentie: multiExtract([
-    /Our reference[:\t ]+([A-Z0-9\-]+)/i,
-    /Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i
+  /Booking reference[:\t ]+([A-Z0-9\-]+)/i,
+  /Pick[-\s]?up reference[:\t ]+([A-Z0-9\-]+)/i,
+  /^Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i
   ]) || '0',
 
   rederij: multiExtract([
@@ -80,7 +84,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
 
   containertype: multiExtract([
   /Cargo[:\t]+(.+)/i
-]) || '0',
+  ]) || '0',
  
   containernummer: (() => {
   const result = multiExtract([

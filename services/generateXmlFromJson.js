@@ -32,13 +32,15 @@ function fallbackOnwaar(value) {
 }
 
 function bevatADR(data) {
-  const adrTekst = `${data.adr || ''} ${data.imo || ''} ${data.lading || ''}`.toUpperCase();
+  const ladingTekst = `${data.lading || ''}`.toUpperCase();
+  const imoTekst = `${data.imo || ''}`.toUpperCase();
   return (
-    adrTekst.includes('ADR') ||
-    /UN\s?\d{4}/.test(adrTekst) ||
-    (data.imo && data.imo.trim() !== '')
+    ladingTekst.includes('ADR') ||
+    /UN\d{4}/.test(ladingTekst) ||
+    (imoTekst && imoTekst !== '0')
   );
 }
+
 function normalizeContainerOmschrijving(str) {
   return (str || '')
     .toLowerCase()
@@ -116,7 +118,6 @@ export async function generateXmlFromJson(data) {
   data.datum = formatDatumVoorEasyTrip(data.datum); // 👈 HIER PLAATSEN
   data.closing_datum = data.closing_datum || '';
   data.closing_tijd = data.closing_tijd || '';
-  data.adr = (data.imo !== '0' || data.unnr !== '0') ? 'Waar' : 'Onwaar';
 
   const verplichteVelden = ['opdrachtgeverNaam', 'opdrachtgeverAdres', 'opdrachtgeverPostcode', 'opdrachtgeverPlaats', 'opdrachtgeverEmail', 'opdrachtgeverBTW', 'opdrachtgeverKVK'];
   for (const veld of verplichteVelden) {
