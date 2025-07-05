@@ -57,7 +57,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     }
     return '';
   };
-  const klantblok = text.match(/Pick[-\s]?up:\s*([\s\S]+?)Drop[-\s]?off:/i);
+  const klantblok = text.match(/Pick[\s-]?up[\s:]*([\s\S]+?)Drop[\s-]?off[\s:]/i);
   const regels = klantblok ? klantblok[1].trim().split('\n').map(l => l.trim()) : [];
   const postcodeMatch = regels[2]?.match(/(\d{4}\s?[A-Z]{2})\s+(.+)/);
 let klantPlaatsFrom = '';
@@ -66,6 +66,8 @@ if (!klantblok) {
   if (fromLine) {
     klantPlaatsFrom = fromLine;
     console.warn(`⚠️ Geen klantblok – fallback naar From: ${klantPlaatsFrom}`);
+  } else {
+    console.warn('❌ Geen klantblok en ook geen From: veld gevonden.');
   }
 }
 
