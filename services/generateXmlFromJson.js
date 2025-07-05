@@ -163,7 +163,7 @@ if (!data.actie || data.actie === '0') {
   <Opdrachtgever_KVK>${clean(data.opdrachtgeverKVK)}</Opdrachtgever_KVK>
 </Opdrachtgever>
 <Container>
-  <Ritnr>${clean(data.referentie)}</Ritnr>
+  <Ritnr>${clean(data.ritnummer)}</Ritnr>
   <Laden_Lossen>${clean(data.ladenOfLossen)}</Laden_Lossen>
   <Type></Type>
   <Datum>${clean(data.datum)}</Datum>

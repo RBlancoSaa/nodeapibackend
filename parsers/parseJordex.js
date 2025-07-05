@@ -72,11 +72,31 @@ const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
 
   // 🛠️ Hierna komt het vullen van het data-object met de extracted waarden uit de PDF
   const data = {
-ritnummer: ritnummerMatch ? ritnummerMatch[1].toUpperCase() : '0',  
- referentie: (() => {
+// 🟢 Pick-up terminal → <Referentie>
+referentie: (() => {
   const pickupBlockMatch = text.match(/Pick[-\s]?up terminal:\s*([\s\S]+?)Drop[-\s]?off terminal:/i);
   if (pickupBlockMatch) {
     const match = pickupBlockMatch[1].match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
+    return match?.[1]?.trim() || '0';
+  }
+  return '0';
+})(),
+
+// 🟢 Pick-up (klant) → <Laadreferentie>
+laadreferentie: (() => {
+  const klantBlock = text.match(/Pick[-\s]?up:\s*([\s\S]+?)Drop[-\s]?off:/i);
+  if (klantBlock) {
+    const match = klantBlock[1].match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
+    return match?.[1]?.trim() || '0';
+  }
+  return '0';
+})(),
+
+// 🟢 Drop-off terminal → <Inleverreferentie>
+inleverreferentie: (() => {
+  const dropoffBlock = text.match(/Drop[-\s]?off terminal:\s*([\s\S]+?)Failure/i);
+  if (dropoffBlock) {
+    const match = dropoffBlock[1].match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
     return match?.[1]?.trim() || '0';
   }
   return '0';
@@ -362,8 +382,8 @@ console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
 console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
 
 
-if (!data.referentie || data.referentie === '0') {
-  console.warn('❗️ Geen referentie gevonden – opdracht kan niet gegenereerd worden');
+if (!data.ritnummer || data.ritnummer === '0') {
+  console.warn('❗️ Geen ritnummer gevonden – opdracht kan niet gegenereerd worden');
 }
 
   return data;
