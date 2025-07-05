@@ -166,12 +166,12 @@ if (!data.actie || data.actie === '0') {
   <ContainerType>${clean(data.containertype)}</ContainerType>
   <Lading>${clean(data.lading)}</Lading>
   <ADR>${clean(data.adr)}</ADR>
-  <Tarra>0</Tarra>
-  <GeladenGewicht>${clean(data.gewicht)}</GeladenGewicht>
-  <Brutogewicht>${clean(data.brutogewicht)}</Brutogewicht>
+  <Tarra>${fallback0(data.Tarra)}</Tarra>
+  <GeladenGewicht>${fallback0(data.gewicht)}</GeladenGewicht>
+  <Brutogewicht>${fallback0(data.brutogewicht)}</Brutogewicht>
   <Colli>${fallback0(data.colli)}</Colli>
   <Zegel>${clean(data.zegel)}</Zegel>
-  <Temp>${clean(data.temperatuur)}</Temp>
+  <Temp>${fallback0(data.temperatuur)}</Temp>
   <CBM>${fallback0(data.cbm)}</CBM>
   <Brix>${fallback0(data.brix)}</Brix>
   <Referentie>${clean(data.referentie)}</Referentie>
