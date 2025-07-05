@@ -209,19 +209,13 @@ if (klantblok) {
 }
 
   // Data lossen of laden info
-let isLossenOpdracht = false;
-if (data.pickupTerminal && data.pickupTerminal !== '0' && data.dropoffTerminal === '0') {
-  isLossenOpdracht = true;
-  console.log('📦 Herkend als LOSSEN-opdracht (terminal → klant)');
+if (text.includes('Pick-up terminal')) {
+  parsedData.ladenOfLossen = 'Laden';
+} else if (text.includes('Drop-off terminal')) {
+  parsedData.ladenOfLossen = 'Lossen';
+} else {
+  parsedData.ladenOfLossen = '';
 }
-if (data.dropoffTerminal && data.dropoffTerminal !== '0' && data.pickupTerminal === '0') {
-  isLossenOpdracht = false;
-  console.log('📦 Herkend als LADEN-opdracht (klant → terminal)');
-}
-if (data.pickupTerminal !== '0' && data.dropoffTerminal !== '0') {
-  console.log('📦 BEIDE terminals aanwezig, opdrachttype niet 100% zeker — controleer From/To indien nodig');
-}
-data.isLossenOpdracht = isLossenOpdracht;
 
  console.log('🔎 Zoek containertypecode voor:', data.containertype);
 data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
