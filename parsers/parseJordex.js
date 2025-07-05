@@ -210,11 +210,13 @@ if (klantblok) {
 
   // Data lossen of laden info
 if (text.includes('Pick-up terminal')) {
-  parsedData.ladenOfLossen = 'Laden';
+  data.ladenOfLossen = 'Laden';
 } else if (text.includes('Drop-off terminal')) {
-  parsedData.ladenOfLossen = 'Lossen';
+  data.ladenOfLossen = 'Lossen';
+} else if (typeof data.isLossenOpdracht === 'boolean') {
+  data.ladenOfLossen = data.isLossenOpdracht ? 'Lossen' : 'Laden';
 } else {
-  parsedData.ladenOfLossen = '';
+  data.ladenOfLossen = '';
 }
 
  console.log('🔎 Zoek containertypecode voor:', data.containertype);
@@ -362,5 +364,6 @@ console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
 if (!data.referentie || data.referentie === '0') {
   console.warn('❗️ Geen referentie gevonden – opdracht kan niet gegenereerd worden');
 }
+
   return data;
 }
