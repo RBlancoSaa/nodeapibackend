@@ -57,6 +57,8 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     }
     return '';
   };
+const fromMatch = text.match(/From:\s*(.*)/);
+const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
 
    const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
