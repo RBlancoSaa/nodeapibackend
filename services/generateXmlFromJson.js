@@ -158,7 +158,7 @@ if (!data.actie || data.actie === '0') {
   <Ritnr>${clean(data.ritnummer)}</Ritnr>
   <Laden_Lossen>${clean(data.ladenOfLossen)}</Laden_Lossen>
   <Type></Type>
-  <Datum>${datumFormatted}</Datum>
+  <Datum>${clean(data.datum)}</Datum>
   <TijdVan>${clean(data.tijd) || ''}</TijdVan>
   <TijdTM>${clean(data.tijd) || ''}</TijdTM>
   <Container></Container>
