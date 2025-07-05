@@ -142,13 +142,14 @@ const result = multiExtract([
 })(),
 
 // ZZ: Zoek tijd direct achter een datum in alle regels
-  tijd: (() => {
-  for (const line of lines) {
-    // Zoek naar bv. "05 Jun 2025 07:30" of "2025-05-27 08:30"
-    const match = line.match(/(\d{1,2}[-/\s][A-Za-z]{3,}[-/\s]\d{4})\s+(\d{2}:\d{2})/);
-    if (match) return match[2];
-    const match2 = line.match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/);
-    if (match2) return match2[2];
+tijd: (() => {
+  const klantBlock = text.match(/Pick[-\s]?up:\s*([\s\S]+?)Drop[-\s]?off:/i);
+  if (klantBlock) {
+    const match = klantBlock[1].match(/Date[:\t ]+(\d{1,2}\s+\w+\s+\d{4})\s+(\d{2}:\d{2})/i);
+    if (match) {
+      const tijd = match[2];
+      return `${tijd}:00`; // omzetten naar 07:00:00
+    }
   }
   return '';
 })(),
