@@ -232,32 +232,6 @@ if (data.pickupTerminal !== '0' && data.dropoffTerminal !== '0') {
 }
 
 
-  // ✅ Klantgegevens geforceerd instellen obv alias
-if (klantAlias) {
-  // 🔁 Alias normaliseren
-  const klantAliasMap = {
-    'jordex': 'JORDEX FORWARDING',
-    'jordex forwarding': 'JORDEX FORWARDING',
-    'jordex chartering': 'JORDEX CHARTERING & PROJECTS',
-    'tiaro': 'Tiaro Transport',
-    'tiaro transport': 'Tiaro Transport'
-  };
-  klantAlias = klantAliasMap[klantAlias.toLowerCase()] || klantAlias;
-
-  try {
-    console.log('🔍 klantAlias gebruikt bij lookup:', klantAlias);
-
-    const klant = await getKlantData(klantAlias);
-    data.klantnaam = klant.naam || klantAlias;
-    data.klantadres = klant.adres || '0';
-    data.klantpostcode = klant.postcode || '0';
-    data.klantplaats = klant.plaats || '0';
-    data.telefoon = klant.telefoon || '0';
-    data.email = klant.email || '0';
-    data.btw = klant.btw || '0';
-    data.kvk = klant.kvk || '0';
-    data.klantAdresVolledig = klant.volledig || '0';
-
     // 🔁 Zet klantgegevens om naar opdrachtgevervelden
 data.opdrachtgeverNaam = 'JORDEX FORWARDING';
 data.opdrachtgeverAdres = 'AMBACHTSWEG 6';
@@ -273,20 +247,7 @@ data.opdrachtgeverKVK = '39012345';
   adres: data.opdrachtgeverAdres,
   plaats: data.opdrachtgeverPlaats
 });
-  } catch (e) {
-    console.warn('⚠️ klantAlias lookup faalt:', e);
 
-    // ⛔️ Fallback zodat Easytrip het bestand toch accepteert
-    data.opdrachtgeverNaam = klantAlias;
-    data.opdrachtgeverAdres = '0';
-    data.opdrachtgeverPostcode = '0';
-    data.opdrachtgeverPlaats = '0';
-    data.opdrachtgeverTelefoon = '0';
-    data.opdrachtgeverEmail = '0';
-    data.opdrachtgeverBTW = '0';
-    data.opdrachtgeverKVK = '0';
-  }
-}
   if (!data.laadplaats && data.klantplaats && data.klantplaats !== '0') {
   data.laadplaats = data.klantplaats;
 }
