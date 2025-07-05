@@ -25,7 +25,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   // ❌ Voorkom lege of ongeldige input
   if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
     console.warn('❌ Ongeldige of ontbrekende PDF buffer');
-    return null;
+    return {};
   }
   if (pdfBuffer.length < 100) {
     console.warn('⚠️ PDF buffer is verdacht klein, waarschijnlijk leeg');
@@ -93,14 +93,19 @@ const data = {
       return /^[A-Z]{4}U\d{7}$/.test(result || '') ? result : '';
     })(),
     temperatuur: multiExtract([/Temperature[:\t ]+([\-\d]+°C)/i]) || '0',
-    datum: formatDatum(multiExtract([
-      /Date[:\t ]+(\d{1,2}[-/\s]\w+[-/\s]\d{4})/i,
-      /Closing[:\t ]+(\d{1,2}[-/]\d{1,2}[-/]\d{4})/i
-    ]) || '0'),
-    tijd: (() => {
-      const match = klantblok?.[1]?.match(/Date[:\t ]+\d{1,2}\s+\w+\s+\d{4}\s+(\d{2}:\d{2})/i);
-      return match ? `${match[1]}:00` : '';
-    })(),
+   datum: (() => {
+  const match = text.match(/Date[:\t ]+(\d{1,2})\s+(\w+)\s+(\d{4})/i);
+  if (!match) return '0';
+  const [_, day, monthStr, year] = match;
+  const months = { jan:'01', feb:'02', mar:'03', apr:'04', may:'05', jun:'06', jul:'07', aug:'08', sep:'09', oct:'10', nov:'11', dec:'12' };
+  const maand = months[monthStr.toLowerCase().slice(0,3)];
+  return `${day.padStart(2, '0')}-${maand}-${year}`;
+})(),
+
+tijd: (() => {
+  const match = text.match(/Date[:\t ].+\s+(\d{2}:\d{2})/i);
+  return match ? `${match[1]}:00` : '';
+})(),
     inleverBestemming: multiExtract([/Final destination[:\t ]+(.+)/i]) || '0',
     dropoffTerminal: multiExtract([/Drop[-\s]?off terminal[:\t ]+(.+)/i]) || '0',
     pickupTerminal: multiExtract([/Pick[-\s]?up terminal[:\t ]+(.+)/i]) || '0',
@@ -165,12 +170,18 @@ const data = {
     console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
     console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
     console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
-
+    console.log('📤 PARSE RESULTAAT:', JSON.stringify(data, null, 2));
 
 if (!data.referentie || data.referentie === '0') {
   console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
 }
-
+if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes('OE')) {
+  const match = parsed.info.Title.match(/(O[EI]\d{7})/i);
+  if (match) {
+    data.ritnummer = match[1];
+    console.log('🆗 Ritnummer herkend uit bestandsnaam:', data.ritnummer);
+  }
+}
   return data;
 }
 }
