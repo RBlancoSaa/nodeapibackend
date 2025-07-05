@@ -70,7 +70,16 @@ const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
       console.log('📌 Lading herkend uit Description-blok:', ladingFromBlock);
     }
   }
-
+// 🧠 Klantgegevens ophalen uit Pick-up blok
+const klantblok = text.match(/Pick[-\s]?up:\s*([\s\S]+?)Drop[-\s]?off:/i);
+if (klantblok) {
+  const regels = klantblok[1].trim().split('\n').map(l => l.trim()).filter(Boolean);
+  data.klantBedrijf = regels[0] || '';
+  data.klantAdres = regels[1] || '';
+  const postcodeMatch = regels[2]?.match(/(\d{4}\s?[A-Z]{2})\s+(.+)/);
+  data.klantPostcode = postcodeMatch?.[1] || '';
+  data.klantPlaats = postcodeMatch?.[2] || '';
+}
   // 🛠️ Hierna komt het vullen van het data-object met de extracted waarden uit de PDF
   const data = {
 // 🟢 Pick-up terminal → <Referentie>
@@ -230,18 +239,6 @@ klantplaats: klantblok ? (postcodeMatch?.[2] || '') : '',
     containertypeCode: '0'
 
 };
-
-
-// 🧠 Klantgegevens ophalen uit Pick-up blok
-const klantblok = text.match(/Pick[-\s]?up:\s*([\s\S]+?)Drop[-\s]?off:/i);
-if (klantblok) {
-  const regels = klantblok[1].trim().split('\n').map(l => l.trim()).filter(Boolean);
-  data.klantBedrijf = regels[0] || '';
-  data.klantAdres = regels[1] || '';
-  const postcodeMatch = regels[2]?.match(/(\d{4}\s?[A-Z]{2})\s+(.+)/);
-  data.klantPostcode = postcodeMatch?.[1] || '';
-  data.klantPlaats = postcodeMatch?.[2] || '';
-}
 
   // Data lossen of laden info
 if (text.includes('Pick-up terminal')) {
