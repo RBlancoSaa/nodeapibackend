@@ -75,9 +75,11 @@ const data = {
       return match?.[1]?.trim() || '0';
     })(),
     laadreferentie: (() => {
-      const match = text.match(/Pick[-\s]?up:[\s\S]+?Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
-      return match?.[1]?.trim() || '0';
-    })(),
+  const block = text.match(/Pick[-\s]?up:[\s\S]+?Drop[-\s]?off:/i);
+  if (!block) return '0';
+  const match = block[0].match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
+  return match?.[1]?.trim() || '0';
+})(),
     inleverreferentie: (() => {
       const match = text.match(/Drop[-\s]?off terminal:[\s\S]+?Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
       return match?.[1]?.trim() || '0';
@@ -101,6 +103,10 @@ const data = {
   const maand = months[monthStr.toLowerCase().slice(0,3)];
   return `${day.padStart(2, '0')}-${maand}-${year}`;
 })(),
+ladenOfLossen: data.isLossenOpdracht ? 'Lossen' : 'Laden',
+inleverBootnaam: multiExtract([/Vessel[:\t ]+(.+)/i]) || '0',
+inleverRederij: multiExtract([/Carrier[:\t ]+(.+)/i]) || '0',
+adr: (data.imo !== '0' || data.unnr !== '0') ? 'Waar' : 'Onwaar',
 
 tijd: (() => {
   const match = text.match(/Date[:\t ].+\s+(\d{2}:\d{2})/i);
@@ -136,7 +142,15 @@ tijd: (() => {
 
   data.adr = (data.imo !== '0' || data.unnr !== '0') ? 'Waar' : 'Onwaar';
   data.isLossenOpdracht = !!data.containernummer && data.containernummer !== '0';
-  if (data.klantplaats && !data.laadplaats) data.laadplaats = data.klantplaats;
+if (!data.isLossenOpdracht) {
+  const from = multiExtract([/From[:\t ]+(.+)/i]) || '';
+  const to = multiExtract([/To[:\t ]+(.+)/i]) || '';
+  if (from.toLowerCase().includes('rotterdam') || from.toLowerCase().includes('nl')) {
+    data.isLossenOpdracht = false;
+  } else if (to.toLowerCase().includes('rotterdam') || to.toLowerCase().includes('nl')) {
+    data.isLossenOpdracht = true;
+  }
+}
 
   try {
     const pickupInfo = await getTerminalInfo(data.pickupTerminal) || {};
@@ -180,10 +194,8 @@ tijd: (() => {
       console.log('🆗 Ritnummer herkend uit bestandsnaam:', data.ritnummer);
     }
   }
-  if (!data || Object.keys(data).length < 5) {
-  console.warn('❌ Parserresultaat is leeg of incompleet');
-  return {};
-}
+const pickupInfo = await getTerminalInfo(data.pickupTerminal) || { adres: '', postcode: '', plaats: '', land: 'NL' };
+const dropoffInfo = await getTerminalInfo(data.dropoffTerminal) || { adres: '', postcode: '', plaats: '', land: 'NL' };
 
   console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
   console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
