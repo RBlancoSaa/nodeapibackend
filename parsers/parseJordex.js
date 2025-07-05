@@ -361,6 +361,9 @@ data.locaties = [
 ];
 
 console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
+console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
+console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
+
 
 if (!data.referentie || data.referentie === '0') {
   console.warn('❗️ Geen referentie gevonden – opdracht kan niet gegenereerd worden');

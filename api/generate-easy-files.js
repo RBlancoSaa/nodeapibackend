@@ -17,14 +17,20 @@ export default async function handler(req, res) {
   try {
     const data = req.body;
 
-    const verplichteVelden = [
-      'opdrachtgeverNaam', 'opdrachtgeverAdres', 'opdrachtgeverPostcode', 'opdrachtgeverPlaats',
-      'opdrachtgeverEmail', 'opdrachtgeverBTW', 'opdrachtgeverKVK', 'reference', 'laadplaats'
-    ];
-    const ontbrekend = verplichteVelden.filter(v => !data[v]);
-    if (ontbrekend.length) {
-      return res.status(400).json({ success: false, message: `Ontbrekende velden: ${ontbrekend.join(', ')}` });
-    }
+const verplichteVelden = [
+  'datum',
+  'tijd',
+  'containertypeCode',
+  'laadplaats',
+  'klantBedrijf'
+];
+
+for (const veld of verplichteVelden) {
+  if (!data[veld] || data[veld] === '0') {
+    console.warn(`❌ Verplicht veld ontbreekt: ${veld}`);
+    return res.status(400).json({ success: false, message: `Verplicht veld ontbreekt: ${veld}` });
+  }
+}
 
     const xml = await generateXmlFromJson(data);
     const bestandsnaam = `Order_${data.reference}_${data.laadplaats}.easy`;
