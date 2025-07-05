@@ -42,7 +42,6 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 // 📍 Ritnummer: vind OE- of OI-code los van context
 const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
-data.ritnummer = ritnummerMatch ? ritnummerMatch[1].toUpperCase() : '0';
 
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
   const multiExtract = (patterns) => {
@@ -73,7 +72,7 @@ data.ritnummer = ritnummerMatch ? ritnummerMatch[1].toUpperCase() : '0';
 
   // 🛠️ Hierna komt het vullen van het data-object met de extracted waarden uit de PDF
   const data = {
- ritnummer,   
+ritnummer: ritnummerMatch ? ritnummerMatch[1].toUpperCase() : '0',  
  referentie: (() => {
   const pickupBlockMatch = text.match(/Pick[-\s]?up terminal:\s*([\s\S]+?)Drop[-\s]?off terminal:/i);
   if (pickupBlockMatch) {
