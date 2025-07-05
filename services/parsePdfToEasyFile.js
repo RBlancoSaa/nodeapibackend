@@ -15,16 +15,6 @@ const parsedData = await parseJordex(pdfBuffer, 'jordex');
 
   console.log('📄 Parsed data ontvangen:', parsedData);
 
-  // 🔁 Zet klantvelden over naar opdrachtgevervelden
-  parsedData.opdrachtgeverNaam = parsedData.klantnaam || '0';
-  parsedData.opdrachtgeverAdres = parsedData.klantadres || '0';
-  parsedData.opdrachtgeverPostcode = parsedData.klantpostcode || '0';
-  parsedData.opdrachtgeverPlaats = parsedData.klantplaats || '0';
-  parsedData.opdrachtgeverTelefoon = parsedData.telefoon || '0';
-  parsedData.opdrachtgeverEmail = parsedData.email || '0';
-  parsedData.opdrachtgeverBTW = parsedData.btw || '0';
-  parsedData.opdrachtgeverKVK = parsedData.kvk || '0';
-
   const result = {
     opdrachtgeverNaam: parsedData.opdrachtgeverNaam || '0',
     opdrachtgeverAdres: parsedData.opdrachtgeverAdres || '0',
