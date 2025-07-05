@@ -60,6 +60,14 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   const klantblok = text.match(/Pick[-\s]?up:\s*([\s\S]+?)Drop[-\s]?off:/i);
   const regels = klantblok ? klantblok[1].trim().split('\n').map(l => l.trim()) : [];
   const postcodeMatch = regels[2]?.match(/(\d{4}\s?[A-Z]{2})\s+(.+)/);
+let klantPlaatsFrom = '';
+if (!klantblok) {
+  const fromLine = multiExtract([/From[:\t ]+(.+)/i]);
+  if (fromLine) {
+    klantPlaatsFrom = fromLine;
+    console.warn(`⚠️ Geen klantblok – fallback naar From: ${klantPlaatsFrom}`);
+  }
+}
 
    const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
@@ -114,10 +122,10 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     unnr: logResult('unnr', multiExtract([/UN[:\t ]+(\d+)/i]) || '0'),
     brix: logResult('brix', multiExtract([/Brix[:\t ]+(\d+)/i]) || '0'),
 
-    klantnaam: logResult('klantnaam', regels[0] || ''),
-    klantadres: logResult('klantadres', regels[1] || ''),
-    klantpostcode: logResult('klantpostcode', postcodeMatch?.[1] || ''),
-    klantplaats: logResult('klantplaats', postcodeMatch?.[2] || ''),
+    klantnaam: regels[0] || klantPlaatsFrom || '',
+    klantadres: regels[1] || '',
+    klantpostcode: postcodeMatch?.[1] || '',
+    klantplaats: postcodeMatch?.[2] || klantPlaatsFrom || '',
 
     opdrachtgeverNaam: 'JORDEX FORWARDING',
     opdrachtgeverAdres: 'AMBACHTSWEG 6',
