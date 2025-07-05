@@ -17,25 +17,23 @@ export default async function handler(req, res) {
   try {
     const data = req.body;
 
-const verplichteVelden = [
-  'datum',
-  'tijd',
-  'containertypeCode',
-  'laadplaats',
-  'klantBedrijf'
-];
+    // Alleen waarschuwingen — niet blokkeren
+    const verplichteVelden = ['datum', 'tijd', 'containertypeCode', 'laadplaats'];
+    for (const veld of verplichteVelden) {
+      if (!data[veld] || data[veld] === '0') {
+        console.warn(`⚠️ Ontbrekend veld: ${veld}`);
+      }
+    }
 
-for (const veld of verplichteVelden) {
-  if (!data[veld] || data[veld] === '0') {
-    console.warn(`❌ Verplicht veld ontbreekt: ${veld}`);
-    return res.status(400).json({ success: false, message: `Verplicht veld ontbreekt: ${veld}` });
-  }
-}
+    if (!data.klantBedrijf && !data.klantnaam) {
+      console.warn('⚠️ Ontbrekende klantnaam');
+    }
 
     const xml = await generateXmlFromJson(data);
-    const bestandsnaam = `Order_${data.reference}_${data.laadplaats}.easy`;
+    const bestandsnaam = `Order_${data.reference || 'ZONDER_REF'}_${data.laadplaats || 'ZONDER_PLAATS'}.easy`;
     const localPath = path.join('/tmp', bestandsnaam);
     fs.writeFileSync(localPath, xml, 'utf8');
+
 
     // PDF ophalen uit Supabase
     const originelePdfNaam = data.pdfBestandsnaam || `origineel_${data.reference}.pdf`;
