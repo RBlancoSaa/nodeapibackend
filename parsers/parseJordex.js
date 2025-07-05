@@ -11,10 +11,16 @@ import {
 
 function formatDatum(ddmmyyyy) {
   if (!ddmmyyyy || typeof ddmmyyyy !== 'string') return '0';
+  const months = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+  };
   const parts = ddmmyyyy.trim().split(/[-/.\s]/);
-  if (parts.length !== 3) return ddmmyyyy;
-  const [dag, maand, jaar] = parts;
-  return `${dag.padStart(2, '0')}-${maand.padStart(2, '0')}-${jaar}`;
+  if (parts.length !== 3) return '0';
+
+  let [dag, maand, jaar] = parts;
+  maand = maand.length === 3 ? months[maand.toLowerCase()] : maand.padStart(2, '0');
+  return `${dag.padStart(2, '0')}-${maand}-${jaar}`;
 }
 
 export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
@@ -68,11 +74,14 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   /Our reference[:\t ]+([A-Z0-9\-]+)/i
   ]) || '0',
 
-  referentie: multiExtract([
-  /Booking reference[:\t ]+([A-Z0-9\-]+)/i,
-  /Pick[-\s]?up reference[:\t ]+([A-Z0-9\-]+)/i,
-  /^Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i
-  ]) || '0',
+ referentie: (() => {
+  const pickupBlockMatch = text.match(/Pick[-\s]?up terminal:\s*([\s\S]+?)Drop[-\s]?off terminal:/i);
+  if (pickupBlockMatch) {
+    const match = pickupBlockMatch[1].match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
+    return match?.[1]?.trim() || '0';
+  }
+  return '0';
+})(),
 
   rederij: multiExtract([
     /Carrier[:\t ]+(.+)/i
@@ -113,10 +122,14 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   return timeMatch ? timeMatch[1] : '';
 })(),
 
-  laadreferentie: multiExtract([
-  /Pick[-\s]?up reference[:\t ]+(\S+)/i,
-  /^Reference(?:\(s\))?[:\t ]+(\S+)/i  // ^ = moet BEGIN regel zijn
-]) || '0',
+  laadreferentie: (() => {
+  const klantBlock = text.match(/Pick[-\s]?up:\s*([\s\S]+?)Drop[-\s]?off:/i);
+  if (klantBlock) {
+    const match = klantBlock[1].match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
+    return match?.[1]?.trim() || '0';
+  }
+  return '0';
+})(),
 
   inleverreferentie: multiExtract([
     /Drop[-\s]?off reference[:\t ]+(\S+)/i
