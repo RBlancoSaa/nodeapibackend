@@ -184,6 +184,16 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     containertypeCode: '0'
 };
 
+// 🧠 Klantgegevens ophalen uit Pick-up blok
+const klantblok = text.match(/Pick[-\s]?up:\s*([\s\S]+?)Drop[-\s]?off:/i);
+if (klantblok) {
+  const regels = klantblok[1].trim().split('\n').map(l => l.trim()).filter(Boolean);
+  data.klantBedrijf = regels[0] || '';
+  data.klantAdres = regels[1] || '';
+  const postcodeMatch = regels[2]?.match(/(\d{4}\s?[A-Z]{2})\s+(.+)/);
+  data.klantPostcode = postcodeMatch?.[1] || '';
+  data.klantPlaats = postcodeMatch?.[2] || '';
+}
 
   // Data lossen of laden info
 let isLossenOpdracht = false;
@@ -249,14 +259,14 @@ if (klantAlias) {
     data.klantAdresVolledig = klant.volledig || '0';
 
     // 🔁 Zet klantgegevens om naar opdrachtgevervelden
-    data.opdrachtgeverNaam = data.klantnaam;
-    data.opdrachtgeverAdres = data.klantadres;
-    data.opdrachtgeverPostcode = data.klantpostcode;
-    data.opdrachtgeverPlaats = data.klantplaats;
-    data.opdrachtgeverTelefoon = data.telefoon;
-    data.opdrachtgeverEmail = data.email;
-    data.opdrachtgeverBTW = data.btw;
-    data.opdrachtgeverKVK = data.kvk;
+data.opdrachtgeverNaam = 'JORDEX FORWARDING';
+data.opdrachtgeverAdres = 'AMBACHTSWEG 6';
+data.opdrachtgeverPostcode = '3161GL';
+data.opdrachtgeverPlaats = 'RHOON';
+data.opdrachtgeverTelefoon = '010-1234567'; // optioneel
+data.opdrachtgeverEmail = 'TRANSPORT@JORDEX.COM';
+data.opdrachtgeverBTW = 'NL815340011B01';
+data.opdrachtgeverKVK = '39012345';
 
  console.log('📌 Klantgegevens geladen:', {
   naam: data.opdrachtgeverNaam,
@@ -353,19 +363,19 @@ data.locaties = [
     bicsCode: pickupInfo.bicsCode || ''
   },
   {
-    volgorde: '0',
-    actie: data.isLossenOpdracht ? 'Lossen' : 'Laden',
-    naam: data.klantnaam || '0',
-    adres: data.klantadres || '0',
-    postcode: data.klantpostcode || '0',
-    plaats: data.klantplaats || '0',
-    land: 'NL',
-    voorgemeld: 'Onwaar',
-    aankomst_verw: '',
-    tijslot_van: '',
-    tijslot_tm: '',
-    portbase_code: '',
-    bicsCode: ''
+  volgorde: '0',
+  actie: data.isLossenOpdracht ? 'Lossen' : 'Laden',
+  naam: data.klantBedrijf || '',
+  adres: data.klantAdres || '',
+  postcode: data.klantPostcode || '',
+  plaats: data.klantPlaats || '',
+  land: 'NL',
+  voorgemeld: 'Onwaar',
+  aankomst_verw: '',
+  tijslot_van: '',
+  tijslot_tm: '',
+  portbase_code: '',
+  bicsCode: ''
   },
   {
     volgorde: '0',

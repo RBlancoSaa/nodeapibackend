@@ -9,6 +9,7 @@ const SUPABASE_LIST_URL = (process.env.SUPABASE_LIST_PUBLIC_URL || '').replace(/
 function clean(value) {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string' && value.trim() === '0') return '';
+  if (value === 0 || value === '0') return '';
   const val = value.toString();
   return val
     .replace(/&/g, '&amp;')
