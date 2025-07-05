@@ -115,6 +115,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     /Pick[-\s]?up terminal[:\t ]+(.+)/i
   ]) || '0',
 
+  
   gewicht: multiExtract([
     /Weight[:\t ]+(\d+\s?kg)/i
   ]) || '0',
@@ -140,9 +141,11 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     /UN[:\t ]+(\d+)/i
   ]) || '0',
 
+  
   brix: multiExtract([
     /Brix[:\t ]+(\d+)/i
   ]) || '0',
+  
 
     klantnaam: '0',
     klantadres: '0',
@@ -162,8 +165,42 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     containertypeCode: '0'
 };
 
+
+  // Data lossen of laden info
+let isLossenOpdracht = false;
+if (data.pickupTerminal && data.pickupTerminal !== '0' && data.dropoffTerminal === '0') {
+  isLossenOpdracht = true;
+  console.log('📦 Herkend als LOSSEN-opdracht (terminal → klant)');
+}
+if (data.dropoffTerminal && data.dropoffTerminal !== '0' && data.pickupTerminal === '0') {
+  isLossenOpdracht = false;
+  console.log('📦 Herkend als LADEN-opdracht (klant → terminal)');
+}
+if (data.pickupTerminal !== '0' && data.dropoffTerminal !== '0') {
+  console.log('📦 BEIDE terminals aanwezig, opdrachttype niet 100% zeker — controleer From/To indien nodig');
+}
+data.isLossenOpdracht = isLossenOpdracht;
+
  console.log('🔎 Zoek containertypecode voor:', data.containertype);
 data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
+
+// 🧠 Slimme fallback als beide terminals gevuld zijn
+if (data.pickupTerminal !== '0' && data.dropoffTerminal !== '0') {
+  const fromText = multiExtract([/From[:\t ]+(.+)/i]) || '';
+  const toText = multiExtract([/To[:\t ]+(.+)/i]) || '';
+
+  console.log(`📍 PDF richting: From = "${fromText}", To = "${toText}"`);
+
+  if (fromText.toLowerCase().includes('rotterdam') || fromText.toLowerCase().includes('nl')) {
+    data.isLossenOpdracht = false;
+    console.log('📦 Richting = export → vermoedelijk LADEN-opdracht');
+  } else if (toText.toLowerCase().includes('rotterdam') || toText.toLowerCase().includes('nl')) {
+    data.isLossenOpdracht = true;
+    console.log('📦 Richting = import → vermoedelijk LOSSEN-opdracht');
+  } else {
+    console.log('⚠️ Richting niet eenduidig uit From/To af te leiden');
+  }
+}
 
 
   // ✅ Klantgegevens geforceerd instellen obv alias
@@ -275,6 +312,10 @@ const formatVoorgemeld = (value) => {
   return value.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar';
 };
 
+// 🔁 ADR afleiden op basis van UN of IMO
+  data.adr = (data.imo !== '0' || data.unnr !== '0') ? 'Waar' : 'Onwaar';
+  console.log('🧪 ADR bepaald als:', data.adr);
+
 // 📦 Bouw locatiestructuur voor .easy bestand
 data.locaties = [
   {
@@ -294,7 +335,7 @@ data.locaties = [
   },
   {
     volgorde: '0',
-    actie: 'Laden',
+    actie: data.isLossenOpdracht ? 'Lossen' : 'Laden',
     naam: data.klantnaam || '0',
     adres: data.klantadres || '0',
     postcode: data.klantpostcode || '0',
@@ -326,5 +367,8 @@ data.locaties = [
 
 console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
 
+if (!data.referentie || data.referentie === '0') {
+  console.warn('❗️ Geen referentie gevonden – opdracht kan niet gegenereerd worden');
+}
   return data;
 }

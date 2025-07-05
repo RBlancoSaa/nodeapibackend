@@ -28,6 +28,7 @@ function fallbackOnwaar(value) {
   const str = typeof value === 'string' ? value.trim() : '';
   return str !== '' ? str : 'Onwaar';
 }
+
 function bevatADR(data) {
   const adrTekst = `${data.adr || ''} ${data.imo || ''} ${data.lading || ''}`.toUpperCase();
   return (
@@ -113,7 +114,7 @@ export async function generateXmlFromJson(data) {
   data.datum = formatDatumVoorEasyTrip(data.datum); // 👈 HIER PLAATSEN
   data.closing_datum = data.closing_datum || '';
   data.closing_tijd = data.closing_tijd || '';
-
+  data.adr = (data.imo !== '0' || data.unnr !== '0') ? 'Waar' : 'Onwaar';
 
   const verplichteVelden = ['opdrachtgeverNaam', 'opdrachtgeverAdres', 'opdrachtgeverPostcode', 'opdrachtgeverPlaats', 'opdrachtgeverEmail', 'opdrachtgeverBTW', 'opdrachtgeverKVK'];
   for (const veld of verplichteVelden) {
