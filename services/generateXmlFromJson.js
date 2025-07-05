@@ -165,7 +165,7 @@ if (!data.actie || data.actie === '0') {
   <Container>${clean(data.containernummer)}</Container>
   <ContainerType>${clean(data.containertype)}</ContainerType>
   <Lading>${clean(data.lading)}</Lading>
-  <ADR>${bevatADR(data) ? 'Waar' : 'Onwaar'}</ADR>
+  <ADR>${clean(data.adr)}</ADR>
   <Tarra>0</Tarra>
   <GeladenGewicht>${clean(data.gewicht)}</GeladenGewicht>
   <Brutogewicht>${clean(data.brutogewicht)}</Brutogewicht>
@@ -190,7 +190,6 @@ if (!data.actie || data.actie === '0') {
   <Closing_tijd>${clean(data.closing_tijd)}</Closing_tijd>
   <Instructies>${clean(data.instructies)}</Instructies>
 </Container>
-
 ${data.adr === 'Waar' ? `
 <ADR>
   <Ritnr>${clean(data.ritnummer)}</Ritnr>
