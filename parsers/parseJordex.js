@@ -214,5 +214,11 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
   console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
   console.log('📤 PARSE RESULTAAT:', JSON.stringify(data, null, 2));
   console.log('📤 DATA:', JSON.stringify(data, null, 2));
+  console.log('📌 klantgegevens gevonden uit regels:', regels);
+  console.log('📌 klantplaats fallback:', klantPlaatsFrom);
+  console.log('📦 LOCATIES:');
+  console.log('👉 Locatie 0 (pickup terminal):', JSON.stringify(data.locaties[0], null, 2));
+  console.log('👉 Locatie 1 (klant):', JSON.stringify(data.locaties[1], null, 2));
+  console.log('👉 Locatie 2 (dropoff terminal):', JSON.stringify(data.locaties[2], null, 2));
   return data;
 }
