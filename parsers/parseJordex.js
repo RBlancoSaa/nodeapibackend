@@ -12,36 +12,50 @@ import {
 export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   console.log('📦 Ontvangen pdfBuffer:', pdfBuffer?.length, 'bytes');
 
-if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) {
-  console.warn('❌ Lege of ongeldige PDF buffer ontvangen');
-  return {};
-}
-  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) return null;
+  // ❌ Voorkom lege of ongeldige input
+  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
+    console.warn('❌ Ongeldige of ontbrekende PDF buffer');
+    return null;
+  }
+  if (pdfBuffer.length < 100) {
+    console.warn('⚠️ PDF buffer is verdacht klein, waarschijnlijk leeg');
+    return {};
+  }
 
+  // 📖 PDF uitlezen en opsplitsen
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
+  // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
   const multiExtract = (patterns) => {
     for (const pattern of patterns) {
       const found = lines.find(line => pattern.test(line));
       if (found) {
         const match = found.match(pattern);
-        if (match?.[1]) return match[1].trim();
+        if (match?.[1]) {
+          const result = match[1].trim();
+          console.log(`🔎 Pattern match: ${pattern} ➜ ${result}`);
+          return result;
+        }
       }
     }
     return null;
   };
-  
-const descBlockMatch = text.match(/Description\s*([\s\S]*?)Extra Information/i);
-let ladingFromBlock = '0';
-if (descBlockMatch) {
-  const cleaned = descBlockMatch[1].replace(/\s+/g, ' ').trim();
-  if (cleaned.length > 5) ladingFromBlock = cleaned;
-}
+
+  // 📦 Blokje 'Description ... Extra Information' uitlezen voor ladingomschrijving
+  const descBlockMatch = text.match(/Description\s*([\s\S]*?)Extra Information/i);
+  let ladingFromBlock = '0';
+  if (descBlockMatch) {
+    const cleaned = descBlockMatch[1].replace(/\s+/g, ' ').trim();
+    if (cleaned.length > 5) {
+      ladingFromBlock = cleaned;
+      console.log('📌 Lading herkend uit Description-blok:', ladingFromBlock);
+    }
+  }
+
+  // 🛠️ Hierna komt het vullen van het data-object met de extracted waarden uit de PDF
   const data = {
-
-
 
   referentie: multiExtract([
     /Our reference[:\t ]+([A-Z0-9\-]+)/i,
@@ -59,7 +73,6 @@ if (descBlockMatch) {
   containertype: multiExtract([
   /Cargo[:\t]+(.+)/i
 ]) || '0',
-
  
   containernummer: multiExtract([
     /Container no[:\t ]+(\w{4}U\d{7})/i,
@@ -251,31 +264,67 @@ if (data.referentie === '0' && text.includes('Our reference:')) {
     }
   }
 
-  data.locaties = [
+  // 🧠 Terminalinformatie ophalen uit Supabase (na vullen van data.dropoffTerminal etc.)
+  console.log('🔎 Terminalinfo ophalen uit Supabase...');
+  const pickupInfo = await getTerminalInfo(data.pickupTerminal) || {};
+  const dropoffInfo = await getTerminalInfo(data.dropoffTerminal) || {};
+  
+  // 🧠 Voorgemeld moet "Waar" of "Onwaar" zijn
+const formatVoorgemeld = (value) => {
+  if (!value) return 'Onwaar';
+  return value.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar';
+};
+
+// 📦 Bouw locatiestructuur voor .easy bestand
+data.locaties = [
   {
     volgorde: '0',
     actie: 'Opzetten',
-    naam: 'Pick-up terminal',
-    adres: data.pickupTerminal || '-',
-    postcode: '0',
-    plaats: '0'
+    naam: data.pickupTerminal || '0',
+    adres: pickupInfo.adres || '0',
+    postcode: pickupInfo.postcode || '0',
+    plaats: pickupInfo.plaats || '0',
+    land: pickupInfo.land || 'NL',
+    voorgemeld: formatVoorgemeld(pickupInfo.voorgemeld),
+    aankomst_verw: '',
+    tijslot_van: '',
+    tijslot_tm: '',
+    portbase_code: pickupInfo.portbase_code || '',
+    bicsCode: pickupInfo.bicsCode || ''
   },
   {
     volgorde: '0',
     actie: 'Laden',
-    naam: 'Constellation Varsseveld',
-    adres: 'Albert Schweitzerstraat 25',
-    postcode: '7131 PG',
-    plaats: 'Lichtenvoorde'
+    naam: data.klantnaam || '0',
+    adres: data.klantadres || '0',
+    postcode: data.klantpostcode || '0',
+    plaats: data.klantplaats || '0',
+    land: 'NL',
+    voorgemeld: 'Onwaar',
+    aankomst_verw: '',
+    tijslot_van: '',
+    tijslot_tm: '',
+    portbase_code: '',
+    bicsCode: ''
   },
   {
     volgorde: '0',
-    actie: 'Inleveren',
-    naam: data.dropoffTerminal || 'ECT Delta Terminal',
-    adres: 'Europaweg 875',
-    postcode: '3199 LD',
-    plaats: 'Rotterdam-Maasvlakte'
+    actie: 'Afzetten',
+    naam: data.dropoffTerminal || '0',
+    adres: dropoffInfo.adres || '0',
+    postcode: dropoffInfo.postcode || '0',
+    plaats: dropoffInfo.plaats || '0',
+    land: dropoffInfo.land || 'NL',
+    voorgemeld: formatVoorgemeld(dropoffInfo.voorgemeld),
+    aankomst_verw: '',
+    tijslot_van: '',
+    tijslot_tm: '',
+    portbase_code: dropoffInfo.portbase_code || '',
+    bicsCode: dropoffInfo.bicsCode || ''
   }
 ];
+
+console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
+
   return data;
 }
