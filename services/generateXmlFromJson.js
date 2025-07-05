@@ -162,7 +162,7 @@ if (!data.actie || data.actie === '0') {
   <Type></Type>
   <Datum>${clean(data.datum)}</Datum>
   <TijdVan>${clean(data.tijd)}</TijdVan>
-  <TijdTM>${clean(data.tijd)}</TijdTM>
+  <TijdTm>${clean(data.tijd)}</TijdTm>
   <Container></Container>
   <Containernummer>${clean(data.containernummer)}</Containernummer>
   <ContainerType>${clean(data.containertype)}</ContainerType>
