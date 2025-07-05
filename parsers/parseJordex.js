@@ -265,14 +265,6 @@ data.opdrachtgeverKVK = '39012345';
   data.laadplaats = data.klantplaats;
 }
 
-if (data.referentie === '0' && text.includes('Our reference:')) {
-  const refMatch = text.match(/Our reference:\s*([A-Z0-9]+)/);
-  if (refMatch) {
-    data.referentie = refMatch[1];
-  }
-}
-
-
   try {
     const baseRederij = data.rederij.includes(' - ') ? data.rederij.split(' - ')[1] : data.rederij;
     console.log('🔎 Zoek rederijcode voor:', baseRederij);
