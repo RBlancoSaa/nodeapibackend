@@ -59,7 +59,6 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   };
   const klantblok = text.match(/Pick[\s-]?up[\s:]*([\s\S]+?)Drop[\s-]?off[\s:]/i);
   const regels = klantblok ? klantblok[1].trim().split('\n').map(l => l.trim()) : [];
-  const postcodeMatch = regels[2]?.match(/(\d{4}\s?[A-Z]{2})\s+(.+)/);
 let klantPlaatsFrom = '';
 if (!klantblok) {
   const fromLine = multiExtract([/From[:\t ]+(.+)/i]);
@@ -124,11 +123,6 @@ if (!klantblok) {
     unnr: logResult('unnr', multiExtract([/UN[:\t ]+(\d+)/i]) || '0'),
     brix: logResult('brix', multiExtract([/Brix[:\t ]+(\d+)/i]) || '0'),
 
-    klantnaam: regels[0] || klantPlaatsFrom || '',
-    klantadres: regels[1] || '',
-    klantpostcode: postcodeMatch?.[1] || '',
-    klantplaats: postcodeMatch?.[2] || klantPlaatsFrom || '',
-
     opdrachtgeverNaam: 'JORDEX FORWARDING',
     opdrachtgeverAdres: 'AMBACHTSWEG 6',
     opdrachtgeverPostcode: '3161GL',
@@ -142,6 +136,35 @@ if (!klantblok) {
     rederijCode: '0',
     containertypeCode: '0'
   };
+
+  // 📌 Zoek klantgegevens in het "Pick-up" blok (na 'Pick-up' kop)
+const pickupIndex = regels.findIndex(r => r.trim().startsWith('Pick-up'));
+const klantregels = pickupIndex !== -1 ? regels.slice(pickupIndex + 1, pickupIndex + 6) : [];
+
+const postcodeRegex = /(\d{4}\s?[A-Z]{2})\s+(.+)/;
+const postcodeMatch = klantregels.find(r => postcodeRegex.test(r))?.match(postcodeRegex);
+
+data.klantnaam = klantregels[0]?.trim() || '';
+data.klantadres = klantregels[1]?.trim() || '';
+data.klantpostcode = postcodeMatch?.[1]?.replace(/\s+/, '') || '';
+data.klantplaats = postcodeMatch?.[2]?.trim() || '';
+
+// 📉 Fallback op From: regel
+if (!data.klantnaam && text.includes('From:')) {
+  const fromLine = text.match(/From:\s*(.*)/)?.[1]?.trim();
+  if (fromLine) {
+    const fallbackParts = fromLine.split(',');
+    data.klantplaats = data.klantplaats || fallbackParts[0]?.trim();
+    data.klantnaam = data.klantnaam || fromLine;
+  }
+}
+
+// 🧾 Debug loggen voor controle
+console.log('🔍 Klantgegevens uit Pick-up blok:');
+console.log('👉 naam:', data.klantnaam);
+console.log('👉 adres:', data.klantadres);
+console.log('👉 postcode:', data.klantpostcode);
+console.log('👉 plaats:', data.klantplaats);
 
   // 🧪 Bepaal laden of lossen
 data.isLossenOpdracht = !!data.containernummer && data.containernummer !== '0';
