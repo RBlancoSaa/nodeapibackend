@@ -24,10 +24,14 @@ export default async function handler(req, res) {
         console.warn(`⚠️ Ontbrekend veld: ${veld}`);
       }
     }
+    if (!data.opdrachtgeverNaam || data.opdrachtgeverNaam === '0') {
+    console.warn('⚠️ Geen opdrachtgevergegevens ingevuld – bestand wordt wel gegenereerd');
+    }
 
     if (!data.klantBedrijf && !data.klantnaam) {
       console.warn('⚠️ Ontbrekende klantnaam');
     }
+    
 
     const xml = await generateXmlFromJson(data);
     const bestandsnaam = `Order_${data.reference || 'ZONDER_REF'}_${data.laadplaats || 'ZONDER_PLAATS'}.easy`;
