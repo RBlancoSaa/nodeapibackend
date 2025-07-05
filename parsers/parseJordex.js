@@ -96,10 +96,16 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   ]) || '0',
  
   containernummer: (() => {
-  const result = multiExtract([
-    /Container no[:\t ]+(\w{4}U\d{7})/i,
-    /(\w{4}U\d{7})/
-  ]);
+const result = multiExtract([
+  /Container no[:\t ]+(\w{4}U\d{7})/i,
+  /Container No\.?[:\t ]+(\w{4}U\d{7})/i,
+  /Container number[:\t ]+(\w{4}U\d{7})/i,
+  /Container nr[:\t ]+(\w{4}U\d{7})/i,
+  /Cont nr[:\t ]+(\w{4}U\d{7})/i,
+  /Cont[:\t ]+(\w{4}U\d{7})/i,
+  /(\w{4}U\d{7})/, // alleen het nummer
+  /([A-Z]{4}\d{7})/i // fallback: alleen letters/cijfers
+]);
   const isGeldig = /^[A-Z]{4}U\d{7}$/.test(result || '');
   return isGeldig ? result : '';
 })(),
@@ -116,10 +122,16 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   return formatDatum(raw || '0');
 })(),
 
+// ZZ: Zoek tijd direct achter een datum in alle regels
   tijd: (() => {
-  const pickUpLine = lines.find(line => /Pick-up/i.test(line) && /Date[:\t ]/.test(line));
-  const timeMatch = pickUpLine?.match(/(\d{2}:\d{2})/);
-  return timeMatch ? timeMatch[1] : '';
+  for (const line of lines) {
+    // Zoek naar bv. "05 Jun 2025 07:30" of "2025-05-27 08:30"
+    const match = line.match(/(\d{1,2}[-/\s][A-Za-z]{3,}[-/\s]\d{4})\s+(\d{2}:\d{2})/);
+    if (match) return match[2];
+    const match2 = line.match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/);
+    if (match2) return match2[2];
+  }
+  return '';
 })(),
 
   laadreferentie: (() => {
@@ -197,6 +209,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     containertypeCode: '0'
 };
 
+
 // 🧠 Klantgegevens ophalen uit Pick-up blok
 const klantblok = text.match(/Pick[-\s]?up:\s*([\s\S]+?)Drop[-\s]?off:/i);
 if (klantblok) {
@@ -213,14 +226,13 @@ if (text.includes('Pick-up terminal')) {
   data.ladenOfLossen = 'Laden';
 } else if (text.includes('Drop-off terminal')) {
   data.ladenOfLossen = 'Lossen';
-} else if (typeof data.isLossenOpdracht === 'boolean') {
-  data.ladenOfLossen = data.isLossenOpdracht ? 'Lossen' : 'Laden';
 } else {
   data.ladenOfLossen = '';
 }
 
  console.log('🔎 Zoek containertypecode voor:', data.containertype);
 data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
+data.isLossenOpdracht = !!data.containernummer && data.containernummer !== '0';
 
 // 🧠 Slimme fallback als beide terminals gevuld zijn
 if (data.pickupTerminal !== '0' && data.dropoffTerminal !== '0') {
@@ -239,7 +251,6 @@ if (data.pickupTerminal !== '0' && data.dropoffTerminal !== '0') {
     console.log('⚠️ Richting niet eenduidig uit From/To af te leiden');
   }
 }
-
 
     // 🔁 Zet klantgegevens om naar opdrachtgevervelden
 data.opdrachtgeverNaam = 'JORDEX FORWARDING';
@@ -281,15 +292,6 @@ data.opdrachtgeverKVK = '39012345';
     data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
   } catch (e) {
     console.warn('⚠️ containertype lookup faalt:', e);
-  }
-
-  for (const [key, val] of Object.entries(data)) {
-    if (!val || val === '') {
-      data[key] = '0';
-      console.warn(`⚠️ ${key} NIET gevonden`);
-    } else {
-      console.log(`✅ ${key}: ${val}`);
-    }
   }
 
   // 🧠 Terminalinformatie ophalen uit Supabase (na vullen van data.dropoffTerminal etc.)
