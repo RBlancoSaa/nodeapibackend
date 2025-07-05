@@ -108,7 +108,6 @@ const data = {
 ladenOfLossen: data.isLossenOpdracht ? 'Lossen' : 'Laden',
 inleverBootnaam: multiExtract([/Vessel[:\t ]+(.+)/i]) || '0',
 inleverRederij: multiExtract([/Carrier[:\t ]+(.+)/i]) || '0',
-adr: (data.imo !== '0' || data.unnr !== '0') ? 'Waar' : 'Onwaar',
 
 tijd: (() => {
   const match = text.match(/Date[:\t ].+\s+(\d{2}:\d{2})/i);
@@ -141,8 +140,15 @@ tijd: (() => {
     rederijCode: '0',
     containertypeCode: '0'
   };
-
-  data.adr = (data.imo !== '0' || data.unnr !== '0') ? 'Waar' : 'Onwaar';
+// 🧪 ADR evaluatie op basis van IMO en UNNR
+if (data.imo !== '0' || data.unnr !== '0') {
+  data.adr = 'Waar';
+} else {
+  data.adr = 'Onwaar';
+  delete data.imo;
+  delete data.unnr;
+  delete data.brix;
+}
   data.isLossenOpdracht = !!data.containernummer && data.containernummer !== '0';
 if (!data.isLossenOpdracht) {
   const from = multiExtract([/From[:\t ]+(.+)/i]) || '';
