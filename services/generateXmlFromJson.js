@@ -181,9 +181,9 @@ if (!data.actie || data.actie === '0') {
   <Rederij>${match(data.rederij, rederijen)}</Rederij>
   <Documentatie>${clean(data.documentatie)}</Documentatie>
   <TAR>${clean(data.tar)}</TAR>
-  <Laadrefentie>${clean(data.laadreferentie)}</Laadrefentie>
+  <Laadreferentie>${clean(data.laadreferentie)}</Laadreferentie>
   <Meldtijd>${clean(data.meldtijd)}</Meldtijd>
-  <Inleverrefentie>${clean(data.inleverreferentie)}</Inleverrefentie>
+  <Inleverreferentie>${clean(data.inleverreferentie)}</Inleverreferentie>
   <InleverBootnaam>${clean(data.inleverBootnaam)}</InleverBootnaam>
   <InleverBestemming>${clean(data.inleverBestemming)}</InleverBestemming>
   <InleverRederij>${match(data.inleverRederij, rederijen)}</InleverRederij>
