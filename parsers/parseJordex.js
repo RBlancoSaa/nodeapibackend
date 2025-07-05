@@ -40,6 +40,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  
 // 📍 Ritnummer: vind OE- of OI-code los van context
 const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
 
@@ -210,13 +211,13 @@ tijd: (() => {
     /Brix[:\t ]+(\d+)/i
   ]) || '0',
   
-
-    klantnaam: '0',
-    klantadres: '0',
-    klantpostcode: '0',
-    klantplaats: '0',
+ritnummer: ritnummerMatch ? ritnummerMatch[1] : '0',
+klantnaam: klantblok ? (regels[0] || '') : '',
+klantadres: klantblok ? (regels[1] || '') : '',
+klantpostcode: klantblok ? (postcodeMatch?.[1] || '') : '',
+klantplaats: klantblok ? (postcodeMatch?.[2] || '') : '',
     klantAdresVolledig: '0',
-  opdrachtgeverNaam: 'JORDEX FORWARDING',
+  opdrachtgeverNaam: 'JORDEX SHIPPING FORWARDING',
   opdrachtgeverAdres: 'AMBACHTSWEG 6',
   opdrachtgeverPostcode: '3161GL',
   opdrachtgeverPlaats: 'RHOON',
@@ -227,6 +228,7 @@ tijd: (() => {
     terminal: '0',
     rederijCode: '0',
     containertypeCode: '0'
+
 };
 
 
@@ -334,10 +336,10 @@ data.locaties = [
   {
     volgorde: '0',
     actie: 'Opzetten',
-    naam: data.pickupTerminal || '0',
-    adres: pickupInfo.adres || '0',
-    postcode: pickupInfo.postcode || '0',
-    plaats: pickupInfo.plaats || '0',
+    naam: data.pickupTerminal || '',
+    adres: pickupInfo.adres || '',
+    postcode: pickupInfo.postcode || '',
+    plaats: pickupInfo.plaats || '',
     land: pickupInfo.land || 'NL',
     voorgemeld: formatVoorgemeld(pickupInfo.voorgemeld),
     aankomst_verw: '',
@@ -364,10 +366,10 @@ data.locaties = [
   {
     volgorde: '0',
     actie: 'Afzetten',
-    naam: data.dropoffTerminal || '0',
-    adres: dropoffInfo.adres || '0',
-    postcode: dropoffInfo.postcode || '0',
-    plaats: dropoffInfo.plaats || '0',
+    naam: data.dropoffTerminal || '',
+    adres: dropoffInfo.adres || '',
+    postcode: dropoffInfo.postcode || '',
+    plaats: dropoffInfo.plaats || '',
     land: dropoffInfo.land || 'NL',
     voorgemeld: formatVoorgemeld(dropoffInfo.voorgemeld),
     aankomst_verw: '',
