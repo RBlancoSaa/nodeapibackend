@@ -167,21 +167,28 @@ tijd: (() => {
     ];
   } catch (e) {
     console.warn('⚠️ Fout in terminal of rederij lookup:', e);
-    console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
-    console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
-    console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
-    console.log('📤 PARSE RESULTAAT:', JSON.stringify(data, null, 2));
-
-if (!data.referentie || data.referentie === '0') {
-  console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
-}
-if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes('OE')) {
-  const match = parsed.info.Title.match(/(O[EI]\d{7})/i);
-  if (match) {
-    data.ritnummer = match[1];
-    console.log('🆗 Ritnummer herkend uit bestandsnaam:', data.ritnummer);
   }
+
+  if (!data.referentie || data.referentie === '0') {
+    console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
+  }
+
+  if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes('OE')) {
+    const match = parsed.info.Title.match(/(O[EI]\d{7})/i);
+    if (match) {
+      data.ritnummer = match[1];
+      console.log('🆗 Ritnummer herkend uit bestandsnaam:', data.ritnummer);
+    }
+  }
+  if (!data || Object.keys(data).length < 5) {
+  console.warn('❌ Parserresultaat is leeg of incompleet');
+  return {};
 }
+
+  console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
+  console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
+  console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
+  console.log('📤 PARSE RESULTAAT:', JSON.stringify(data, null, 2));
+  
   return data;
-}
 }
