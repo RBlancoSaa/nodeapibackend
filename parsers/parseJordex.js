@@ -5,8 +5,6 @@ import {
   getTerminalInfo,
   getRederijNaam,
   getContainerTypeCode,
-  getKlantData,
-  normalizeContainerOmschrijving,
 } from '../utils/lookups/terminalLookup.js';
 
 
@@ -61,27 +59,31 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     }
     return '';
   };
-const fromMatch = text.match(/From:\s*(.*)/);
-const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
 
-   const data = {
+  const fromMatch = text.match(/From:\s*(.*)/);
+  const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
+ 
+  const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
-    referentie: logResult('referentie', (() => {
-      const m = text.match(/Pick[-\s]?up terminal:[\s\S]+?Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
-      return m?.[1]?.trim() || '0';
-    })()),
-    laadreferentie: logResult('laadreferentie', (() => {
-      const blok = text.match(/Pick[-\s]?up:[\s\S]+?Drop[-\s]?off:/i);
-      if (blok) {
-        const m = blok[0].match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
-        return m?.[1]?.trim() || '0';
-      }
-      return '0';
-    })()),
+    referentie: (() => {
+      const refBlok = text.match(/Pick[-\s]?up[\s\S]+?(?=Drop[-\s]?off)/i)?.[0] || '';
+      const refMatch = refBlok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i)?.[1]?.trim() || '0';
+      console.log('🔍 referentie:', refMatch);
+      return refMatch;
+      })(),
+
+    laadreferentie: (() => {
+      const refBlok = text.match(/Pick[-\s]?up[\s\S]+?(?=Drop[-\s]?off)/i)?.[0] || '';
+      const refMatch = refBlok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i)?.[1]?.trim() || '0';
+      console.log('🔍 laadreferentie:', refMatch);
+      return refMatch;
+     })(),
+
     inleverreferentie: logResult('inleverreferentie', (() => {
       const m = text.match(/Drop[-\s]?off terminal:[\s\S]+?Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
       return m?.[1]?.trim() || '0';
-    })()),
+
+      })()),
     rederij: logResult('rederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
     bootnaam: logResult('bootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
     containertype: logResult('containertype', multiExtract([/Cargo[:\t]+(.+)/i]) || '0'),
@@ -91,33 +93,29 @@ const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
         /([A-Z]{4}U\d{7})/i
       ]);
       return /^[A-Z]{4}U\d{7}$/.test(result || '') ? result : '';
-    })()),
+      })()),
     temperatuur: logResult('temperatuur', multiExtract([/Temperature[:\t ]+([\-\d]+°C)/i]) || '0'),
-
     datum: logResult('datum', formatDatum(text)),
-
     tijd: logResult('tijd', (() => {
       const m = text.match(/Date[:\t ].+\s+(\d{2}:\d{2})/i);
       return m ? `${m[1]}:00` : '';
-    })()),
+      })()),
     inleverBootnaam: logResult('inleverBootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
     inleverRederij: logResult('inleverRederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
-    inleverBestemming: logResult('inleverBestemming', multiExtract([
-  /Final destination[:\t ]+(.+)/i,
-  /Arrival[:\t ]+(.+)/i
-])),
+      inleverBestemming: logResult('inleverBestemming', multiExtract([
+      /Final destination[:\t ]+(.+)/i,
+      /Arrival[:\t ]+(.+)/i
+       ])),
 
-
-
-// Terminalextractie: naam komt meestal onder “Address:” in de sectie
-pickupTerminal: logResult('pickupTerminal', (() => {
-  const sec = text.match(/Pick[-\s]?up terminal([\s\S]+?)(?:Pick[-\s]?up\b|$)/i)?.[1] || '';
-  return sec.match(/Address:\s*(.+)/i)?.[1].trim() || '';
-})()),
-dropoffTerminal: logResult('dropoffTerminal', (() => {
-  const sec = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?:Pick[-\s]?up\b|$)/i)?.[1] || '';
-  return sec.match(/Address:\s*(.+)/i)?.[1].trim() || '';
-})()),
+// Terminalextractie: werkelijke naam staat onder “Address:” in de sectie
+   pickupTerminal: logResult('pickupTerminal', (() => {
+      const sectie = text.match(/Pick[-\s]?up terminal([\s\S]+?)(?=Drop[-\s]?off terminal\b|$)/i)?.[1] || '';
+      return sectie.match(/Address:\s*(.+)/i)?.[1].trim() || '';
+      })()),
+  dropoffTerminal: logResult('dropoffTerminal', (() => {
+      const sectie = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?=Pick[-\s]?up terminal\b|$)/i)?.[1] || '';
+      return sectie.match(/Address:\s*(.+)/i)?.[1].trim() || '';
+      })()),
 
 
     gewicht: logResult('gewicht', multiExtract([/Weight[:\t ]+(\d+\s?kg)/i]) || '0'),
@@ -150,15 +148,13 @@ const rawDo = data.dropoffTerminal || '';
 const puKey = rawPu.replace(/ terminal$/i, '').trim();
 const doKey = rawDo.replace(/ terminal$/i, '').trim();
 
-const pickupInfo  = await getTerminalInfo(puKey)  || {};
-const dropoffInfo = await getTerminalInfo(doKey) || {};
 
 // Klantgegevens uit de Pick-up sectie: vier regels erna
-const puIndex = regels.findIndex(line => /^Pick[-\s]?up\b/i.test(line));
-const klantregels = puIndex >= 0
-  ? regels.slice(puIndex + 1, puIndex + 5)
-  : [];
-
+const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
+const vier = regels
+  .slice(puIndex + 1, puIndex + 8)         // neem de volgende 8 regels
+  .filter(l => l && !/^Cargo:|^Reference/i.test(l))
+  .slice(0, 4);                            // kies er dan vier
 data.klantnaam     = klantregels[0] || '';
 data.klantadres    = klantregels[1] || '';
 data.klantpostcode = klantregels[2] || '';
@@ -271,11 +267,7 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
   console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
   console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
   console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
-  console.log('📤 PARSE RESULTAAT:', JSON.stringify(data, null, 2));
-  console.log('📤 DATA:', JSON.stringify(data, null, 2));
   console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
-  console.log('🔍 Pick-up index (puIndex):', puIndex);
-  console.log('📌 klantplaats fallback:', klantPlaatsFrom);
   console.log('📦 LOCATIES:');
   console.log('👉 Locatie 0 (pickup terminal):', JSON.stringify(data.locaties[0], null, 2));
   console.log('👉 Locatie 1 (klant):', JSON.stringify(data.locaties[1], null, 2));
