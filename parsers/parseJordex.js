@@ -265,9 +265,8 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
   console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
   console.log('📤 PARSE RESULTAAT:', JSON.stringify(data, null, 2));
   console.log('📤 DATA:', JSON.stringify(data, null, 2));
-  console.log('📌 Pick-up blok start op regel:', echtePickupIndex);
-  console.log('📌 alle pick-up blokken gevonden op regels:', pickupBlokken);
-  console.log('📌 klantgegevens gevonden uit regels:', klantregels);
+  console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
+  console.log('🔍 Pick-up index (puIndex):', puIndex);
   console.log('📌 klantplaats fallback:', klantPlaatsFrom);
   console.log('📦 LOCATIES:');
   console.log('👉 Locatie 0 (pickup terminal):', JSON.stringify(data.locaties[0], null, 2));
