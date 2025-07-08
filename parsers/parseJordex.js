@@ -140,21 +140,22 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     containertypeCode: '0'
   };
 
-  
+// Verwijder “terminal” suffix zodat je sleutel mét en stemt met Supabase
 const rawPu = data.pickupTerminal || '';
 const rawDo = data.dropoffTerminal || '';
+const puKey  = rawPu.replace(/ terminal$/i, '').trim();
+const doKey  = rawDo.replace(/ terminal$/i, '').trim();
 
-// Verwijder “terminal” suffix
-const puKey = rawPu.replace(/ terminal$/i, '').trim();
-const doKey = rawDo.replace(/ terminal$/i, '').trim();
-
+// Éénmalige lookup in Supabase via getTerminalInfo
+const pickupInfo  = await getTerminalInfo(puKey)  || {};
+const dropoffInfo = await getTerminalInfo(doKey) || {};
 
 // Klantgegevens uit de Pick-up sectie: vier regels erna
 const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
-const vier = regels
-  .slice(puIndex + 1, puIndex + 8)         // neem de volgende 8 regels
+const klantregels = regels
+  .slice(puIndex + 1, puIndex + 8)
   .filter(l => l && !/^Cargo:|^Reference/i.test(l))
-  .slice(0, 4);                            // kies er dan vier
+  .slice(0, 4);                            
 data.klantnaam     = klantregels[0] || '';
 data.klantadres    = klantregels[1] || '';
 data.klantpostcode = klantregels[2] || '';
@@ -194,9 +195,6 @@ if (data.imo !== '0' || data.unnr !== '0') {
   delete data.brix;
 }
   try {
-    
-    const pickupInfo = await getTerminalInfo(data.pickupTerminal) || {};
-    const dropoffInfo = await getTerminalInfo(data.dropoffTerminal) || {};
     data.terminal = await getTerminalInfo(data.dropoffTerminal) || '0';
     data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
     const baseRederij = data.rederij.includes(' - ') ? data.rederij.split(' - ')[1] : data.rederij;
@@ -272,5 +270,6 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
   console.log('👉 Locatie 0 (pickup terminal):', JSON.stringify(data.locaties[0], null, 2));
   console.log('👉 Locatie 1 (klant):', JSON.stringify(data.locaties[1], null, 2));
   console.log('👉 Locatie 2 (dropoff terminal):', JSON.stringify(data.locaties[2], null, 2));
+  
   return data;
 }
