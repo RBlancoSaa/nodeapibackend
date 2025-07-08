@@ -9,6 +9,8 @@ import {
   normalizeContainerOmschrijving,
 } from '../utils/lookups/terminalLookup.js';
 
+
+
 function logResult(label, value) {
   console.log(`🔍 ${label}:`, value || '[LEEG]');
   return value;
@@ -21,6 +23,9 @@ function formatDatum(text) {
   const months = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
   return `${parseInt(day)}-${months[monthStr.toLowerCase().slice(0, 3)]}-${year}`;
 }
+
+
+
 
 export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   console.log('📦 Ontvangen pdfBuffer:', pdfBuffer?.length, 'bytes');
@@ -97,9 +102,24 @@ const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
     })()),
     inleverBootnaam: logResult('inleverBootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
     inleverRederij: logResult('inleverRederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
-    inleverBestemming: logResult('inleverBestemming', multiExtract([/Final destination[:\t ]+(.+)/i])),
-    pickupTerminal: logResult('pickupTerminal', multiExtract([/Pick[-\s]?up terminal[:\t ]+(.+)/i])),
-    dropoffTerminal: logResult('dropoffTerminal', multiExtract([/Drop[-\s]?off terminal[:\t ]+(.+)/i])),
+    inleverBestemming: logResult('inleverBestemming', multiExtract([
+  /Final destination[:\t ]+(.+)/i,
+  /Arrival[:\t ]+(.+)/i
+])),
+
+
+
+// Terminalextractie: naam komt meestal onder “Address:” in de sectie
+pickupTerminal: logResult('pickupTerminal', (() => {
+  const sec = text.match(/Pick[-\s]?up terminal([\s\S]+?)(?:Pick[-\s]?up\b|$)/i)?.[1] || '';
+  return sec.match(/Address:\s*(.+)/i)?.[1].trim() || '';
+})()),
+dropoffTerminal: logResult('dropoffTerminal', (() => {
+  const sec = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?:Pick[-\s]?up\b|$)/i)?.[1] || '';
+  return sec.match(/Address:\s*(.+)/i)?.[1].trim() || '';
+})()),
+
+
     gewicht: logResult('gewicht', multiExtract([/Weight[:\t ]+(\d+\s?kg)/i]) || '0'),
     volume: logResult('volume', multiExtract([/Volume[:\t ]+(\d+(?:\.\d+)?\s?m3)/i]) || '0'),
     colli: logResult('colli', multiExtract([/Colli[:\t ]+(\d+)/i]) || '0'),
@@ -126,26 +146,17 @@ const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
 const pickupInfo = await getTerminalInfo(data.pickupTerminal) || {};
 const dropoffInfo = await getTerminalInfo(data.dropoffTerminal) || {};
 
-// ✅ Klantgegevens uit regels ophalen (herhaling voor zuiverheid)
-const pickupBlokken = regels
-  .map((regel, index) => regel.toLowerCase().startsWith('pick-up') ? index : -1)
-  .filter(i => i !== -1);
-const echtePickupIndex = pickupBlokken.length > 1 ? pickupBlokken[1] : pickupBlokken[0];
-const klantregels = echtePickupIndex !== -1 ? regels.slice(echtePickupIndex + 1, echtePickupIndex + 6) : [];
-const postcodeRegex = /(\d{4}\s?[A-Z]{2})\s+(.+)/;
-const postcodeMatch = klantregels.find(r => postcodeRegex.test(r))?.match(postcodeRegex);
-data.klantnaam = klantregels[0]?.trim() || '';
-data.klantadres = klantregels[1]?.trim() || '';
-data.klantpostcode = postcodeMatch?.[1]?.replace(/\s+/, '') || '';
-data.klantplaats = postcodeMatch?.[2]?.trim() || '';
-if (!data.klantnaam && text.includes('From:')) {
-  const fromLine = text.match(/From:\s*(.*)/)?.[1]?.trim();
-  if (fromLine) {
-    const fallbackParts = fromLine.split(',');
-    data.klantplaats = data.klantplaats || fallbackParts[0]?.trim();
-    data.klantnaam = data.klantnaam || fromLine;
-  }
-}
+// Klantgegevens uit de Pick-up sectie: vier opeenvolgende regels erna
+const puIndex = regels.findIndex(line => /^Pick[-\s]?up:/i.test(line));
+const klantregels = puIndex !== -1
+  ? regels.slice(puIndex + 1, puIndex + 5)
+  : [];
+data.klantnaam     = klantregels[0] || '';
+data.klantadres    = klantregels[1] || '';
+data.klantpostcode = klantregels[2] || '';
+data.klantplaats   = klantregels[3] || '';
+console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
+
 
 
 // 🧾 Debug loggen voor controle
