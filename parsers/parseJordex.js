@@ -134,7 +134,7 @@ const klantregels = pickupIndex !== -1 ? regels.slice(pickupIndex + 1, pickupInd
 const postcodeRegex = /(\d{4}\s?[A-Z]{2})\s+(.+)/;
 const postcodeMatch = klantregels.find(r => postcodeRegex.test(r))?.match(postcodeRegex);
 
-data.klantnaam = 'Jordex Forwarding & Shipping';
+data.klantnaam = klantregels[0]?.trim() || '';
 data.klantadres = klantregels[1]?.trim() || '';
 data.klantpostcode = postcodeMatch?.[1]?.replace(/\s+/, '') || '';
 data.klantplaats = postcodeMatch?.[2]?.trim() || '';
@@ -227,7 +227,8 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
   console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
   console.log('📤 PARSE RESULTAAT:', JSON.stringify(data, null, 2));
   console.log('📤 DATA:', JSON.stringify(data, null, 2));
-  console.log('📌 klantgegevens gevonden uit regels:', regels);
+  console.log(`📌 Pick-up blok start op regel: ${pickupIndex}`);
+  console.log('📌 klantgegevens gevonden uit regels:', klantregels);
   console.log('📌 klantplaats fallback:', klantPlaatsFrom);
   console.log('📦 LOCATIES:');
   console.log('👉 Locatie 0 (pickup terminal):', JSON.stringify(data.locaties[0], null, 2));
