@@ -14,13 +14,12 @@ function logResult(label, value) {
   return value;
 }
 
-function formatDatum(input) {
-  const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
-  const match = input?.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/i);
+function formatDatum(text) {
+  const match = text.match(/Date[:\t ]+(\d{1,2})\s+(\w+)\s+(\d{4})/i);
   if (!match) return '0';
-  const [_, day, month, year] = match;
-  const mm = months[month.toLowerCase().slice(0, 3)] || '00';
-  return `${day.padStart(2, '0')}-${mm}-${year}`;
+  const [_, day, monthStr, year] = match;
+  const months = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+  return `${parseInt(day)}-${months[monthStr.toLowerCase().slice(0, 3)]}-${year}`;
 }
 
 export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
@@ -89,13 +88,9 @@ const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
       return /^[A-Z]{4}U\d{7}$/.test(result || '') ? result : '';
     })()),
     temperatuur: logResult('temperatuur', multiExtract([/Temperature[:\t ]+([\-\d]+°C)/i]) || '0'),
-    datum: logResult('datum', (() => {
-      const m = text.match(/Date[:\t ]+(\d{1,2})\s+(\w+)\s+(\d{4})/i);
-      if (!m) return '0';
-      const [_, d, mStr, y] = m;
-      const months = { jan:'01', feb:'02', mar:'03', apr:'04', may:'05', jun:'06', jul:'07', aug:'08', sep:'09', oct:'10', nov:'11', dec:'12' };
-      return `${d.padStart(2, '0')}-${months[mStr.toLowerCase().slice(0,3)]}-${y}`;
-    })()),
+
+    datum: logResult('datum', formatDatum(text)),
+
     tijd: logResult('tijd', (() => {
       const m = text.match(/Date[:\t ].+\s+(\d{2}:\d{2})/i);
       return m ? `${m[1]}:00` : '';
@@ -128,8 +123,15 @@ const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
   };
 
   // 📌 Zoek klantgegevens in het "Pick-up" blok (na 'Pick-up' kop)
-const pickupIndex = regels.findIndex(r => r.trim().startsWith('Pick-up'));
-const klantregels = pickupIndex !== -1 ? regels.slice(pickupIndex + 1, pickupIndex + 6) : [];
+const pickupBlokken = regels
+  .map((regel, index) => regel.toLowerCase().startsWith('pick-up') ? index : -1)
+  .filter(i => i !== -1);
+
+// Neem tweede pick-up blok (na opzetterminal)
+const echtePickupIndex = pickupBlokken.length > 1 ? pickupBlokken[1] : pickupBlokken[0];
+const klantregels = echtePickupIndex !== -1 ? regels.slice(echtePickupIndex + 1, echtePickupIndex + 6) : [];
+console.log('📌 alle pick-up blokken:', pickupBlokken);
+console.log('📌 gekozen klantblok vanaf regel:', echtePickupIndex);
 
 const postcodeRegex = /(\d{4}\s?[A-Z]{2})\s+(.+)/;
 const postcodeMatch = klantregels.find(r => postcodeRegex.test(r))?.match(postcodeRegex);
