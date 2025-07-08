@@ -17,7 +17,7 @@ if (!parsedData || typeof parsedData !== 'object') {
   return ''; // of return null; afhankelijk van je verwerking
 }
   console.log('📄 Parsed data ontvangen:', parsedData);
-
+  console.log('📄 Input parsedData:', JSON.stringify(parsedData, null, 2));
   const result = {
     opdrachtgeverNaam: parsedData.opdrachtgeverNaam || '0',
     opdrachtgeverAdres: parsedData.opdrachtgeverAdres || '0',

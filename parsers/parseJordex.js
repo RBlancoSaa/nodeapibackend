@@ -134,7 +134,7 @@ const klantregels = pickupIndex !== -1 ? regels.slice(pickupIndex + 1, pickupInd
 const postcodeRegex = /(\d{4}\s?[A-Z]{2})\s+(.+)/;
 const postcodeMatch = klantregels.find(r => postcodeRegex.test(r))?.match(postcodeRegex);
 
-data.klantnaam = klantregels[0]?.trim() || '';
+data.klantnaam = 'Jordex Forwarding & Shipping';
 data.klantadres = klantregels[1]?.trim() || '';
 data.klantpostcode = postcodeMatch?.[1]?.replace(/\s+/, '') || '';
 data.klantplaats = postcodeMatch?.[2]?.trim() || '';
