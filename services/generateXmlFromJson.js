@@ -141,54 +141,55 @@ if (!data.actie || data.actie === '0') {
 }
 
   console.log('📄 Start XML-generatie');
- const xml = `
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<Order><Dossiers><Dossier>
-<Opdrachtgever>
-  <Opdrachtgever>${clean(data.opdrachtgeverNaam)}</Opdrachtgever>
-  <Opdrachtgever_Adres>${clean(data.opdrachtgeverAdres)}</Opdrachtgever_Adres>
-  <Opdrachtgever_Postcode>${clean(data.opdrachtgeverPostcode)}</Opdrachtgever_Postcode>
-  <Opdrachtgever_Plaats>${clean(data.opdrachtgeverPlaats)}</Opdrachtgever_Plaats>
-  <Opdrachtgever_TelefoonNummer>${clean(data.opdrachtgeverTelefoon)}</Opdrachtgever_TelefoonNummer>
-  <Opdrachtgever_Email>${clean(data.opdrachtgeverEmail)}</Opdrachtgever_Email>
-  <Opdrachtgever_BTW>${clean(data.opdrachtgeverBTW)}</Opdrachtgever_BTW>
-  <Opdrachtgever_KVK>${clean(data.opdrachtgeverKVK)}</Opdrachtgever_KVK>
-</Opdrachtgever>
-<Container>
-  <Ritnr>${clean(data.ritnummer)}</Ritnr>
-  <Laden_Lossen>${clean(data.ladenOfLossen)}</Laden_Lossen>
-  <Type></Type>
-  <Datum>${clean(data.datum)}</Datum>
-  <TijdVan>${clean(data.tijd) || ''}</TijdVan>
-  <TijdTM>${clean(data.tijd) || ''}</TijdTM>
-  <Container></Container>
-  <ContainerType>${clean(data.containertype)}</ContainerType>
-  <Lading>${clean(data.lading)}</Lading>
-  <ADR>${data.adr || 'Onwaar'}</ADR>
-  <Tarra>0</Tarra>
-  <GeladenGewicht>0</GeladenGewicht>
-  <Brutogewicht>0</Brutogewicht>
-  <Colli>0</Colli>
-  <Zegel></Zegel>
-  <Temp>${clean(data.temperatuur) || '0'}</Temp>
-  <CBM>0</CBM>
-  <Brix>0</Brix>
-  <Referentie>${clean(data.referentie)}</Referentie>
-  <Bootnaam>${clean(data.bootnaam)}</Bootnaam>
-  <Rederij>${clean(data.rederij)}</Rederij>
-  <Documentatie>${clean(data.documentatie)}</Documentatie>
-  <TAR>${clean(data.tar)}</TAR>
-  <Laadrefentie>${clean(data.laadreferentie)}</Laadrefentie>
-  <Meldtijd>${clean(data.meldtijd)}</Meldtijd>
-  <Inleverrefentie>${clean(data.inleverreferentie)}</Inleverrefentie>
-  <InleverBootnaam>${clean(data.inleverBootnaam)}</InleverBootnaam>
-  <InleverBestemming>${clean(data.inleverBestemming)}</InleverBestemming>
-  <InleverRederij>${clean(data.inleverRederij)}</InleverRederij>
-  <Inlever_TAR>${clean(data.inlever_TAR)}</Inlever_TAR>
-  <Closing_datum>${clean(data.closing_datum)}</Closing_datum>
-  <Closing_tijd>${clean(data.closing_tijd)}</Closing_tijd>
-  <Instructies>${clean(data.instructies)}</Instructies>
-</Container>
+const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<Order>
+  <Dossiers>
+    <Dossier>
+      <Opdrachtgever>
+   <Opdrachtgever>${c(data.opdrachtgeverNaam)}</Opdrachtgever>
+        <Opdrachtgever_Adres>${c(data.opdrachtgeverAdres)}</Opdrachtgever_Adres>
+        <Opdrachtgever_Postcode>${c(data.opdrachtgeverPostcode)}</Opdrachtgever_Postcode>
+        <Opdrachtgever_Plaats>${c(data.opdrachtgeverPlaats)}</Opdrachtgever_Plaats>
+        <Opdrachtgever_TelefoonNummer>${c(data.opdrachtgeverTelefoon)}</Opdrachtgever_TelefoonNummer>
+        <Opdrachtgever_Email>${c(data.opdrachtgeverEmail)}</Opdrachtgever_Email>
+        <Opdrachtgever_BTW>${c(data.opdrachtgeverBTW)}</Opdrachtgever_BTW>
+        <Opdrachtgever_KVK>${c(data.opdrachtgeverKVK)}</Opdrachtgever_KVK>
+    </Opdrachtgever>
+ <Container>
+        <Ritnr>${c(data.ritnummer)}</Ritnr>
+        <Laden_Lossen>${c(data.ladenOfLossen)}</Laden_Lossen>
+        <Type>${c(data.type)}</Type>
+        <Datum>${c(data.datum)}</Datum>
+        <TijdVan>${c(data.tijd)}</TijdVan>
+        <TijdTM>${c(data.tijd)}</TijdTM>
+        <Container>${c(data.containernummer)}</Container>
+        <ContainerType>${c(data.containertype)}</ContainerType>
+        <Lading>${c(data.lading)}</Lading>
+        <ADR>${c(data.adr)}</ADR>
+        <Tarra>${c(data.tarra)}</Tarra>
+        <GeladenGewicht>${c(data.geladenGewicht)}</GeladenGewicht>
+        <Brutogewicht>${c(data.brutogewicht)}</Brutogewicht>
+        <Colli>${c(data.colli)}</Colli>
+        <Zegel>${c(data.zegel)}</Zegel>
+        <Temp>${c(data.temperatuur)}</Temp>
+        <CBM>${c(data.cbm)}</CBM>
+        <Brix>${c(data.brix)}</Brix>
+        <Referentie>${c(data.referentie)}</Referentie>
+        <Bootnaam>${c(data.bootnaam)}</Bootnaam>
+        <Rederij>${c(data.rederij)}</Rederij>
+        <Documentatie>${c(data.documentatie)}</Documentatie>
+        <TAR>${c(data.tar)}</TAR>
+        <Laadrefentie>${c(data.laadreferentie)}</Laadrefentie>
+        <Meldtijd>${c(data.meldtijd)}</Meldtijd>
+        <Inleverrefentie>${c(data.inleverreferentie)}</Inleverrefentie>
+        <InleverBootnaam>${c(data.inleverBootnaam)}</InleverBootnaam>
+        <InleverBestemming>${c(data.inleverBestemming)}</InleverBestemming>
+        <InleverRederij>${c(data.inleverRederij)}</InleverRederij>
+        <Inlever_TAR>${c(data.inlever_TAR)}</Inlever_TAR>
+        <Closing_datum>${c(data.closing_datum)}</Closing_datum>
+        <Closing_tijd>${c(data.closing_tijd)}</Closing_tijd>
+        <Instructies>${c(data.instructies)}</Instructies>
+      </Container>
 <Locaties>
   <Locatie>
     <Volgorde>0</Volgorde>
@@ -231,33 +232,36 @@ if (!data.actie || data.actie === '0') {
   </Locatie>
 </Locaties>
 <Financieel>
-  <Tarief>0</Tarief>
-  <BTW>0</BTW>
-  <ADR_toeslag_Chart>0</ADR_toeslag_Chart>
-  <ADR_bedrag_Chart>0</ADR_bedrag_Chart>
-  <Botlek_Chart>0</Botlek_Chart>
-  <Chassishuur_Bedrag_chart>0</Chassishuur_Bedrag_chart>
-  <Delta_Chart>0</Delta_Chart>
-  <Diesel_toeslag_Chart>0</Diesel_toeslag_Chart>
-  <Euromax_Chart>0</Euromax_Chart>
-  <ExtraStop_Chart>0</ExtraStop_Chart>
-  <GasMeten_Chart>0</GasMeten_Chart>
-  <Gen_Chart>0</Gen_Chart>
-  <Handrail_Bedrag_chart>0</Handrail_Bedrag_chart>
-  <Keuren_Chart>0</Keuren_Chart>
-  <Kilometers_Chart>0</Kilometers_Chart>
-  <LOever_Chart>0</LOever_Chart>
-  <Loods_Chart>0</Loods_Chart>
-  <Maut_Chart>0</Maut_Chart>
-  <MV2_Chart>0</MV2_Chart>
-  <Scannen_Chart>0</Scannen_Chart>
-  <Tol_Chart>0</Tol_Chart>
-  <Blanco1_Chart>0</Blanco1_Chart>
-  <Blanco1_Text></Blanco1_Text>
-  <Blanco2_Chart>0</Blanco2_Chart>
-  <Blanco2_Text></Blanco2_Text>
-</Financieel>
-</Dossier></Dossiers></Order>`;
+        <Tarief>${c(data.tarief)}</Tarief>
+        <BTW>${c(data.btw)}</BTW>
+        <ADR_toeslag_Chart>${c(data.adrToeslagChart)}</ADR_toeslag_Chart>
+        <ADR_bedrag_Chart>${c(data.adrBedragChart)}</ADR_bedrag_Chart>
+        <Botlek_Chart>${c(data.botlekChart)}</Botlek_Chart>
+        <Chassishuur_Bedrag_chart>${c(data.chassishuurChart)}</Chassishuur_Bedrag_chart>
+        <Delta_Chart>${c(data.deltaChart)}</Delta_Chart>
+        <Diesel_toeslag_Chart>${c(data.dieselChart)}</Diesel_toeslag_Chart>
+        <Euromax_Chart>${c(data.euromaxChart)}</Euromax_Chart>
+        <ExtraStop_Chart>${c(data.extraStopChart)}</ExtraStop_Chart>
+        <GasMeten_Chart>${c(data.gasMetenChart)}</GasMeten_Chart>
+        <Gen_Chart>${c(data.genChart)}</Gen_Chart>
+        <Handrail_Bedrag_chart>${c(data.handrailChart)}</Handrail_Bedrag_chart>
+        <Keuren_Chart>${c(data.keurenChart)}</Keuren_Chart>
+        <Kilometers_Chart>${c(data.kilometersChart)}</Kilometers_Chart>
+        <LOever_Chart>${c(data.loeverChart)}</LOever_Chart>
+        <Loods_Chart>${c(data.loodsChart)}</Loods_Chart>
+        <Maut_Chart>${c(data.mautChart)}</Maut_Chart>
+        <MV2_Chart>${c(data.mv2Chart)}</MV2_Chart>
+        <Scannen_Chart>${c(data.scannenChart)}</Scannen_Chart>
+        <Tol_Chart>${c(data.tolChart)}</Tol_Chart>
+        <Blanco1_Chart>${c(data.blanco1Chart)}</Blanco1_Chart>
+        <Blanco1_Text>${c(data.blanco1Text)}</Blanco1_Text>
+        <Blanco2_Chart>${c(data.blanco2Chart)}</Blanco2_Chart>
+        <Blanco2_Text>${c(data.blanco2Text)}</Blanco2_Text>
+      </Financieel>
+    </Dossier>
+  </Dossiers>
+</Order>`;
+  // ✅ Log de eerste 600 tekens van de XML
 
   console.log('📦 XML gegenereerd:', xml.slice(0, 600));
   console.log('🔍 Opdrachtgever:', data.klantnaam);
