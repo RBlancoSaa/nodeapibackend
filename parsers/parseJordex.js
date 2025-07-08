@@ -142,15 +142,23 @@ dropoffTerminal: logResult('dropoffTerminal', (() => {
     containertypeCode: '0'
   };
 
-// 📦 Terminalgegevens ophalen
-const pickupInfo = await getTerminalInfo(data.pickupTerminal) || {};
-const dropoffInfo = await getTerminalInfo(data.dropoffTerminal) || {};
+  
+const rawPu = data.pickupTerminal || '';
+const rawDo = data.dropoffTerminal || '';
 
-// Klantgegevens uit de Pick-up sectie: vier opeenvolgende regels erna
-const puIndex = regels.findIndex(line => /^Pick[-\s]?up:/i.test(line));
-const klantregels = puIndex !== -1
+// Verwijder “terminal” suffix
+const puKey = rawPu.replace(/ terminal$/i, '').trim();
+const doKey = rawDo.replace(/ terminal$/i, '').trim();
+
+const pickupInfo  = await getTerminalInfo(puKey)  || {};
+const dropoffInfo = await getTerminalInfo(doKey) || {};
+
+// Klantgegevens uit de Pick-up sectie: vier regels erna
+const puIndex = regels.findIndex(line => /^Pick[-\s]?up\b/i.test(line));
+const klantregels = puIndex >= 0
   ? regels.slice(puIndex + 1, puIndex + 5)
   : [];
+
 data.klantnaam     = klantregels[0] || '';
 data.klantadres    = klantregels[1] || '';
 data.klantpostcode = klantregels[2] || '';
@@ -204,12 +212,12 @@ if (data.imo !== '0' || data.unnr !== '0') {
 // 🔁 Locatiestructuur definitief en correct
 data.locaties = [
   {
-    volgorde: '0',
+    volgorde: '0',    
     actie: 'Opzetten',
-    naam: data.pickupTerminal || '',
-    adres: pickupInfo.adres || '',
+    naam: rawPu,
+    adres: pickupInfo.adres    || '',
     postcode: pickupInfo.postcode || '',
-    plaats: pickupInfo.plaats || '',
+    plaats: pickupInfo.plaats  || '',
     land: pickupInfo.land || 'NL',
     voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
     aankomst_verw: '',
@@ -230,11 +238,11 @@ data.locaties = [
   },
   {
     volgorde: '0',
-    actie: 'Afzetten',
-    naam: data.dropoffTerminal || '',
-    adres: dropoffInfo.adres || '',
-    postcode: dropoffInfo.postcode || '',
-    plaats: dropoffInfo.plaats || '',
+     actie: 'Afzetten',
+    naam: rawDo,
+    adres: dropoffInfo.adres     || '',
+    postcode: dropoffInfo.postcode  || '',
+    plaats: dropoffInfo.plaats   || '',
     land: dropoffInfo.land || 'NL',
     voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
     aankomst_verw: '',
