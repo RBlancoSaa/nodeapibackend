@@ -59,6 +59,6 @@ export default async function parsePdfToJson(buffer) {
     return await parseRitra(buffer, 'ritra');
   }
 
-  console.warn('⚠️ Onbekende klant – geen parser uitgevoerd');
+  console.warn('⚠️ Onbekende klant; geen parser uitgevoerd');
   return {};
 }
