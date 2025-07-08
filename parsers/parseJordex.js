@@ -122,26 +122,22 @@ const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
     containertypeCode: '0'
   };
 
-  // 📌 Zoek klantgegevens in het "Pick-up" blok (na 'Pick-up' kop)
+// 📦 Terminalgegevens ophalen
+const pickupInfo = await getTerminalInfo(data.pickupTerminal) || {};
+const dropoffInfo = await getTerminalInfo(data.dropoffTerminal) || {};
+
+// ✅ Klantgegevens uit regels ophalen (herhaling voor zuiverheid)
 const pickupBlokken = regels
   .map((regel, index) => regel.toLowerCase().startsWith('pick-up') ? index : -1)
   .filter(i => i !== -1);
-
-// Neem tweede pick-up blok (na opzetterminal)
 const echtePickupIndex = pickupBlokken.length > 1 ? pickupBlokken[1] : pickupBlokken[0];
 const klantregels = echtePickupIndex !== -1 ? regels.slice(echtePickupIndex + 1, echtePickupIndex + 6) : [];
-console.log('📌 alle pick-up blokken:', pickupBlokken);
-console.log('📌 gekozen klantblok vanaf regel:', echtePickupIndex);
-
 const postcodeRegex = /(\d{4}\s?[A-Z]{2})\s+(.+)/;
 const postcodeMatch = klantregels.find(r => postcodeRegex.test(r))?.match(postcodeRegex);
-
 data.klantnaam = klantregels[0]?.trim() || '';
 data.klantadres = klantregels[1]?.trim() || '';
 data.klantpostcode = postcodeMatch?.[1]?.replace(/\s+/, '') || '';
 data.klantplaats = postcodeMatch?.[2]?.trim() || '';
-
-// 📉 Fallback op From: regel
 if (!data.klantnaam && text.includes('From:')) {
   const fromLine = text.match(/From:\s*(.*)/)?.[1]?.trim();
   if (fromLine) {
@@ -150,6 +146,7 @@ if (!data.klantnaam && text.includes('From:')) {
     data.klantnaam = data.klantnaam || fromLine;
   }
 }
+
 
 // 🧾 Debug loggen voor controle
 console.log('🔍 Klantgegevens uit Pick-up blok:');
@@ -192,23 +189,51 @@ if (data.imo !== '0' || data.unnr !== '0') {
 
     const formatVoorgemeld = (value) => !value ? 'Onwaar' : (value.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar');
 
-    data.locaties = [
-      {
-        volgorde: '0', actie: 'Opzetten',
-        naam: data.pickupTerminal || '', adres: pickupInfo.adres || '', postcode: pickupInfo.postcode || '', plaats: pickupInfo.plaats || '', land: pickupInfo.land || 'NL',
-        voorgemeld: formatVoorgemeld(pickupInfo.voorgemeld), aankomst_verw: '', tijslot_van: '', tijslot_tm: '', portbase_code: pickupInfo.portbase_code || '', bicsCode: pickupInfo.bicsCode || ''
-      },
-      {
-        volgorde: '0', actie: data.isLossenOpdracht ? 'Lossen' : 'Laden',
-        naam: data.klantnaam, adres: data.klantadres, postcode: data.klantpostcode, plaats: data.klantplaats, land: 'NL',
-        voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '', portbase_code: '', bicsCode: ''
-      },
-      {
-        volgorde: '0', actie: 'Afzetten',
-        naam: data.dropoffTerminal || '', adres: dropoffInfo.adres || '', postcode: dropoffInfo.postcode || '', plaats: dropoffInfo.plaats || '', land: dropoffInfo.land || 'NL',
-        voorgemeld: formatVoorgemeld(dropoffInfo.voorgemeld), aankomst_verw: '', tijslot_van: '', tijslot_tm: '', portbase_code: dropoffInfo.portbase_code || '', bicsCode: dropoffInfo.bicsCode || ''
-      }
-    ];
+    
+// 🔁 Locatiestructuur definitief en correct
+data.locaties = [
+  {
+    volgorde: '0',
+    actie: 'Opzetten',
+    naam: data.pickupTerminal || '',
+    adres: pickupInfo.adres || '',
+    postcode: pickupInfo.postcode || '',
+    plaats: pickupInfo.plaats || '',
+    land: pickupInfo.land || 'NL',
+    voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+    aankomst_verw: '',
+    tijslot_van: '',
+    tijslot_tm: '',
+    portbase_code: pickupInfo.portbase_code || '',
+    bicsCode: pickupInfo.bicsCode || ''
+  },
+  {
+    volgorde: '0',
+    actie: data.isLossenOpdracht ? 'Lossen' : 'Laden',
+    naam: data.klantnaam || '',
+    adres: data.klantadres || '',
+    postcode: data.klantpostcode || '',
+    plaats: data.klantplaats || '',
+    land: 'NL'
+    // geen andere velden hier
+  },
+  {
+    volgorde: '0',
+    actie: 'Afzetten',
+    naam: data.dropoffTerminal || '',
+    adres: dropoffInfo.adres || '',
+    postcode: dropoffInfo.postcode || '',
+    plaats: dropoffInfo.plaats || '',
+    land: dropoffInfo.land || 'NL',
+    voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+    aankomst_verw: '',
+    tijslot_van: '',
+    tijslot_tm: '',
+    portbase_code: dropoffInfo.portbase_code || '',
+    bicsCode: dropoffInfo.bicsCode || ''
+  }
+];
+
   } catch (e) {
     console.warn('⚠️ Fout in terminal of rederij lookup:', e);
   }
