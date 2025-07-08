@@ -3,27 +3,26 @@ import pdfParse from 'pdf-parse';
 import parseJordex from '../parsers/parseJordex.js';
 
 export default async function parsePdfToJson(buffer) {
-  if (!buffer || !Buffer.isBuffer(buffer)) {
-    console.warn('⚠️ Ongeldige PDF-buffer');
+  if (!Buffer.isBuffer(buffer)) {
+    console.warn('⚠️ Ongeldige of ontbrekende PDF-buffer');
     return {};
   }
 
-  const parsed = await pdfParse(buffer);
-  const text = parsed.text;
+  const { text } = await pdfParse(buffer);
 
-  if (!text || typeof text !== 'string' || text.trim().length === 0) {
+  if (!text?.trim()) {
     console.warn('⚠️ Lege of ongeldige tekstinhoud in PDF');
     return {};
   }
 
-  const isJordex = text.includes('Jordex Shipping & Forwarding');
+  console.log('📄 Eerste 500 tekens tekst:\n', text.slice(0, 500));
 
-  if (isJordex) {
+  if (text.includes('Jordex Shipping & Forwarding')) {
     console.log('🔍 Jordex PDF herkend');
-    console.log('📄 TEXT IN PDF:\n', text.slice(0, 500));
-    return await parseJordex(buffer, 'jordex'); // ✅ juiste alias doorgeven
+    return await parseJordex(buffer, 'jordex');
   }
 
-  console.warn('⚠️ Onbekende klant, geen parser uitgevoerd');
+  // ✨ Voorbereid op andere klanten (later toe te voegen)
+  console.warn('⚠️ Onbekende klant – geen parser uitgevoerd');
   return {};
 }
