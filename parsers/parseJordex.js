@@ -59,7 +59,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     return '';
   };
   // 🎯 Extractie uit Pick-up blok
-    const pickupBlok = text.match(/Pick[-\s]?up[\s\S]+?(?=Drop[-\s]?off|Extra Information|$)/i)?.[0] || '';
+    const pickupBlok = text.match(/Pick[-\s]?up[\n\r]+Address:[\s\S]+?(?=Drop[-\s]?off|Extra Information|Date:|$)/i)?.[0] || '';
     const pickupRegels = pickupBlok.split('\n').map(r => r.trim()).filter(Boolean);
 
   // 👤 Klantgegevens
@@ -106,6 +106,11 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const fromMatch = text.match(/From:\s*(.*)/);
     const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
  
+        console.log('📅 Extractie uit pickupRegels:', pickupRegels);
+        console.log('📅 dateLine:', dateLine);
+        console.log('📅 dateMatch:', dateMatch);
+        console.log('📅 laadDatum:', laadDatum);
+        console.log('📅 laadTijd:', laadTijd);
 
 const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
