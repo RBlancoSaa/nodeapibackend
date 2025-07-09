@@ -111,11 +111,8 @@ if (dateMatch) {
   laadTijd = tijd ? `${tijd}:00` : '';
 } else {
   // Fallback: datum van vandaag zonder voorloopnullen
-  const nu = new Date();
-  const dag = nu.getDate();
-  const maand = nu.getMonth() + 1;
-  const jaar = nu.getFullYear();
-  laadDatum = `${dag}-${maand}-${jaar}`;
+    const nu = new Date();
+    laadDatum = `${nu.getDate()}-${nu.getMonth() + 1}-${nu.getFullYear()}`;
   laadTijd = '';
   bijzonderheid = 'DATUM STAAT VERKEERD';
 }
