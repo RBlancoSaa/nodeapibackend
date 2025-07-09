@@ -21,7 +21,7 @@ export default async function parsePdfToJson(buffer) {
     return {};
   }
 
-  console.log('📄 Eerste 5500 tekens tekst:\n', text.slice(0, 5500));
+  console.log('📄 Eerste 500 tekens tekst:\n', text.slice(0, 500));
 
   // 🔍 Klantdectectie op basis van tekst
   if (text.includes('Jordex Shipping & Forwarding')) {
