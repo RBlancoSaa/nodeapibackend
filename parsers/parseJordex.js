@@ -93,11 +93,12 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+(\w+)\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
     let laadDatum = '', laadTijd = '';
     if (dateMatch) {
-      const [_, dag, maandStr, jaar, tijd] = dateMatch;
-      const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-      laadDatum = `${parseInt(dag)}-${maanden[maandStr.toLowerCase().slice(0, 3)]}-${jaar}`;
-      laadTijd = tijd ? `${tijd}:00` : '';
-  }
+    const [_, dag, maandStr, jaar, tijd] = dateMatch;
+    const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+    const maandNummer = maanden[maandStr.toLowerCase().slice(0, 3)];
+    laadDatum = `${parseInt(dag)}-${maandNummer}-${jaar}`;
+    laadTijd = tijd ? `${tijd}:00` : '';
+      }
 
   // 🔗 Referentie
     const refLine = pickupRegels.find(r => /Reference/.test(r)) || '';
@@ -183,8 +184,10 @@ const data = {
   };
 
 // Verwijder “terminal” suffix zodat je sleutel mét en stemt met Supabase
-const puKey = pickupRegels.find(r => r.toLowerCase().startsWith('address:'))?.replace('Address:', '').trim() || '';
-const doKey = text.match(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i)?.[1]?.trim() || '';
+  const pickupTerminalMatch = text.match(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
+  const dropoffTerminalMatch = text.match(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i);
+  const puKey = pickupTerminalMatch?.[1]?.trim() || '';
+  const doKey = dropoffTerminalMatch?.[1]?.trim() || '';
 
 // Éénmalige lookup in Supabase via getTerminalInfo
 const pickupInfo  = await getTerminalInfo(puKey)  || {};
@@ -241,14 +244,15 @@ if (data.imo !== '0' || data.unnr !== '0') {
     data.rederijCode = await getRederijNaam(baseRederij);
 
     const formatVoorgemeld = (value) => !value ? 'Onwaar' : (value.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar');
-
+    const rawPu = puKey;
+    const rawDo = doKey;
     
 // 🔁 Locatiestructuur definitief en correct
 data.locaties = [
   {
     volgorde: '0',    
     actie: 'Opzetten',
-    naam: puKey,
+    naam: doKey,
     adres: pickupInfo.adres    || '',
     postcode: pickupInfo.postcode || '',
     plaats: pickupInfo.plaats  || '',
