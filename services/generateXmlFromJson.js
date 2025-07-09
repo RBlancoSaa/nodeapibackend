@@ -111,7 +111,7 @@ export async function generateXmlFromJson(data) {
   for (const veld of verplichteVelden) {
     if (!data[veld] || data[veld] === '') console.warn(`⚠️ Ontbrekend opdrachtgeverveld: ${veld}`);
   }
-
+  const zeroFallback = (val) => (val === undefined || val === '' || val === null ? '0' : val);
   const [rederijen, containers] = await Promise.all([
     fetchList('rederijen'),
     fetchList('containers')
@@ -168,14 +168,14 @@ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <ContainerType>${c(data.containertype)}</ContainerType>
 <Lading>${c(data.lading)}</Lading>
 <ADR>${c(data.adr)}</ADR>
-<Tarra>${c(data.tarra)}</Tarra>
-<GeladenGewicht>${c(data.geladenGewicht)}</GeladenGewicht>
-<Brutogewicht>${c(data.brutogewicht)}</Brutogewicht>
-<Colli>${c(data.colli)}</Colli>
+<Tarra>${zeroFallback(data.tarra)}</Tarra>
+<GeladenGewicht>${zeroFallback(data.geladenGewicht)}</GeladenGewicht>
+<Brutogewicht>${zeroFallback(data.brutogewicht)}</Brutogewicht>
+<Colli>${zeroFallback(data.colli)}</Colli
 <Zegel>${c(data.zegel)}</Zegel>
-<Temp>${c(data.temperatuur)}</Temp>
-<CBM>${c(data.cbm)}</CBM>
-<Brix>${c(data.brix)}</Brix>
+<Temp>${zeroFallback(data.temperatuur)}</Temp>
+<CBM>${zeroFallback(data.cbm)}</CBM>
+<Brix>${zeroFallback(data.brix)}</Brix>
 <Referentie>${c(data.referentie)}</Referentie>
 <Bootnaam>${c(data.bootnaam)}</Bootnaam>
 <Rederij>${c(data.rederij)}</Rederij>
