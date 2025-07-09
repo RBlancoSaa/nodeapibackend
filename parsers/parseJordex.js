@@ -73,7 +73,22 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
     const containertype = cargoLine.match(/1\s*x\s*(.+)/i)?.[1]?.trim() || '';
 
-  // 📅 Datum & tijd
+  // 🎯 Uitlezen containerblok (onderaan de PDF)
+    const containerBlok = text.match(/Type Number[\s\S]+?(?=Extra Information|Date:|Jordex|$)/i)?.[0] || '';
+    const regelsContainer = containerBlok.split('\n').map(r => r.trim()).filter(Boolean);
+
+  // Colli, Volume, Gewicht
+    const colli = regelsContainer.find(r => /^\d{3,5}$/.test(r)) || '0';
+    const volume = regelsContainer.find(r => /m³/i.test(r))?.replace(/[^\d.,]/g, '') || '0';
+    const gewicht = regelsContainer.find(r => /kg/i.test(r))?.replace(/[^\d]/g, '') || '0';
+
+  // Lading = alles tussen eerste BLOKPALLET-regel en -20 DEGREES
+    const ladingStartIndex = regelsContainer.findIndex(r => /BLOKPALLETS/i.test(r));
+    const ladingEndIndex = regelsContainer.findIndex(r => /-20 DEGREES/i.test(r));
+    const ladingArray = regelsContainer.slice(ladingStartIndex, ladingEndIndex + 1);
+    const lading = ladingArray.join(' ') || '';
+  
+    // 📅 Datum & tijd
     const dateLine = pickupRegels.find(r => r.toLowerCase().startsWith('date:')) || '';
     const dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+(\w+)\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
     let laadDatum = '', laadTijd = '';
@@ -91,14 +106,18 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const fromMatch = text.match(/From:\s*(.*)/);
     const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
  
-  const data = {
+
+const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
     referentie: logResult('referentie', (() => {
     const blok = text.match(/Pick[-\s]?up terminal[\s\S]+?(?=Pick[-\s]?up|Drop[-\s]?off|Extra Information)/i)?.[0] || '';
     const match = blok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
     return match?.[1]?.trim() || '0';
       })()),
-
+    colli: logResult('colli', colli),
+    volume: logResult('volume', volume),
+    gewicht: logResult('gewicht', gewicht),
+    lading: logResult('lading', lading),
     
 
     inleverreferentie: logResult('inleverreferentie', (() => {
@@ -160,10 +179,8 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   };
 
 // Verwijder “terminal” suffix zodat je sleutel mét en stemt met Supabase
-const rawPu = data.pickupTerminal || '';
-const rawDo = data.dropoffTerminal || '';
-const puKey  = rawPu.replace(/ terminal$/i, '').trim();
-const doKey  = rawDo.replace(/ terminal$/i, '').trim();
+const puKey = pickupRegels.find(r => r.toLowerCase().startsWith('address:'))?.replace('Address:', '').trim() || '';
+const doKey = text.match(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i)?.[1]?.trim() || '';
 
 // Éénmalige lookup in Supabase via getTerminalInfo
 const pickupInfo  = await getTerminalInfo(puKey)  || {};
@@ -216,8 +233,8 @@ if (data.imo !== '0' || data.unnr !== '0') {
   try {
     data.terminal = await getTerminalInfo(data.dropoffTerminal) || '0';
     data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
-    const baseRederij = data.rederij.includes(' - ') ? data.rederij.split(' - ')[1] : data.rederij;
-    data.rederijCode = await getRederijNaam(baseRederij) || '0';
+    const baseRederij = data.rederij.includes(' - ') ? data.rederij.split(' - ')[1].trim() : data.rederij.trim();
+    data.rederijCode = await getRederijNaam(baseRederij);
 
     const formatVoorgemeld = (value) => !value ? 'Onwaar' : (value.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar');
 
