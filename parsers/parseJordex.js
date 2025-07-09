@@ -58,9 +58,9 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     }
     return '';
   };
-  // 🎯 Extractie uit Pick-up blok
-    const pickupBlok = text.match(/Pick-up[\s\S]+?Reference\(s\):\s*\d+/i)?.[0] || '';
-    const pickupRegels = pickupBlok.split('\n').map(r => r.trim()).filter(Boolean);
+  // ✅ 100% correcte extractie uit alleen het "Pick-up" blok (klant)
+    const pickupBlokStrict = text.match(/Pick-up[\s\S]+?(?=Drop-off|Drop[-\s]?off|Extra Information|$)/i)?.[0] || '';
+    const pickupRegels = pickupBlokStrict.split('\n').map(r => r.trim()).filter(Boolean);
 
   // 👤 Klantgegevens
     const klantNaam = pickupRegels.find(r => r.startsWith('Address:'))?.replace('Address:', '').trim() || '';
@@ -89,17 +89,35 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const lading = ladingArray.join(' ') || '';
   
     // 📅 Datum & tijd
-    const dateLine = pickupRegels.find(r => r.toLowerCase().startsWith('date:')) || '';
-    const dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+(\w+)\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
-    let laadDatum = '', laadTijd = '';
-    if (dateMatch) {
-    const [_, dag, maandStr, jaar, tijd] = dateMatch;
-    const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-    const maandNummer = maanden[maandStr.toLowerCase().slice(0, 3)];
-    laadDatum = `${parseInt(dag)}-${maandNummer}-${jaar}`;
-    laadTijd = tijd ? `${tijd}:00` : '';
-      }
+    const dateLine = pickupRegels.find(r => /^Date[:\t ]+/i.test(r)) || '';
+    const dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
 
+    // 📆 Fallback = upload datum
+let laadDatum = '';
+let laadTijd = '';
+let bijzonderheid = '';
+
+if (dateMatch) {
+  const dag = parseInt(dateMatch[1]);
+  const maandStr = dateMatch[2].toLowerCase().slice(0, 3);
+  const jaar = dateMatch[3];
+  const tijd = dateMatch[4];
+
+  const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+  const maand = maanden[maandStr];
+
+  laadDatum = `${dag}-${maand}-${jaar}`;
+  laadTijd = tijd ? `${tijd}:00` : '';
+} else {
+  // Fallback: datum van vandaag zonder voorloopnullen
+  const nu = new Date();
+  const dag = nu.getDate();
+  const maand = nu.getMonth() + 1;
+  const jaar = nu.getFullYear();
+  laadDatum = `${dag}-${maand}-${jaar}`;
+  laadTijd = '';
+  bijzonderheid = 'DATUM STAAT VERKEERD';
+}
   // 🔗 Referentie
     const refLine = pickupRegels.find(r => /Reference/.test(r)) || '';
     const laadreferentie = refLine.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i)?.[1]?.trim() || '';
@@ -141,6 +159,7 @@ const data = {
     temperatuur: logResult('temperatuur', multiExtract([/Temperature[:\t ]+([\-\d]+°C)/i]) || '0'),
     datum: logResult('datum', laadDatum),
     tijd: logResult('tijd', laadTijd),
+    instructies: logResult('instructies', bijzonderheid),
     laadreferentie: logResult('laadreferentie', laadreferentie),
     containertype: logResult('containertype', containertype),
     inleverBootnaam: logResult('inleverBootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
