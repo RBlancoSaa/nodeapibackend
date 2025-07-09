@@ -205,8 +205,12 @@ const data = {
   const pickupTerminalMatch = text.match(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
   const dropoffTerminalAdres = dropoffTerminalMatch?.[1]?.trim() || '';
   const puKey = pickupTerminalMatch?.[1]?.trim() || '';
+
+  const dropoffTerminalMatch = text.match(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i);
   const doKey = dropoffTerminalAdres || data.dropoffTerminal || '';
-     console.log('🧾 dropoffInfo:', dropoffInfo);
+    console.log('🔑 doKey terminal lookup:', doKey);
+    console.log('🧾 dropoffInfo:', dropoffInfo);
+
 // 🧠 Terminal lookup mét fallback op volledigheid
   let pickupInfo = await getTerminalInfo(puKey) || {};
   let dropoffInfo = await getTerminalInfo(doKey) || {};
