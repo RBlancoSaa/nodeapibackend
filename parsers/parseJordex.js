@@ -59,8 +59,9 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     return '';
   };
   // ✅ 100% correcte extractie uit alleen het "Pick-up" blok (klant)
-    const pickupBlokStrict = text.match(/Pick-up[\s\S]+?(?=Drop-off|Drop[-\s]?off|Extra Information|$)/i)?.[0] || '';
-    const pickupRegels = pickupBlokStrict.split('\n').map(r => r.trim()).filter(Boolean);
+    const pickupKlantMatch = text.match(/Pick-up[\s\S]+?Reference(?:\(s\))?:\s*\d+/i);
+    const pickupBlok = pickupKlantMatch?.[0] || '';
+    const pickupRegels = pickupBlok.split('\n').map(r => r.trim()).filter(Boolean);
 
   // 👤 Klantgegevens
     const klantNaam = pickupRegels.find(r => r.startsWith('Address:'))?.replace('Address:', '').trim() || '';
