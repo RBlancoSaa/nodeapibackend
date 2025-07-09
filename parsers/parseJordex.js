@@ -59,7 +59,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     return '';
   };
   // 🎯 Extractie uit Pick-up blok
-    const pickupBlok = text.match(/Pick[-\s]?up[\n\r]+Address:[\s\S]+?(?=Drop[-\s]?off|Extra Information|Date:|$)/i)?.[0] || '';
+    const pickupBlok = text.match(/Pick-up[\s\S]+?Reference\(s\):\s*\d+/i)?.[0] || '';
     const pickupRegels = pickupBlok.split('\n').map(r => r.trim()).filter(Boolean);
 
   // 👤 Klantgegevens
@@ -248,7 +248,7 @@ data.locaties = [
   {
     volgorde: '0',    
     actie: 'Opzetten',
-    naam: doKey,
+    naam: puKey,
     adres: pickupInfo.adres    || '',
     postcode: pickupInfo.postcode || '',
     plaats: pickupInfo.plaats  || '',
@@ -273,7 +273,7 @@ data.locaties = [
   {
     volgorde: '0',
      actie: 'Afzetten',
-    naam: puKey,
+    naam: doKey,
     adres: dropoffInfo.adres     || '',
     postcode: dropoffInfo.postcode  || '',
     plaats: dropoffInfo.plaats   || '',
