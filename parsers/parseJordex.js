@@ -203,13 +203,14 @@ const data = {
 
 // Verwijder “terminal” suffix zodat je sleutel mét en stemt met Supabase
   const pickupTerminalMatch = text.match(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
-  const dropoffTerminalMatch = text.match(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i);
+  const dropoffTerminalAdres = dropoffTerminalMatch?.[1]?.trim() || '';
   const puKey = pickupTerminalMatch?.[1]?.trim() || '';
-  const doKey = dropoffTerminalMatch?.[1]?.trim() || '';
-
+  const doKey = dropoffTerminalAdres || data.dropoffTerminal || '';
+     console.log('🧾 dropoffInfo:', dropoffInfo);
 // 🧠 Terminal lookup mét fallback op volledigheid
-let pickupInfo = await getTerminalInfo(puKey) || {};
-let dropoffInfo = await getTerminalInfo(doKey) || {};
+  let pickupInfo = await getTerminalInfo(puKey) || {};
+  let dropoffInfo = await getTerminalInfo(doKey) || {};
+      console.log('🧾 dropoffInfo:', dropoffInfo);
 
 // Fallback op alternatieve terminal bij ontbrekende portbase_code
 if (!pickupInfo.portbase_code || pickupInfo === '0') {
