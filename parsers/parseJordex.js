@@ -242,11 +242,7 @@ if (data.imo !== '0' || data.unnr !== '0') {
     data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
     const baseRederij = data.rederij.includes(' - ') ? data.rederij.split(' - ')[1].trim() : data.rederij.trim();
     data.rederijCode = await getRederijNaam(baseRederij);
-
-    const formatVoorgemeld = (value) => !value ? 'Onwaar' : (value.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar');
-    const rawPu = puKey;
-    const rawDo = doKey;
-    
+  
 // 🔁 Locatiestructuur definitief en correct
 data.locaties = [
   {
