@@ -58,9 +58,38 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     }
     return '';
   };
+  // 🎯 Extractie uit Pick-up blok
+    const pickupBlok = text.match(/Pick[-\s]?up[\s\S]+?(?=Drop[-\s]?off|Extra Information|$)/i)?.[0] || '';
+    const pickupRegels = pickupBlok.split('\n').map(r => r.trim()).filter(Boolean);
 
-  const fromMatch = text.match(/From:\s*(.*)/);
-  const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
+  // 👤 Klantgegevens
+    const klantNaam = pickupRegels.find(r => r.startsWith('Address:'))?.replace('Address:', '').trim() || '';
+    const adresIndex = pickupRegels.findIndex(r => r.includes(klantNaam)) + 1;
+    const adres = pickupRegels[adresIndex] || '';
+    const postcode = pickupRegels[adresIndex + 1]?.split(' ')[0] || '';
+    const plaats = pickupRegels[adresIndex + 1]?.split(' ').slice(1).join(' ') || '';
+
+  // 📦 Containerinformatie
+    const cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
+    const containertype = cargoLine.match(/1\s*x\s*(.+)/i)?.[1]?.trim() || '';
+
+  // 📅 Datum & tijd
+    const dateLine = pickupRegels.find(r => r.toLowerCase().startsWith('date:')) || '';
+    const dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+(\w+)\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
+    let laadDatum = '', laadTijd = '';
+    if (dateMatch) {
+      const [_, dag, maandStr, jaar, tijd] = dateMatch;
+      const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+      laadDatum = `${parseInt(dag)}-${maanden[maandStr.toLowerCase().slice(0, 3)]}-${jaar}`;
+      laadTijd = tijd ? `${tijd}:00` : '';
+  }
+
+  // 🔗 Referentie
+    const refLine = pickupRegels.find(r => /Reference/.test(r)) || '';
+    const laadreferentie = refLine.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i)?.[1]?.trim() || '';
+
+    const fromMatch = text.match(/From:\s*(.*)/);
+    const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
  
   const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
@@ -70,21 +99,14 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     return match?.[1]?.trim() || '0';
       })()),
 
-    laadreferentie: (() => {
-      const refBlok = text.match(/Pick[-\s]?up[\s\S]+?(?=Drop[-\s]?off)/i)?.[0] || '';
-      const refMatch = refBlok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i)?.[1]?.trim() || '0';
-      console.log('🔍 laadreferentie:', refMatch);
-      return refMatch;
-     })(),
+    
 
     inleverreferentie: logResult('inleverreferentie', (() => {
       const m = text.match(/Drop[-\s]?off terminal:[\s\S]+?Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
       return m?.[1]?.trim() || '0';
-
       })()),
     rederij: logResult('rederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
     bootnaam: logResult('bootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
-    containertype: logResult('containertype', multiExtract([/Cargo[:\t]+(.+)/i]) || '0'),
     containernummer: logResult('containernummer', (() => {
       const result = multiExtract([
         /Container no[:\t ]+([A-Z]{4}U\d{7})/i,
@@ -93,11 +115,10 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
       return /^[A-Z]{4}U\d{7}$/.test(result || '') ? result : '';
       })()),
     temperatuur: logResult('temperatuur', multiExtract([/Temperature[:\t ]+([\-\d]+°C)/i]) || '0'),
-    datum: logResult('datum', formatDatum(text)),
-    tijd: logResult('tijd', (() => {
-      const m = text.match(/Date[:\t ].+\s+(\d{2}:\d{2})/i);
-      return m ? `${m[1]}:00` : '';
-      })()),
+    datum: logResult('datum', laadDatum),
+    tijd: logResult('tijd', laadTijd),
+    laadreferentie: logResult('laadreferentie', laadreferentie),
+    containertype: logResult('containertype', containertype),
     inleverBootnaam: logResult('inleverBootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
     inleverRederij: logResult('inleverRederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
       inleverBestemming: logResult('inleverBestemming', multiExtract([
@@ -154,10 +175,10 @@ const klantregels = regels
   .slice(puIndex + 1, puIndex + 8)
   .filter(l => l && !/^Cargo:|^Reference/i.test(l))
   .slice(0, 4);                            
-data.klantnaam     = klantregels[0] || '';
-data.klantadres    = klantregels[1] || '';
-data.klantpostcode = klantregels[2] || '';
-data.klantplaats   = klantregels[3] || '';
+data.klantnaam = klantNaam;
+data.klantadres = adres;
+data.klantpostcode = postcode;
+data.klantplaats = plaats;
 console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
 
 
