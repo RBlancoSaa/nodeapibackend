@@ -338,6 +338,7 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
   console.log('👉 Locatie 0 (pickup terminal):', JSON.stringify(data.locaties[0], null, 2));
   console.log('👉 Locatie 1 (klant):', JSON.stringify(data.locaties[1], null, 2));
   console.log('👉 Locatie 2 (dropoff terminal):', JSON.stringify(data.locaties[2], null, 2));
-  
+  console.log('🧪 DROP-OFF terminal:', dropoffInfo);
+  console.log('🧪 PICK-UP terminal:', pickupInfo);
   return data;
 }
