@@ -34,7 +34,7 @@ export default async function handler(req, res) {
     
 
     const xml = await generateXmlFromJson(data);
-    const bestandsnaam = `Order_${data.ritnummer || 'GEEN_RIT'}_${data.klantplaats || 'GEEN_PLAATS'}.easy`;
+   const bestandsnaam = `Order_${data.reference || 'GEEN_REF'}.easy`;
     const localPath = path.join('/tmp', bestandsnaam);
     fs.writeFileSync(localPath, xml, 'utf8');
 
