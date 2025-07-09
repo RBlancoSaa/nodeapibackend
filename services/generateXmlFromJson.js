@@ -177,7 +177,7 @@ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Tarra>${zeroFallback(data.tarra)}</Tarra>
 <GeladenGewicht>${zeroFallback(data.geladenGewicht)}</GeladenGewicht>
 <Brutogewicht>${zeroFallback(data.brutogewicht)}</Brutogewicht>
-<Colli>${zeroFallback(data.colli)}</Colli
+<Colli>${zeroFallback(data.colli)}</Colli>
 <Zegel>${c(data.zegel)}</Zegel>
 <Temp>${cleanTemperature(data.temperatuur)}</Temp>
 <CBM>${zeroFallback(data.cbm)}</CBM>
