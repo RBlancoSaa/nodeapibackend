@@ -16,13 +16,12 @@ function logResult(label, value) {
 
 function formatDatum(text) {
   const match = text.match(/Date[:\t ]+(\d{1,2})\s+(\w+)\s+(\d{4})/i);
-  if (!match) return '0';
+  if (!match) return '';
   const [_, day, monthStr, year] = match;
   const months = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-  return `${parseInt(day)}-${months[monthStr.toLowerCase().slice(0, 3)]}-${year}`;
+  const maand = months[monthStr.toLowerCase().slice(0, 3)];
+  return `${parseInt(day)}-${maand}-${year}`;
 }
-
-
 
 
 export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
@@ -65,12 +64,11 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
  
   const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
-    referentie: (() => {
-      const refBlok = text.match(/Pick[-\s]?up[\s\S]+?(?=Drop[-\s]?off)/i)?.[0] || '';
-      const refMatch = refBlok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i)?.[1]?.trim() || '0';
-      console.log('🔍 referentie:', refMatch);
-      return refMatch;
-      })(),
+    referentie: logResult('referentie', (() => {
+    const blok = text.match(/Pick[-\s]?up terminal[\s\S]+?(?=Pick[-\s]?up|Drop[-\s]?off|Extra Information)/i)?.[0] || '';
+    const match = blok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
+    return match?.[1]?.trim() || '0';
+      })()),
 
     laadreferentie: (() => {
       const refBlok = text.match(/Pick[-\s]?up[\s\S]+?(?=Drop[-\s]?off)/i)?.[0] || '';
