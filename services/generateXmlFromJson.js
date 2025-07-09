@@ -283,5 +283,6 @@ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
   adrStatus: bevatADR(data) ? 'Waar' : 'Onwaar'
 });
 
-  return xml;
+  const windowsXml = xml.replace(/\n/g, '\r\n'); // converteert naar CRLF
+  return windowsXml;
 }
