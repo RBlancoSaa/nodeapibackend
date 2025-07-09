@@ -116,9 +116,9 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
       })()),
 
 
-    gewicht: logResult('gewicht', multiExtract([/Weight[:\t ]+(\d+\s?kg)/i]) || '0'),
-    volume: logResult('volume', multiExtract([/Volume[:\t ]+(\d+(?:\.\d+)?\s?m3)/i]) || '0'),
-    colli: logResult('colli', multiExtract([/Colli[:\t ]+(\d+)/i]) || '0'),
+    volume: text.match(/(\d{2,3})\s*m³/i)?.[1] || '0',
+    gewicht: text.match(/(\d{4,6})\s*kg/i)?.[1] || '0',
+    colli: text.match(/\b(\d{2,5})\b.*?m³/i)?.[1] || '0',
     lading: logResult('lading', multiExtract([/Description of goods[:\t ]+(.+)/i]) || '0'),
     imo: logResult('imo', multiExtract([/IMO[:\t ]+(\d+)/i]) || '0'),
     unnr: logResult('unnr', multiExtract([/UN[:\t ]+(\d+)/i]) || '0'),
