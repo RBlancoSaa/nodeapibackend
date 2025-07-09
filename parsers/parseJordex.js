@@ -248,7 +248,7 @@ data.locaties = [
   {
     volgorde: '0',    
     actie: 'Opzetten',
-    naam: rawPu,
+    naam: puKey,
     adres: pickupInfo.adres    || '',
     postcode: pickupInfo.postcode || '',
     plaats: pickupInfo.plaats  || '',
@@ -273,7 +273,7 @@ data.locaties = [
   {
     volgorde: '0',
      actie: 'Afzetten',
-    naam: rawDo,
+    naam: puKey,
     adres: dropoffInfo.adres     || '',
     postcode: dropoffInfo.postcode  || '',
     plaats: dropoffInfo.plaats   || '',
