@@ -18,6 +18,8 @@ function clean(value) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 }
+// korte alias, zodat alle bestaande c(...) calls werken
+const c = clean;
 
 function fallback0(value) {
   const str = typeof value === 'string' ? value.trim() : '';
