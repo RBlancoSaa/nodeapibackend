@@ -16,7 +16,7 @@ async function inspectEasy(filePath) {
 (async () => {
   // Zet hier de bestandsnamen van je .easy-files
   const files = [
-  './tmp/Order_56384.easy'
+  './tmp/Order_OE2520866_3089KR.easy'
 ];
   for (const f of files) {
     await inspectEasy(f);

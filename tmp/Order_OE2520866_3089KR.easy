@@ -1,0 +1,117 @@
+
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<Order><Dossiers><Dossier>
+<Opdrachtgever>
+  <Opdrachtgever>JORDEX FORWARDING</Opdrachtgever>
+  <Opdrachtgever_Adres>AMBACHTSWEG 6</Opdrachtgever_Adres>
+  <Opdrachtgever_Postcode>3161GL</Opdrachtgever_Postcode>
+  <Opdrachtgever_Plaats>RHOON</Opdrachtgever_Plaats>
+  <Opdrachtgever_TelefoonNummer>010-1234567</Opdrachtgever_TelefoonNummer>
+  <Opdrachtgever_Email>TRANSPORT@JORDEX.COM</Opdrachtgever_Email>
+  <Opdrachtgever_BTW>NL815340011B01</Opdrachtgever_BTW>
+  <Opdrachtgever_KVK>39012345</Opdrachtgever_KVK>
+</Opdrachtgever>
+<Container>
+  <Ritnr>OE2520866</Ritnr>
+  <Laden_Lossen>Laden</Laden_Lossen>
+  <Type></Type>
+  <Datum>11-7-2025</Datum>
+  <TijdVan>10:00:00</TijdVan>
+  <TijdTM>10:00:00</TijdTM>
+  <Container></Container>
+  <ContainerType>45R1</ContainerType>
+  <Lading></Lading>
+  <ADR>Onwaar</ADR>
+  <Tarra>0</Tarra>
+  <GeladenGewicht>0</GeladenGewicht>
+  <Brutogewicht>0</Brutogewicht>
+  <Colli>0</Colli>
+  <Zegel></Zegel>
+  <Temp>-20°C</Temp>
+  <CBM>0</CBM>
+  <Brix>0</Brix>
+  <Referentie>356SL1984069</Referentie>
+  <Bootnaam>HMM HELSINKI</Bootnaam>
+  <Rederij>MSC - MSCU</Rederij>
+  <Documentatie></Documentatie>
+  <TAR></TAR>
+  <Laadrefentie>356SL1984069</Laadrefentie>
+  <Meldtijd></Meldtijd>
+  <Inleverrefentie></Inleverrefentie>
+  <InleverBootnaam>HMM HELSINKI</InleverBootnaam>
+  <InleverBestemming>23 Aug 2025 Nansha Pt, CN</InleverBestemming>
+  <InleverRederij>MSC - MSCU</InleverRederij>
+  <Inlever_TAR></Inlever_TAR>
+  <Closing_datum></Closing_datum>
+  <Closing_tijd></Closing_tijd>
+  <Instructies></Instructies>
+</Container>
+<Locaties>
+  <Locatie>
+    <Volgorde>0</Volgorde>
+    <Actie>Opzetten</Actie>
+    <Naam>Medrepair Waalhaven</Naam>
+    <Adres></Adres>
+    <Postcode></Postcode>
+    <Plaats></Plaats>
+    <Land>NL</Land>
+    <Voorgemeld>Onwaar</Voorgemeld>
+    <Aankomst_verw></Aankomst_verw>
+    <Tijslot_van></Tijslot_van>
+    <Tijslot_tm></Tijslot_tm>
+    <Portbase_code></Portbase_code>
+    <bicsCode></bicsCode>
+  </Locatie>
+  <Locatie>
+    <Volgorde>0</Volgorde>
+    <Actie>Laden</Actie>
+    <Naam>Address:Medrepair Waalhaven</Naam>
+    <Adres>terminal</Adres>
+    <Postcode>Waalhaven Westzijde 60</Postcode>
+    <Plaats>3089KR</Plaats>
+    <Land>NL</Land>
+  </Locatie>
+  <Locatie>
+    <Volgorde>0</Volgorde>
+    <Actie>Afzetten</Actie>
+    <Naam>Rotterdam World Gateway</Naam>
+    <Adres></Adres>
+    <Postcode></Postcode>
+    <Plaats></Plaats>
+    <Land>NL</Land>
+    <Voorgemeld>Onwaar</Voorgemeld>
+    <Aankomst_verw></Aankomst_verw>
+    <Tijslot_van></Tijslot_van>
+    <Tijslot_tm></Tijslot_tm>
+    <Portbase_code></Portbase_code>
+    <bicsCode></bicsCode>
+  </Locatie>
+</Locaties>
+<Financieel>
+  <Tarief>0</Tarief>
+  <BTW>0</BTW>
+  <ADR_toeslag_Chart>0</ADR_toeslag_Chart>
+  <ADR_bedrag_Chart>0</ADR_bedrag_Chart>
+  <Botlek_Chart>0</Botlek_Chart>
+  <Chassishuur_Bedrag_chart>0</Chassishuur_Bedrag_chart>
+  <Delta_Chart>0</Delta_Chart>
+  <Diesel_toeslag_Chart>0</Diesel_toeslag_Chart>
+  <Euromax_Chart>0</Euromax_Chart>
+  <ExtraStop_Chart>0</ExtraStop_Chart>
+  <GasMeten_Chart>0</GasMeten_Chart>
+  <Gen_Chart>0</Gen_Chart>
+  <Handrail_Bedrag_chart>0</Handrail_Bedrag_chart>
+  <Keuren_Chart>0</Keuren_Chart>
+  <Kilometers_Chart>0</Kilometers_Chart>
+  <LOever_Chart>0</LOever_Chart>
+  <Loods_Chart>0</Loods_Chart>
+  <Maut_Chart>0</Maut_Chart>
+  <MV2_Chart>0</MV2_Chart>
+  <Scannen_Chart>0</Scannen_Chart>
+  <Tol_Chart>0</Tol_Chart>
+  <Blanco1_Chart>0</Blanco1_Chart>
+  <Blanco1_Text></Blanco1_Text>
+  <Blanco2_Chart>0</Blanco2_Chart>
+  <Blanco2_Text></Blanco2_Text>
+</Financieel>
+</Dossier></Dossiers></Order>
