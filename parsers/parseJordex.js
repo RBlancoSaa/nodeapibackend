@@ -104,7 +104,6 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const laadreferentie = refLine.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i)?.[1]?.trim() || '';
 
     const fromMatch = text.match(/From:\s*(.*)/);
-    const klantPlaatsFrom = fromMatch ? fromMatch[1].split(',')[0].trim() : '';
  
         console.log('📅 Extractie uit pickupRegels:', pickupRegels);
         console.log('📅 dateLine:', dateLine);
