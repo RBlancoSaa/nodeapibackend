@@ -116,7 +116,12 @@ export async function generateXmlFromJson(data) {
     fetchList('rederijen'),
     fetchList('containers')
   ]);
-
+  // 🧊 Temperatuur strippen
+  const cleanTemperature = (val) => {
+  if (!val || typeof val !== 'string') return zeroFallback(val);
+  const match = val.match(/-?\d+(\.\d+)?/); // haalt bijv. "-18°C" ➜ "-18"
+  return match ? match[0] : '0';
+  };
   const locaties = data.locaties || [];
   while (locaties.length < 3) locaties.push({
     actie: '', naam: '', adres: '', postcode: '', plaats: '', land: '',
