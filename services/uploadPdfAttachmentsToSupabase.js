@@ -158,12 +158,5 @@ try {
     });
   }
 
-    } catch (err) {
-      const msg = `💥 Upload crash: ${err.message || err}`;
-      console.error(msg);
-      await notifyError(att, msg);
-    }
-  }
-
   return uploadedFiles;
 }
