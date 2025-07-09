@@ -122,6 +122,7 @@ export async function generateXmlFromJson(data) {
   const match = val.match(/-?\d+(\.\d+)?/); // haalt bijv. "-18°C" ➜ "-18"
   return match ? match[0] : '0';
   };
+
   const locaties = data.locaties || [];
   while (locaties.length < 3) locaties.push({
     actie: '', naam: '', adres: '', postcode: '', plaats: '', land: '',
@@ -178,7 +179,7 @@ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Brutogewicht>${zeroFallback(data.brutogewicht)}</Brutogewicht>
 <Colli>${zeroFallback(data.colli)}</Colli
 <Zegel>${c(data.zegel)}</Zegel>
-<Temp>${zeroFallback(data.temperatuur)}</Temp>
+<Temp>${cleanTemperature(data.temperatuur)}</Temp>
 <CBM>${zeroFallback(data.cbm)}</CBM>
 <Brix>${zeroFallback(data.brix)}</Brix>
 <Referentie>${c(data.referentie)}</Referentie>
