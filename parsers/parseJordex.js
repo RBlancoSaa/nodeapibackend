@@ -133,7 +133,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     opdrachtgeverTelefoon: '010-1234567',
     opdrachtgeverEmail: 'TRANSPORT@JORDEX.COM',
     opdrachtgeverBTW: 'NL815340011B01',
-    opdrachtgeverKVK: '39012345',
+    opdrachtgeverKVK: '24390991',
 
     terminal: '0',
     rederijCode: '0',
