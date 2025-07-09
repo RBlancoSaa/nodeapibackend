@@ -160,10 +160,10 @@ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
  <Container>
         <Ritnr>${c(data.ritnummer)}</Ritnr>
         <Laden_Lossen>${c(data.ladenOfLossen)}</Laden_Lossen>
-        <Type>${c(data.type)}</Type>
+        <Type></Type>
         <Datum>${c(data.datum)}</Datum>
         <TijdVan>${c(data.tijd)}</TijdVan>
-        <TijdTM>${c(data.tijd)}</TijdTM>
+        <TijdTM></TijdTM>
         <Container>${c(data.containernummer)}</Container>
         <ContainerType>${c(data.containertype)}</ContainerType>
         <Lading>${c(data.lading)}</Lading>
@@ -182,34 +182,34 @@ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
         <Documentatie>${c(data.documentatie)}</Documentatie>
         <TAR>${c(data.tar)}</TAR>
         <Laadrefentie>${c(data.laadreferentie)}</Laadrefentie>
-        <Meldtijd>${c(data.meldtijd)}</Meldtijd>
+        <Meldtijd></Meldtijd>
         <Inleverrefentie>${c(data.inleverreferentie)}</Inleverrefentie>
         <InleverBootnaam>${c(data.inleverBootnaam)}</InleverBootnaam>
         <InleverBestemming>${c(data.inleverBestemming)}</InleverBestemming>
         <InleverRederij>${c(data.inleverRederij)}</InleverRederij>
-        <Inlever_TAR>${c(data.inlever_TAR)}</Inlever_TAR>
-        <Closing_datum>${c(data.closing_datum)}</Closing_datum>
-        <Closing_tijd>${c(data.closing_tijd)}</Closing_tijd>
+        <Inlever_TAR></Inlever_TAR>
+        <Closing_datum></Closing_datum>
+        <Closing_tijd></Closing_tijd>
         <Instructies>${c(data.instructies)}</Instructies>
       </Container>
 <Locaties>
   <Locatie>
-    <Volgorde>${data.locaties[0].volgorde}</Volgorde>
-    <Actie>${c(data.locaties[0].actie)}</Actie>
+    <Volgorde>0</Volgorde>
+    <Actie>Opzetten</Actie>
     <Naam>${c(data.locaties[0].naam)}</Naam>
     <Adres>${c(data.locaties[0].adres)}</Adres>
     <Postcode>${c(data.locaties[0].postcode)}</Postcode>
     <Plaats>${c(data.locaties[0].plaats)}</Plaats>
     <Land>${c(data.locaties[0].land)}</Land>
-    <Voorgemeld>${c(data.locaties[0].voorgemeld)}</Voorgemeld>
-    <Aankomst_verw>${c(data.locaties[0].aankomst_verw)}</Aankomst_verw>
-    <Tijslot_van>${c(data.locaties[0].tijslot_van)}</Tijslot_van>
-    <Tijslot_tm>${c(data.locaties[0].tijslot_tm)}</Tijslot_tm>
+    <Voorgemeld>Onwaar</Voorgemeld>
+    <Aankomst_verw></Aankomst_verw>
+    <Tijslot_van></Tijslot_van>
+    <Tijslot_tm></Tijslot_tm>
     <Portbase_code>${c(data.locaties[0].portbase_code)}</Portbase_code>
     <bicsCode>${c(data.locaties[0].bicsCode)}</bicsCode>
   </Locatie>
     <Locatie>
-    <Volgorde>${data.locaties[0].volgorde}</Volgorde>
+    <Volgorde>0</Volgorde>
     <Actie>${c(data.locaties[1].actie)}</Actie>
     <Naam>${c(data.locaties[1].naam)}</Naam>
     <Adres>${c(data.locaties[1].adres)}</Adres>
@@ -218,17 +218,17 @@ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
     <Land>${c(data.locaties[1].land)}</Land>
   </Locatie>
     <Locatie>
-     <Volgorde>${data.locaties[0].volgorde}</Volgorde>
-    <Actie>${c(data.locaties[2].actie)}</Actie>
+     <Volgorde>0</Volgorde>
+    <Actie>Afzetten</Actie>
     <Naam>${c(data.locaties[2].naam)}</Naam>
     <Adres>${c(data.locaties[2].adres)}</Adres>
     <Postcode>${c(data.locaties[2].postcode)}</Postcode>
     <Plaats>${c(data.locaties[2].plaats)}</Plaats>
     <Land>${c(data.locaties[2].land)}</Land>
-    <Voorgemeld>${c(data.locaties[2].voorgemeld)}</Voorgemeld>
-    <Aankomst_verw>${c(data.locaties[2].aankomst_verw)}</Aankomst_verw>
-    <Tijslot_van>${c(data.locaties[2].tijslot_van)}</Tijslot_van>
-    <Tijslot_tm>${c(data.locaties[2].tijslot_tm)}</Tijslot_tm>
+    <Voorgemeld>Onwaar</Voorgemeld>
+    <Aankomst_verw></Aankomst_verw>
+    <Tijslot_van></Tijslot_van>
+    <Tijslot_tm></Tijslot_tm>
     <Portbase_code>${c(data.locaties[2].portbase_code)}</Portbase_code>
     <bicsCode>${c(data.locaties[2].bicsCode)}</bicsCode>
   </Locatie>
