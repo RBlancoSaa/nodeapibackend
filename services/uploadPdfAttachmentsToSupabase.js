@@ -100,33 +100,15 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
       await notifyError(att, msg);
       continue;
     }
-   
-    
-    // Stap 3: upload naar Supabase met referentie-naam
-let fileName = `${referentie}.pdf`;
+   let fileName = `${referentie}.pdf`;
+
 try {
   console.log(`📤 Upload naar Supabase: ${fileName}`);
-  const { error } = await supabase.storage
-    .from(process.env.SUPABASE_BUCKET)
-    .upload(fileName, contentBuffer, {
-      contentType: att.contentType || 'application/pdf',
-      cacheControl: '3600',
-      upsert: true
-    });
-  if (error) throw error;
-  console.log(`✅ Upload gelukt: ${fileName}`);
-
-  // Stap 5: voeg URL terug (binnen dezelfde try)
-  uploadedFiles.push({
-    filename: fileName,
-    url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${fileName}`
-  });
 } catch (err) {
   const msg = `❌ Uploadfout: ${err.message}`;
-  console.error(msg);
-  await notifyError(att, msg);
   continue;
 }
+   
 try {
   const json = await parsePdfToJson(contentBuffer);
   if (!json || Object.keys(json).length === 0) throw new Error('Parser gaf geen bruikbare data terug');
@@ -154,12 +136,6 @@ try {
   await notifyError(att, msg);
 }
 
- // Stap 5: voeg URL terug
-uploadedFiles.push({
-  filename: fileName,
-  url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${fileName}`
-});
-  }
-
   return uploadedFiles;
+}
 }
