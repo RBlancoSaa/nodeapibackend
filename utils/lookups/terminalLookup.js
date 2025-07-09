@@ -35,6 +35,32 @@ return gevonden?.terminal || '0';
   }
 }
 
+export async function getTerminalInfoFallback(inputNaam) {
+  try {
+    if (!inputNaam || typeof inputNaam !== 'string') return '0';
+
+    const url = `${SUPABASE_LIST_URL}/op_afzetten.json`;
+    const res = await fetch(url);
+    const lijst = await res.json();
+
+    const normInput = inputNaam.toLowerCase().replace(/\s+/g, '').trim();
+
+    // Zoek op alternatieve namen of adresvelden die bestaan
+    const gevonden = lijst.find(item =>
+      [item.terminal, item.referentie, item.adres, ...(item.altNamen || [])]
+        .filter(Boolean)
+        .some(val =>
+          val.toLowerCase().replace(/\s+/g, '').trim().includes(normInput)
+        )
+    );
+
+    return gevonden?.terminal || '0';
+  } catch (e) {
+    console.error('❌ getTerminalInfoFallback error:', e);
+    return '0';
+  }
+}
+
 export async function getRederijNaam(rederij) {
   try {
     if (!rederij || typeof rederij !== 'string') return '0';

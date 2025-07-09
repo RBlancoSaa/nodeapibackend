@@ -206,9 +206,20 @@ const data = {
   const puKey = pickupTerminalMatch?.[1]?.trim() || '';
   const doKey = dropoffTerminalMatch?.[1]?.trim() || '';
 
-// Éénmalige lookup in Supabase via getTerminalInfo
-const pickupInfo  = await getTerminalInfo(puKey)  || {};
-const dropoffInfo = await getTerminalInfo(doKey) || {};
+// 🧠 Terminal lookup mét fallback op volledigheid
+let pickupInfo = await getTerminalInfo(puKey) || {};
+let dropoffInfo = await getTerminalInfo(doKey) || {};
+
+// Fallback op alternatieve terminal bij ontbrekende portbase_code
+if (!pickupInfo.portbase_code || pickupInfo === '0') {
+  const alt = await getTerminalInfoFallback(puKey);
+  if (alt !== '0') pickupInfo = alt;
+}
+
+if (!dropoffInfo.portbase_code || dropoffInfo === '0') {
+  const alt = await getTerminalInfoFallback(doKey);
+  if (alt !== '0') dropoffInfo = alt;
+}
 
 // Klantgegevens uit de Pick-up sectie: vier regels erna
 const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
