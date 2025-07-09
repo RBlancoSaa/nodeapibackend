@@ -5,6 +5,7 @@ import {
   getTerminalInfo,
   getRederijNaam,
   getContainerTypeCode,
+  getTerminalInfoFallback
 } from '../utils/lookups/terminalLookup.js';
 
 
