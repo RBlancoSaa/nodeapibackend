@@ -45,7 +45,7 @@ ${reason}`;
 
 export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
   const uploadedFiles = [];
-
+  const verwerkteBestanden = new Set();
   const sanitizedAttachments = attachments.map(att => ({
     ...att,
     originalFilename: att.filename,
@@ -147,6 +147,11 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
+          if (verwerkteBestanden.has(att.filename)) {
+          console.log(`⏭️ Bestand ${att.filename} is al verwerkt, wordt overgeslagen`);
+          continue;
+          }
+          verwerkteBestanden.add(att.filename);
         }
 
       } catch (err) {
