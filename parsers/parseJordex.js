@@ -39,6 +39,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     return {};
   }
 
+  
   // 📖 PDF uitlezen en opsplitsen
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
@@ -61,8 +62,8 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     return '';
   };
   // ✅ 100% correcte extractie uit alleen het "Pick-up" blok (klant)
-    const pickupKlantMatch = text.match(/Pick-up[\s\S]+?Reference(?:\(s\))?:\s*\d+/gi);
-    const pickupBlok = pickupKlantMatch?.[1] || '';
+    const pickupBlokMatch = text.match(/Pick-up\s*\n([\s\S]+?)(?=\n(?:Drop-off terminal|Pick-up terminal|Extra Information|$))/i);
+    const pickupBlok = pickupBlokMatch?.[1] || '';
     const pickupRegels = pickupBlok.split('\n').map(r => r.trim()).filter(Boolean);
 
   // 👤 Klantgegevens
