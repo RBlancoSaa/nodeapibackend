@@ -85,22 +85,22 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
       continue;
     }
 
-    const isPdf = att.contentType?.includes('pdf') || att.filename.toLowerCase().endsWith('.pdf');
+     const isPdf = att.contentType?.includes('pdf') || att.filename.toLowerCase().endsWith('.pdf');
     const fileName = att.ritnummer && att.ritnummer !== '0' && isPdf
       ? `${att.ritnummer}.pdf`
       : att.filename;
 
     try {
       console.log(`📤 Upload naar Supabase: ${fileName}`);
-     const juisteBucket = att.filename.endsWith('.easy') ? 'easyfiles' : 'inboxpdf';
+      const juisteBucket = att.filename.endsWith('.easy') ? 'easyfiles' : 'inboxpdf';
 
-    const { error } = await supabase
-    .storage
-    .from(juisteBucket)
-    .upload(fileName, contentBuffer, {
-      contentType: att.contentType || 'application/octet-stream',
-      upsert: true
-      });
+      const { error } = await supabase
+        .storage
+        .from(juisteBucket)
+        .upload(fileName, contentBuffer, {
+          contentType: att.contentType || 'application/octet-stream',
+          upsert: true
+        });
 
       if (error) {
         const msg = `❌ Supabase upload error: ${error.message}`;
@@ -111,7 +111,7 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
 
       uploadedFiles.push({
         filename: fileName,
-        url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${fileName}`
+        url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${juisteBucket}/${fileName}`
       });
 
     } catch (err) {
@@ -121,6 +121,7 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
       continue;
     }
 
+    // Alleen voor PDF-bestanden → parse + reprocess
     if (isPdf) {
       try {
         const json = await parsePdfToJson(contentBuffer);
@@ -130,21 +131,23 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
         const xmlBase64 = Buffer.from(xml).toString('base64');
 
         const payload = {
-            ...json,
-            reference: json.referentie || json.reference || 'Onbekend',
-            ritnummer: json.ritnummer || '0',
-            laadplaats: json.laadplaats || json.klantplaats || '0',
-            xmlBase64,
-            pdfBestandsnaam: att.filename  // ✅ originele PDF-bestandsnaam meesturen
-};
-    // Alleen fetch als het expliciet nodig is
-  if (!att.skipReprocessing) {
-    await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  }
+          ...json,
+          reference: json.referentie || json.reference || 'Onbekend',
+          ritnummer: json.ritnummer || '0',
+          laadplaats: json.laadplaats || json.klantplaats || '0',
+          xmlBase64,
+          pdfBestandsnaam: att.filename
+        };
+
+        // ✅ Alleen 1 fetch — geen dubbele trigger!
+        if (!att.skipReprocessing) {
+          console.log('📡 Versturen naar generate-easy-files:', payload.reference);
+          await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        }
 
       } catch (err) {
         const msg = `⚠️ Easy-bestand fout: ${err.message}`;
