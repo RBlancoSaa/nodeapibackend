@@ -12,13 +12,21 @@ import parseRitra from '../parsers/parseRitra.js';
 
 function cleanTekst(input) {
   if (typeof input !== 'string') return input;
-  return input
-    .replace(/’/g, "'")
-    .replace(/‘/g, "'")
-    .replace(/´/g, "'")
-    .replace(/“|”/g, '"')       // mooie quotes → ascii
-    .replace(/'/g, "''");        // apostrof verdubbelen voor Access SQL
+
+  let result = input
+    .replace(/’|‘|´/g, "'")        // mooie apostrof → ASCII '
+    .replace(/“|”/g, '"');         // mooie quotes → ASCII "
+
+  // 🔧 Verwijder apostrof aan het begin van de regel
+  result = result.replace(/^'/, '');
+
+  // 🔁 Zet alle overgebleven apostroffen om naar dubbele SQL-apostrof
+  result = result.replace(/'/g, "''");
+
+  return result;
 }
+
+
 
 export default async function parsePdfToJson(buffer) {
   if (!Buffer.isBuffer(buffer)) {
