@@ -1,10 +1,9 @@
-// services/uploadPdfAttachmentsToSupabase.js
+// 📁 services/uploadPdfAttachmentsToSupabase.js
 import '../utils/fsPatch.js';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
-import parsePdfToJson from './parsePdfToJson.js'; 
-import { generateXmlFromJson } from './generateXmlFromJson.js'; // let op: met accolades!
-
+import parsePdfToJson from './parsePdfToJson.js';
+import { generateXmlFromJson } from './generateXmlFromJson.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -44,19 +43,9 @@ ${reason}`;
   });
 }
 
-/**
- * Uploadt PDF-attachments naar Supabase onder de naam <referentie>.pdf,
- * en stuurt daarna Json→XML→.easy–generator aan.
- *
- * @param {Array<{ filename: string, content: Buffer|Uint8Array|ArrayBuffer, contentType?: string, emailMeta?: object }>} attachments
- * @param {string} referentie
- * @returns {Promise<Array<{ filename: string, url: string }>>}
- */
-
 export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
   const uploadedFiles = [];
 
-  // Stap 1: sanitize bestandsnamen
   const sanitizedAttachments = attachments.map(att => ({
     ...att,
     originalFilename: att.filename,
@@ -70,11 +59,6 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
 
   for (const att of sanitizedAttachments) {
     console.log(`\n📥 Verwerken gestart voor: ${att.originalFilename}`);
-
-    if (!att.filename.toLowerCase().endsWith('.pdf')) {
-      console.log(`⏭️ Niet geüpload (geen PDF): ${att.filename}`);
-      continue;
-    }
 
     let contentBuffer;
     try {
@@ -101,67 +85,69 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
       continue;
     }
 
-   let fileName = att.ritnummer && att.ritnummer !== '0'
-  ? `${att.ritnummer}.pdf`
-  : att.originalFilename || att.filename || 'backup.pdf';
+    const isPdf = att.contentType?.includes('pdf') || att.filename.toLowerCase().endsWith('.pdf');
+    const fileName = att.ritnummer && att.ritnummer !== '0' && isPdf
+      ? `${att.ritnummer}.pdf`
+      : att.filename;
 
-try {
-  console.log(`📤 Upload naar Supabase: ${fileName}`);
-  const { data, error } = await supabase
-    .storage
-    .from(process.env.SUPABASE_BUCKET)
-    .upload(fileName, contentBuffer, {
-      contentType: att.contentType || 'application/pdf',
-      upsert: true
-    });
+    try {
+      console.log(`📤 Upload naar Supabase: ${fileName}`);
+      const { error } = await supabase
+        .storage
+        .from(process.env.SUPABASE_BUCKET)
+        .upload(fileName, contentBuffer, {
+          contentType: att.contentType || 'application/octet-stream',
+          upsert: true
+        });
 
-  if (error) {
-    const msg = `❌ Supabase upload error: ${error.message}`;
-    console.error(msg);
-    await notifyError(att, msg);
-    continue;
+      if (error) {
+        const msg = `❌ Supabase upload error: ${error.message}`;
+        console.error(msg);
+        await notifyError(att, msg);
+        continue;
+      }
+
+      uploadedFiles.push({
+        filename: fileName,
+        url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${fileName}`
+      });
+
+    } catch (err) {
+      const msg = `❌ Uploadfout: ${err.message}`;
+      console.error(msg);
+      await notifyError(att, msg);
+      continue;
+    }
+
+    if (isPdf) {
+      try {
+        const json = await parsePdfToJson(contentBuffer);
+        if (!json || Object.keys(json).length === 0) throw new Error('Parser gaf geen bruikbare data terug');
+
+        const xml = await generateXmlFromJson(json);
+        const xmlBase64 = Buffer.from(xml).toString('base64');
+
+        const payload = {
+          ...json,
+          reference: json.referentie || json.reference || 'Onbekend',
+          laadplaats: json.laadplaats || json.klantplaats || '0',
+          xmlBase64
+        };
+
+        console.log('📡 Versturen naar generate-easy-files:', payload.reference);
+        await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+      } catch (err) {
+        const msg = `⚠️ Easy-bestand fout: ${err.message}`;
+        console.error(msg);
+        await notifyError(att, msg);
+      }
+    }
   }
 
-  uploadedFiles.push({
-    filename: fileName,
-    url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${fileName}`
-  });
-
-} catch (err) {
-  const msg = `❌ Uploadfout: ${err.message}`;
-  console.error(msg);
-  await notifyError(att, msg);
-  continue;
-}
-
-   
-try {
-  const json = await parsePdfToJson(contentBuffer);
-  if (!json || Object.keys(json).length === 0) throw new Error('Parser gaf geen bruikbare data terug');
-
-  const xml = await generateXmlFromJson(json);
-  const xmlBase64 = Buffer.from(xml).toString('base64');
-
-  const payload = {
-    ...json,
-    reference: json.referentie || json.reference || 'Onbekend',
-    laadplaats: json.laadplaats || json.klantplaats || '0',
-    xmlBase64
-  };
-
-  console.log('📡 Versturen naar generate-easy-files:', payload.reference);
-  await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-} catch (err) {
-  const msg = `⚠️ Easy-bestand fout: ${err.message}`;
-  console.error(msg);
-  await notifyError(att, msg);
-}
-
   return uploadedFiles;
-}
 }
