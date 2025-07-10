@@ -9,24 +9,21 @@ import parseEasyfresh from '../parsers/parseEasyfresh.js';
 import parseKWE from '../parsers/parseKWE.js';
 import parseRitra from '../parsers/parseRitra.js';
 
-
 function cleanTekst(input) {
   if (typeof input !== 'string') return input;
 
   let result = input
-    .replace(/’|‘|´/g, "'")        // mooie apostrof → ASCII '
-    .replace(/“|”/g, '"');         // mooie quotes → ASCII "
+    .replace(/’|‘|´/g, "'")        // typografische apostrof → ASCII apostrof
+    .replace(/“|”/g, '"');         // typografische quote → ASCII quote
 
-  // 🔧 Verwijder apostrof aan het begin van de regel
+  // ✅ 1. Verwijder apostrof aan het begin van de string
   result = result.replace(/^'/, '');
 
-  // 🔁 Zet alle overgebleven apostroffen om naar dubbele SQL-apostrof
+  // ✅ 2. Zet overgebleven enkele apostroffen om naar dubbele voor Access SQL
   result = result.replace(/'/g, "''");
 
   return result;
 }
-
-
 
 export default async function parsePdfToJson(buffer) {
   if (!Buffer.isBuffer(buffer)) {
