@@ -130,11 +130,13 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
         const xmlBase64 = Buffer.from(xml).toString('base64');
 
         const payload = {
-          ...json,
-          reference: json.referentie || json.reference || 'Onbekend',
-          laadplaats: json.laadplaats || json.klantplaats || '0',
-          xmlBase64
-        };
+            ...json,
+            reference: json.referentie || json.reference || 'Onbekend',
+            ritnummer: json.ritnummer || '0',
+            laadplaats: json.laadplaats || json.klantplaats || '0',
+            xmlBase64,
+            pdfBestandsnaam: att.filename  // ✅ originele PDF-bestandsnaam meesturen
+};
 
         console.log('📡 Versturen naar generate-easy-files:', payload.reference);
         await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {

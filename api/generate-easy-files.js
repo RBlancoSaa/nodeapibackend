@@ -38,14 +38,14 @@ export default async function handler(req, res) {
     const localPath = path.join('/tmp', bestandsnaam);
     fs.writeFileSync(localPath, xml, 'utf8');
 
+    const originelePdfNaam = data.pdfBestandsnaam || 'backup.pdf';
     // 📥 PDF ophalen uit Supabase
-    const originelePdfNaam = `${data.ritnummer || 'backup'}.pdf`;
-    let originelePdfBuffer = null;
-
     const { data: downloadData, error: downloadError } = await supabase
-      .storage
-      .from(process.env.SUPABASE_BUCKET)
-      .download(originelePdfNaam);
+     .storage
+     .from('inboxpdf') // ✅ correcte bucket
+     .download(originelePdfNaam);
+
+    let originelePdfBuffer = null;
 
     if (downloadError) {
       console.warn(`⚠️ PDF niet gevonden in Supabase: ${downloadError.message}`);
@@ -98,7 +98,13 @@ if (originelePdfBuffer) {
 
 await sendEmailWithAttachments({
   ritnummer: data.ritnummer,
-  attachments: emailAttachments
+  attachments: [
+    { filename: bestandsnaam, path: localPath },  // .easy-bestand
+    ...(originelePdfBuffer ? [{
+      filename: originelePdfNaam,                // originele pdf naam
+      content: originelePdfBuffer                // pdf inhoud
+    }] : [])
+  ]
 });
 
     return res.status(200).json({
