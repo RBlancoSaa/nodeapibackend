@@ -94,12 +94,41 @@ export default async function handler(req, res) {
   ]
 });
 
-    return res.status(200).json({
-      success: true,
-      filename: bestandsnaam,
-      uploadedCount: uploads.length,
-      filenames: uploads.map(u => u.filename)
-    });
+    // ⬇️ voeg deze regel toe
+const uploads = await uploadPdfAttachmentsToSupabase([
+  {
+    filename: bestandsnaam,
+    content: fs.readFileSync(localPath),
+    contentType: 'application/xml',
+    ritnummer: data.ritnummer,
+    emailMeta: {
+      from: 'Easytrip Automator',
+      subject: `XML voor ${bestandsnaam}`,
+      received: new Date().toISOString(),
+      attachments: [bestandsnaam]
+    }
+  },
+  ...(originelePdfBuffer ? [{
+    filename: originelePdfNaam,
+    content: originelePdfBuffer,
+    contentType: 'application/pdf',
+    ritnummer: data.ritnummer,
+    emailMeta: {
+      from: 'Easytrip Automator',
+      subject: `Originele opdracht PDF voor ${data.ritnummer}`,
+      received: new Date().toISOString(),
+      attachments: [originelePdfNaam]
+    }
+  }] : [])
+], data.ritnummer); // ⬅️ einde van uploadPdfAttachmentsToSupabase()
+
+// Nu is uploads beschikbaar in dit return-statement:
+return res.status(200).json({
+  success: true,
+  filename: bestandsnaam,
+  uploadedCount: uploads.length,
+  filenames: uploads.map(u => u.filename)
+});
 
   } catch (error) {
     console.error('💥 Fout bij genereren .easy-bestand:', error);
