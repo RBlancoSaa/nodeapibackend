@@ -104,10 +104,33 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
 
 try {
   console.log(`📤 Upload naar Supabase: ${fileName}`);
+  const { data, error } = await supabase
+    .storage
+    .from(process.env.SUPABASE_BUCKET)
+    .upload(fileName, contentBuffer, {
+      contentType: att.contentType || 'application/pdf',
+      upsert: true
+    });
+
+  if (error) {
+    const msg = `❌ Supabase upload error: ${error.message}`;
+    console.error(msg);
+    await notifyError(att, msg);
+    continue;
+  }
+
+  uploadedFiles.push({
+    filename: fileName,
+    url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${process.env.SUPABASE_BUCKET}/${fileName}`
+  });
+
 } catch (err) {
   const msg = `❌ Uploadfout: ${err.message}`;
+  console.error(msg);
+  await notifyError(att, msg);
   continue;
 }
+
    
 try {
   const json = await parsePdfToJson(contentBuffer);

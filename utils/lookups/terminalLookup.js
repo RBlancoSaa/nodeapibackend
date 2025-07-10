@@ -98,19 +98,48 @@ export async function getTerminalInfoMetFallback(key) {
   }
 }
 
-export async function getRederijNaam(rederij) {
+export async function getRederijNaam(input) {
   try {
-    if (!rederij || typeof rederij !== 'string') return '0';
+    if (!input || typeof input !== 'string') return '0';
+
+    const norm = input.toLowerCase().trim();
     const url = `${SUPABASE_LIST_URL}/rederijen.json`;
     const res = await fetch(url);
     const lijst = await res.json();
-    const norm = rederij.toLowerCase().replace(/\s+/g, '').trim();
-    const gevonden = lijst.find(i =>
-      i.naam?.toLowerCase().replace(/\s+/g, '').trim() === norm
-);
-   return gevonden?.code || '0';
-  } catch (e) {
-    console.error('❌ getRederijNaam error:', e);
+
+    let besteMatch = null;
+
+    for (const item of lijst) {
+      const opties = [
+        item.naam,
+        item.code,
+        ...(item.altLabels || [])
+      ];
+
+      for (const optie of opties) {
+        if (!optie) continue;
+
+        const optieNorm = optie.toLowerCase().trim();
+
+        // exacte match
+        if (optieNorm === norm) return item.code;
+
+        // substring match
+        if (!besteMatch && norm.includes(optieNorm)) {
+          besteMatch = item.code;
+        }
+      }
+    }
+
+    if (besteMatch) {
+      console.warn(`⚠️ Enkel fuzzy match voor rederij "${input}" ➜ code "${besteMatch}"`);
+      return besteMatch;
+    }
+
+    console.warn(`❌ Geen rederijcode gevonden voor "${input}"`);
+    return '0';
+  } catch (err) {
+    console.error('❌ Fout in getRederijNaam:', err);
     return '0';
   }
 }

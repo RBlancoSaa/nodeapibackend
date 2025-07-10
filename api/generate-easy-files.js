@@ -34,7 +34,7 @@ export default async function handler(req, res) {
     
 
     const xml = await generateXmlFromJson(data);
-   const bestandsnaam = `Order_${data.reference || 'GEEN_REF'}.easy`;
+    const bestandsnaam = `Order_${data.reference || 'GEEN_REF'}.easy`;
     const localPath = path.join('/tmp', bestandsnaam);
     fs.writeFileSync(localPath, xml, 'utf8');
 
@@ -42,6 +42,7 @@ export default async function handler(req, res) {
     // PDF ophalen uit Supabase
     const originelePdfNaam = data.pdfBestandsnaam || `origineel_${data.reference}.pdf`;
     let originelePdfBuffer = null;
+
     const { data: downloadData, error: downloadError } = await supabase
       .storage
       .from(process.env.SUPABASE_BUCKET)
@@ -54,11 +55,12 @@ export default async function handler(req, res) {
       console.log(`✅ PDF gedownload uit Supabase: ${originelePdfNaam}`);
     }
 
-    // Upload XML + PDF naar Supabase
-    await uploadPdfAttachmentsToSupabase([
+    
+     // ✅ Upload XML + PDF naar Supabase
+    const uploads = await uploadPdfAttachmentsToSupabase([
       {
         filename: bestandsnaam,
-        content: fs.readFileSync(localPath), // ✅ XML
+        content: fs.readFileSync(localPath),
         contentType: 'application/xml',
         emailMeta: {
           from: 'Easytrip Automator',
@@ -80,8 +82,7 @@ export default async function handler(req, res) {
       }] : [])
     ]);
 
-    // Verstuur e-mail met beide bijlagen
-    await sendEmailWithAttachments({
+     await sendEmailWithAttachments({
       reference: data.reference,
       attachments: [
         { filename: bestandsnaam, path: localPath },
@@ -89,7 +90,13 @@ export default async function handler(req, res) {
       ]
     });
 
-    return res.status(200).json({ success: true, filename: bestandsnaam });
+    return res.status(200).json({
+      success: true,
+      filename: bestandsnaam,
+      uploadedCount: uploads.length,
+      filenames: uploads.map(u => u.filename)
+    });
+
   } catch (error) {
     console.error('💥 Fout bij genereren .easy-bestand:', error);
     return res.status(500).json({ success: false, message: error.message || 'Onbekende fout' });
