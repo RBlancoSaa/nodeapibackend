@@ -13,13 +13,13 @@ function cleanTekst(input) {
   if (typeof input !== 'string') return input;
 
   let result = input
-    .replace(/’|‘|´/g, "'")        // typografische apostrof → ASCII apostrof
-    .replace(/“|”/g, '"');         // typografische quote → ASCII quote
+    .replace(/’|‘|´/g, "'")        // slimme apostroffen → standaard
+    .replace(/“|”/g, '"');         // slimme quotes → ASCII quote
 
-  // ✅ 1. Verwijder apostrof aan het begin van de string
-  result = result.replace(/^'/, '');
+  // ✅ Strip apostrof aan begin van adres (alleen als het adres met 't begint)
+  result = result.replace(/^'t\s/i, "t ");
 
-  // ✅ 2. Zet overgebleven enkele apostroffen om naar dubbele voor Access SQL
+  // ✅ Verdubbel andere apostroffen voor Access-compatibiliteit
   result = result.replace(/'/g, "''");
 
   return result;
