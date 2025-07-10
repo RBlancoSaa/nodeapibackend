@@ -100,7 +100,10 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
       await notifyError(att, msg);
       continue;
     }
-   let fileName = `${referentie}.pdf`;
+
+   let fileName = att.ritnummer && att.ritnummer !== '0'
+  ? `${att.ritnummer}.pdf`
+  : att.originalFilename || att.filename || 'backup.pdf';
 
 try {
   console.log(`📤 Upload naar Supabase: ${fileName}`);
