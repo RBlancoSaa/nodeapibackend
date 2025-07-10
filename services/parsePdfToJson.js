@@ -1,3 +1,5 @@
+  // parsePdftoJson
+
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 
@@ -18,9 +20,6 @@ function cleanTekst(input) {
 
   // ✅ Strip apostrof aan begin van adres (alleen als het adres met 't begint)
   result = result.replace(/^'t\s/i, "t ");
-
-  // ✅ Verdubbel andere apostroffen voor Access-compatibiliteit
-  result = result.replace(/'/g, "''");
 
   return result;
 }
