@@ -68,8 +68,8 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const klantNaam = pickupRegels.find(r => r.startsWith('Address:'))?.replace('Address:', '').trim() || '';
     const adresIndex = pickupRegels.findIndex(r => r.includes(klantNaam)) + 1;
     const adres = pickupRegels[adresIndex] || '';
-    const postcode = pickupRegels[adresIndex + 1]?.split(' ')[0] || '';
-    const plaats = pickupRegels[adresIndex + 1]?.split(' ').slice(1).join(' ') || '';
+    const postcode = pickupRegels[adresIndex + 1] || '';
+    const plaats = pickupRegels[adresIndex + 2] || '';
 
   // 📦 Containerinformatie
     const cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
