@@ -46,6 +46,7 @@ ${reason}`;
 export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
   const uploadedFiles = [];
   const verwerkteBestanden = new Set();
+  const alVerwerkt = new Set();
   const sanitizedAttachments = attachments.map(att => ({
     ...att,
     originalFilename: att.filename,
@@ -120,7 +121,12 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
       await notifyError(att, msg);
       continue;
     }
-
+    if (alVerwerkt.has(att.filename)) {
+    console.log(`⏭️ ${att.filename} is al verwerkt, wordt overgeslagen`);
+    continue;
+    }
+    alVerwerkt.add(att.filename);
+    
     // Alleen voor PDF-bestanden → parse + reprocess
     if (isPdf) {
       try {
