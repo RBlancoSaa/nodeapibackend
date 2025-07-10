@@ -46,7 +46,6 @@ ${reason}`;
 export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
   const uploadedFiles = [];
   const verwerkteBestanden = new Set();
-  const alVerwerkt = new Set();
   const sanitizedAttachments = attachments.map(att => ({
     ...att,
     originalFilename: att.filename,
@@ -60,7 +59,11 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
 
   for (const att of sanitizedAttachments) {
     console.log(`\n📥 Verwerken gestart voor: ${att.originalFilename}`);
-
+  if (verwerkteBestanden.has(att.filename)) {
+  console.log(`⏭️ Bestand ${att.filename} is al verwerkt, wordt overgeslagen`);
+  continue;
+  }
+verwerkteBestanden.add(att.filename);
     let contentBuffer;
     try {
       if (Buffer.isBuffer(att.content)) {
@@ -126,7 +129,7 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
     continue;
     }
     alVerwerkt.add(att.filename);
-    
+
     // Alleen voor PDF-bestanden → parse + reprocess
     if (isPdf) {
       try {

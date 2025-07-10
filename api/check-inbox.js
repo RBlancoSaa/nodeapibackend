@@ -1,7 +1,7 @@
 // 📁 automatinglogistics-api/api/check-inbox.js
 import '../utils/fsPatch.js';
-import { ImapFlow } from 'imapflow';                                              // 1
-import { createClient } from '@supabase/supabase-js';                             // 2
+import { ImapFlow } from 'imapflow';                                         
+import { createClient } from '@supabase/supabase-js';                            
 import nodemailer from 'nodemailer';                                              // 3
 import { findAttachmentsAndUpload } from '../services/attachmentService.js';     // 4
                                                                                   // 5
