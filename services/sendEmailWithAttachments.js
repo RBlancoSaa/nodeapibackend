@@ -3,7 +3,7 @@ import '../utils/fsPatch.js';
 import fs from 'fs';
 import transporter from '../utils/smtpTransport.js';
 
-export async function sendEmailWithAttachments({ ritnr, attachments }) {
+export async function sendEmailWithAttachments({ ritnummer, attachments }) {
   const formattedAttachments = attachments.map(att => ({
   filename: att.filename,
   content: att.content || (att.path ? fs.readFileSync(att.path) : Buffer.from('')) // fallback leeg bestand
