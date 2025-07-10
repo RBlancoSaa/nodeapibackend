@@ -16,7 +16,8 @@ function cleanTekst(input) {
     .replace(/’/g, "'")
     .replace(/‘/g, "'")
     .replace(/´/g, "'")
-    .replace(/“|”/g, '"'); // optioneel: mooie quotes → ASCII quote
+    .replace(/“|”/g, '"')       // mooie quotes → ascii
+    .replace(/'/g, "''");        // apostrof verdubbelen voor Access SQL
 }
 
 export default async function parsePdfToJson(buffer) {
