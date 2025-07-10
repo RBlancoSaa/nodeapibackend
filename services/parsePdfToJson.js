@@ -9,19 +9,30 @@ import parseEasyfresh from '../parsers/parseEasyfresh.js';
 import parseKWE from '../parsers/parseKWE.js';
 import parseRitra from '../parsers/parseRitra.js';
 
+
+function cleanTekst(input) {
+  if (typeof input !== 'string') return input;
+  return input
+    .replace(/’/g, "'")
+    .replace(/‘/g, "'")
+    .replace(/´/g, "'")
+    .replace(/“|”/g, '"'); // optioneel: mooie quotes → ASCII quote
+}
+
 export default async function parsePdfToJson(buffer) {
   if (!Buffer.isBuffer(buffer)) {
     console.warn('⚠️ Ongeldige of ontbrekende PDF-buffer');
     return {};
   }
 
-  const { text } = await pdfParse(buffer);
-  if (!text?.trim()) {
-    console.warn('⚠️ Lege of ongeldige tekstinhoud in PDF');
-    return {};
-  }
+  const { text: rawText } = await pdfParse(buffer);
+const text = cleanTekst(rawText);
+if (!text?.trim()) {
+  console.warn('⚠️ Lege of ongeldige tekstinhoud in PDF');
+  return {};
+}
 
-  console.log('📄 Eerste 500 tekens tekst:\n', text.slice(0, 500));
+console.log('📄 Eerste 500 tekens tekst:\n', text.slice(0, 500));
 
   // 🔍 Klantdectectie op basis van tekst
   if (text.includes('Jordex Shipping & Forwarding')) {
