@@ -35,26 +35,44 @@ return gevonden?.terminal || '0';
   }
 }
 
-export async function getTerminalInfoFallback(inputNaam) {
+export async function getTerminalInfoFallback(zoekwaarde) {
   try {
-    if (!inputNaam || typeof inputNaam !== 'string') return '0';
+    if (!zoekwaarde || typeof zoekwaarde !== 'string') return '0';
 
     const url = `${SUPABASE_LIST_URL}/op_afzetten.json`;
     const res = await fetch(url);
     const lijst = await res.json();
+    const normZoek = zoekwaarde.toLowerCase().replace(/\s+/g, '').trim();
 
-    const normInput = inputNaam.toLowerCase().replace(/\s+/g, '').trim();
+    // Scorende match op altNamen en adresfragment
+    const kandidaten = lijst
+      .map((item) => {
+        const altMatch = (item.altNamen || []).some(alt =>
+          alt.toLowerCase().replace(/\s+/g, '').includes(normZoek)
+        );
+        const adresMatch = item.adres?.toLowerCase().includes(zoekwaarde.toLowerCase()) || false;
 
-    // Zoek op alternatieve namen of adresvelden die bestaan
-    const gevonden = lijst.find(item =>
-      [item.terminal, item.referentie, item.adres, ...(item.altNamen || [])]
-        .filter(Boolean)
-        .some(val =>
-          val.toLowerCase().replace(/\s+/g, '').trim().includes(normInput)
-        )
-    );
+        const score = [
+          item.naam,
+          item.adres,
+          item.postcode,
+          item.plaats,
+          item.portbase_code,
+          item.bicsCode
+        ].filter(Boolean).length;
 
-    return gevonden?.terminal || '0';
+        return {
+          terminal: item,
+          matched: altMatch || adresMatch,
+          score
+        };
+      })
+      .filter(k => k.matched)
+      .sort((a, b) => b.score - a.score);
+
+    if (kandidaten.length > 0) return kandidaten[0].terminal;
+    return '0';
+
   } catch (e) {
     console.error('❌ getTerminalInfoFallback error:', e);
     return '0';
