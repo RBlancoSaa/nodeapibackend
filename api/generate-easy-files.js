@@ -83,16 +83,23 @@ export default async function handler(req, res) {
     ], data.ritnummer);
 
     // 📧 Verstuur e-mail
-    await sendEmailWithAttachments({
-      ritnummer: data.ritnummer,
-      attachments: [
-        { filename: bestandsnaam, path: localPath },
-        ...(originelePdfBuffer ? [{
-          filename: originelePdfNaam,
-          content: originelePdfBuffer
-        }] : [])
-      ]
-    });
+    const emailAttachments = [
+  { filename: bestandsnaam, path: localPath }
+];
+
+if (originelePdfBuffer) {
+  emailAttachments.push({
+    filename: originelePdfNaam,
+    content: originelePdfBuffer
+  });
+} else {
+  console.warn('⚠️ PDF buffer niet beschikbaar, dus niet toegevoegd aan e-mail');
+}
+
+await sendEmailWithAttachments({
+  ritnummer: data.ritnummer,
+  attachments: emailAttachments
+});
 
     return res.status(200).json({
       success: true,

@@ -92,13 +92,15 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
 
     try {
       console.log(`📤 Upload naar Supabase: ${fileName}`);
-      const { error } = await supabase
-        .storage
-        .from(process.env.SUPABASE_BUCKET)
-        .upload(fileName, contentBuffer, {
-          contentType: att.contentType || 'application/octet-stream',
-          upsert: true
-        });
+     const juisteBucket = att.filename.endsWith('.easy') ? 'easyfiles' : 'inboxpdf';
+
+    const { error } = await supabase
+    .storage
+    .from(juisteBucket)
+    .upload(fileName, contentBuffer, {
+      contentType: att.contentType || 'application/octet-stream',
+      upsert: true
+      });
 
       if (error) {
         const msg = `❌ Supabase upload error: ${error.message}`;
