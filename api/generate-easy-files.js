@@ -84,12 +84,15 @@ export default async function handler(req, res) {
 ], data.ritnummer);
 
      await sendEmailWithAttachments({
-      reference: data.reference,
-      attachments: [
-        { filename: bestandsnaam, path: localPath },
-        ...(originelePdfBuffer ? [{ filename: originelePdfNaam, content: originelePdfBuffer }] : [])
-      ]
-    });
+  ritnummer: data.ritnummer,
+  attachments: [
+    { filename: bestandsnaam, path: localPath },
+    ...(originelePdfBuffer ? [{
+      filename: originelePdfNaam,
+      content: originelePdfBuffer
+    }] : [])
+  ]
+});
 
     return res.status(200).json({
       success: true,
