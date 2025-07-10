@@ -137,13 +137,14 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
             xmlBase64,
             pdfBestandsnaam: att.filename  // ✅ originele PDF-bestandsnaam meesturen
 };
-
-        console.log('📡 Versturen naar generate-easy-files:', payload.reference);
-        await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+    // Alleen fetch als het expliciet nodig is
+  if (!att.skipReprocessing) {
+    await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  }
 
       } catch (err) {
         const msg = `⚠️ Easy-bestand fout: ${err.message}`;
