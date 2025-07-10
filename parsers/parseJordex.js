@@ -212,20 +212,8 @@ const data = {
     console.log('🔑 doKey terminal lookup:', doKey);
 
 // 🧠 Terminal lookup mét fallback op volledigheid
-  let pickupInfo = await getTerminalInfo(puKey) || {};
-  let dropoffInfo = await getTerminalInfo(doKey) || {};
-      console.log('🧾 dropoffInfo:', dropoffInfo);
-
-// Fallback op alternatieve terminal bij ontbrekende portbase_code
-if (!pickupInfo.portbase_code || pickupInfo === '0') {
-  const alt = await getTerminalInfoFallback(puKey);
-  if (alt !== '0') pickupInfo = alt;
-}
-
-if (!dropoffInfo.portbase_code || dropoffInfo === '0') {
-  const alt = await getTerminalInfoFallback(doKey);
-  if (alt !== '0') dropoffInfo = alt;
-}
+  let pickupInfo = await getTerminalInfoMetFallback(puKey);
+  let dropoffInfo = await getTerminalInfoMetFallback(doKey);
 
 // Klantgegevens uit de Pick-up sectie: vier regels erna
 const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));

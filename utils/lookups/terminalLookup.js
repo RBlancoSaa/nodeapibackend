@@ -79,6 +79,25 @@ export async function getTerminalInfoFallback(zoekwaarde) {
   }
 }
 
+export async function getTerminalInfoMetFallback(key) {
+  try {
+    if (!key || typeof key !== 'string' || key.trim() === '') return {};
+
+    let info = await getTerminalInfo(key);
+
+    // Als het antwoord '0' is of geen portbase_code bevat: gebruik fallback
+    if (!info || info === '0' || !info.portbase_code) {
+      const fallback = await getTerminalInfoFallback(key);
+      if (fallback && fallback !== '0') return fallback;
+    }
+
+    return info;
+  } catch (e) {
+    console.error('❌ getTerminalInfoMetFallback error:', e);
+    return {};
+  }
+}
+
 export async function getRederijNaam(rederij) {
   try {
     if (!rederij || typeof rederij !== 'string') return '0';
