@@ -124,13 +124,8 @@ verwerkteBestanden.add(att.filename);
       await notifyError(att, msg);
       continue;
     }
-    if (alVerwerkt.has(att.filename)) {
-    console.log(`⏭️ ${att.filename} is al verwerkt, wordt overgeslagen`);
-    continue;
-    }
-    alVerwerkt.add(att.filename);
-
-    // Alleen voor PDF-bestanden → parse + reprocess
+    
+      // Alleen voor PDF-bestanden → parse + reprocess
     if (isPdf) {
       try {
         const json = await parsePdfToJson(contentBuffer);
