@@ -19,7 +19,7 @@ function cleanTekst(input) {
     .replace(/“|”/g, '"');         // slimme quotes → ASCII quote
 
   // ✅ Strip apostrof aan begin van adres (alleen als het adres met 't begint)
-  result = result.replace(/^'t\s/i, "t ");
+  result = result.replace(/^['’‘´`]t\s/i, "t ");
 
   return result;
 }
