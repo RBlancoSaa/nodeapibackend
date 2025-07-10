@@ -56,32 +56,33 @@ export default async function handler(req, res) {
 
     // 📤 Upload XML + PDF naar Supabase
     const uploads = await uploadPdfAttachmentsToSupabase([
-      {
-        filename: bestandsnaam,
-        content: fs.readFileSync(localPath),
-        contentType: 'application/xml',
-        ritnummer: data.ritnummer,
-        emailMeta: {
-          from: 'Easytrip Automator',
-          subject: `XML voor ${bestandsnaam}`,
-          received: new Date().toISOString(),
-          attachments: [bestandsnaam]
-        }
-      },
+  {
+    filename: bestandsnaam,
+    content: fs.readFileSync(localPath),
+    contentType: 'application/xml',
+    ritnummer: data.ritnummer,
+    skipReprocessing: true, // ✅ voorkomt dubbele verwerking
+    emailMeta: {
+      from: 'Easytrip Automator',
+      subject: `XML voor ${bestandsnaam}`,
+      received: new Date().toISOString(),
+      attachments: [bestandsnaam]
+    }
+  },
       ...(originelePdfBuffer ? [{
-        filename: originelePdfNaam,
-        content: originelePdfBuffer,
-        contentType: 'application/pdf',
-        ritnummer: data.ritnummer,
-        emailMeta: {
-          from: 'Easytrip Automator',
-          subject: `Originele opdracht PDF voor ${data.ritnummer}`,
-          received: new Date().toISOString(),
-          attachments: [originelePdfNaam]
-        }
-      }] : [])
-    ], data.ritnummer);
-
+  filename: originelePdfNaam,
+  content: originelePdfBuffer,
+  contentType: 'application/pdf',
+  ritnummer: data.ritnummer,
+  skipReprocessing: true, // ✅ voorkomt dubbele verwerking
+  emailMeta: {
+    from: 'Easytrip Automator',
+    subject: `Originele opdracht PDF voor ${data.ritnummer}`,
+    received: new Date().toISOString(),
+    attachments: [originelePdfNaam]
+  }
+}] : [])
+]);
     // 📧 Verstuur e-mail
     const emailAttachments = [
   { filename: bestandsnaam, path: localPath }

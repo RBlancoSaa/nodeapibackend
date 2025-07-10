@@ -46,6 +46,7 @@ export default async function handler(req, res) {
               reference: mail.parsedData.referentie,  // ✅ FIX: rename veld
               laadplaats: mail.parsedData.laadplaats || '0',
               pdfBestandsnaam: mail.originalPdfFilename || 'origineel.pdf',
+              skipReprocessing: false,
                 originalPdfBase64: mail.originalPdfBase64,
               ...mail.parsedData
             })
