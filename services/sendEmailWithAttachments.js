@@ -3,17 +3,18 @@ import '../utils/fsPatch.js';
 import fs from 'fs';
 import transporter from '../utils/smtpTransport.js';
 
-export async function sendEmailWithAttachments({ reference, attachments }) {
+export async function sendEmailWithAttachments({ ritnummer, attachments }) {
   const formattedAttachments = attachments.map(att => ({
-    filename: att.filename,
-    content: fs.readFileSync(att.path)
-  }));
+  filename: att.filename,
+  content: att.content || (att.path ? fs.readFileSync(att.path) : Buffer.from('')) // fallback leeg bestand
+}));
 
   const mailOptions = {
     from: process.env.FROM_EMAIL,
     to: process.env.FROM_EMAIL,
-    subject: `easytrip file - automatisch gegenereerd - ${reference}`,
-    text: `In de bijlage vind je het gegenereerde Easytrip-bestand + de originele opdracht PDF voor referentie: ${reference}`,
+    subject: `easytrip file - ${ritnummer}`,
+    text: `In de bijlage vind je het gegenereerde Easytrip-bestand en
+    de originele opdracht PDF voor referentie: ${ritnummer}`,
     attachments: formattedAttachments
   };
 

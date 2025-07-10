@@ -34,13 +34,13 @@ export default async function handler(req, res) {
     
 
     const xml = await generateXmlFromJson(data);
-    const bestandsnaam = `Order_${data.reference || 'GEEN_REF'}.easy`;
+    const bestandsnaam = `Order_${data.ritnummer || 'GEEN_RITNUMMER'}.easy`;
     const localPath = path.join('/tmp', bestandsnaam);
     fs.writeFileSync(localPath, xml, 'utf8');
 
 
     // PDF ophalen uit Supabase
-    const originelePdfNaam = data.pdfBestandsnaam || `origineel_${data.reference}.pdf`;
+    const originelePdfNaam = `${data.ritnummer || 'backup'}.pdf`;
     let originelePdfBuffer = null;
 
     const { data: downloadData, error: downloadError } = await supabase
