@@ -123,6 +123,7 @@ let baseRederij = '';
 if (typeof data.rederij === 'string') {
   const parts = data.rederij.trim().split(' - ').filter(Boolean);
   baseRederij = parts.length > 1 ? parts[1].trim() : parts[0].trim();
+  baseRederij = baseRederij.replace(/[^a-zA-Z\s]/g, '').trim(); // 🔧 verwijderd alle streepjes, tekens enz.
 }
 
 const officiëleRederij = await getRederijNaam(baseRederij);
