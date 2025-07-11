@@ -261,13 +261,10 @@ if (data.imo !== '0' || data.unnr !== '0') {
   delete data.unnr;
   delete data.brix;
 }
-  try {
-    data.terminal = await getTerminalInfo(data.dropoffTerminal) || '0';
-    data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
-    const baseRederij = data.rederij.includes(' - ') ? data.rederij.split(' - ')[1].trim() : data.rederij.trim();
-    try {
-      data.terminal = await getTerminalInfo(data.dropoffTerminal) || '0';
-      data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
+  
+try {
+  data.terminal = await getTerminalInfo(data.dropoffTerminal) || '0';
+  data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
 
   const baseRederij = data.rederij.includes(' - ')
     ? data.rederij.split(' - ')[1].trim()
@@ -275,13 +272,15 @@ if (data.imo !== '0' || data.unnr !== '0') {
 
   const officiëleRederij = await getRederijNaam(baseRederij);
 
-  if (officiëleRederij && officiëleRederij !== '0') {
+    if (officiëleRederij && officiëleRederij !== '0') {
     data.rederij = officiëleRederij;
     data.inleverRederij = officiëleRederij;
   }
+
 } catch (e) {
   console.warn('⚠️ Fout in terminal of rederij lookup:', e);
 }
+
 // 🔁 Locatiestructuur definitief en correct
 data.locaties = [
   {
@@ -325,10 +324,6 @@ data.locaties = [
     bicsCode: dropoffInfo.bicsCode || ''
   }
 ];
-
-  } catch (e) {
-    console.warn('⚠️ Fout in terminal of rederij lookup:', e);
-  }
 
   if (!data.referentie || data.referentie === '0') {
     console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
