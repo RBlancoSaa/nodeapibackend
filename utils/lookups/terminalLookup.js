@@ -98,6 +98,7 @@ export async function getTerminalInfoMetFallback(key) {
   }
 }
 
+    // REDERIJEN
 export async function getRederijNaam(input) {
   try {
     if (!input || typeof input !== 'string') return '0';
@@ -121,13 +122,10 @@ export async function getRederijNaam(input) {
 
         const optieNorm = optie.toLowerCase().trim();
 
-        // exacte match
-        if (optieNorm === norm) return item.code;
-
-        // substring match
+        if (optieNorm === norm) return item.naam; // ✅ Gebruik officiële dropdown-naam
         if (!besteMatch && norm.includes(optieNorm)) {
-          besteMatch = item.code;
-        }
+          besteMatch = item.naam;
+}
       }
     }
 
