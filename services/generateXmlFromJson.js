@@ -122,7 +122,7 @@ export async function generateXmlFromJson(data) {
 let baseRederij = '';
 if (typeof data.rederij === 'string') {
   const parts = data.rederij.trim().split(' - ').filter(Boolean);
-  baseRederij = parts.at(-1).trim(); // neemt altijd het laatste deel
+  baseRederij = parts.length > 1 ? parts[1].trim() : parts[0].trim();
 }
 
 const officiëleRederij = await getRederijNaam(baseRederij);
