@@ -163,9 +163,19 @@ if (!data.actie || data.actie === '0') {
   if (acties.includes('lossen')) data.actie = 'Lossen';
   else data.actie = 'Laden';
 }
+
+if (data.rederij) {
+  const officiëleRederij = await getRederijNaam(data.rederij);
+  if (officiëleRederij && officiëleRederij !== '0') {
+    data.rederij = officiëleRederij;
+    data.inleverRederij = officiëleRederij;
+  }
+}
+
 console.log('🧾 InleverRederij in data:', data.inleverRederij);
 console.log('🧾 Rederij in data:', data.rederij);
-  console.log('📄 Start XML-generatie');
+console.log('📄 Start XML-generatie');
+
 const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Order>
 <Dossiers>
