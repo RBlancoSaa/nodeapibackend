@@ -103,12 +103,11 @@ export async function getRederijNaam(input) {
   try {
     if (!input || typeof input !== 'string') return '0';
 
-    const norm = input.toLowerCase().trim();
+    const norm = input.toLowerCase().replace(/[^a-z0-9]/g, '');
     const url = `${SUPABASE_LIST_URL}/rederijen.json`;
     const res = await fetch(url);
     const lijst = await res.json();
 
-    // Zoek op exacte of altLabel match
     let besteMatch = null;
     let hoogsteScore = 0;
 
@@ -121,21 +120,22 @@ export async function getRederijNaam(input) {
 
       for (const optie of opties) {
         if (!optie) continue;
-        const optieNorm = optie.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+        const optieNorm = optie.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-        if (optieNorm === norm) return item.naam;
-        if (!besteMatch && norm.includes(optieNorm)) {
-           besteMatch = item.naam;
-          }
-        if (besteMatch) return besteMatch;
+        // Exacte match
+        if (optieNorm === norm) {
+          return item.naam;
+        }
 
-        if (norm.includes(optieNorm) || optieNorm.includes(norm)) {
-          // ⬆️ ook als "COSCO SHIPPING" in "COSCO CONTAINER" zit of andersom
-          const score = optieNorm.length;
-          if (score > hoogsteScore) {
-            besteMatch = item.naam;
-            hoogsteScore = score;
-          }
+        // Fuzzy match (substring in beide richtingen)
+        const matchScore =
+          norm.includes(optieNorm) || optieNorm.includes(norm)
+            ? optieNorm.length
+            : 0;
+
+        if (matchScore > hoogsteScore) {
+          besteMatch = item.naam;
+          hoogsteScore = matchScore;
         }
       }
     }
@@ -152,7 +152,6 @@ export async function getRederijNaam(input) {
     return '0';
   }
 }
-
 
 export async function getContainerTypeCode(type) {
   try {
