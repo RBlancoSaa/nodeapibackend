@@ -108,7 +108,9 @@ export async function getRederijNaam(input) {
     const res = await fetch(url);
     const lijst = await res.json();
 
+    // Zoek op exacte of altLabel match
     let besteMatch = null;
+    let hoogsteScore = 0;
 
     for (const item of lijst) {
       const opties = [
@@ -119,28 +121,36 @@ export async function getRederijNaam(input) {
 
       for (const optie of opties) {
         if (!optie) continue;
-
         const optieNorm = optie.toLowerCase().trim();
 
-        if (optieNorm === norm) return item.naam; // ✅ Gebruik officiële dropdown-naam
-        if (!besteMatch && norm.includes(optieNorm)) {
-          besteMatch = item.naam;
-}
+        if (norm === optieNorm) {
+          return item.naam; // 🔥 exacte match
+        }
+
+        if (norm.includes(optieNorm) || optieNorm.includes(norm)) {
+          // ⬆️ ook als "COSCO SHIPPING" in "COSCO CONTAINER" zit of andersom
+          const score = optieNorm.length;
+          if (score > hoogsteScore) {
+            besteMatch = item.naam;
+            hoogsteScore = score;
+          }
+        }
       }
     }
 
     if (besteMatch) {
-      console.warn(`⚠️ Enkel fuzzy match voor rederij "${input}" ➜ code "${besteMatch}"`);
+      console.warn(`⚠️ Fuzzy match voor rederij "${input}" ➜ "${besteMatch}"`);
       return besteMatch;
     }
 
-    console.warn(`❌ Geen rederijcode gevonden voor "${input}"`);
+    console.warn(`❌ Geen rederij gevonden voor "${input}"`);
     return '0';
   } catch (err) {
     console.error('❌ Fout in getRederijNaam:', err);
     return '0';
   }
 }
+
 
 export async function getContainerTypeCode(type) {
   try {
