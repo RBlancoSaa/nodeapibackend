@@ -81,10 +81,9 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const containerBlok = text.match(/Type Number[\s\S]+?(?=Extra Information|Date:|Jordex|$)/i)?.[0] || '';
     const regelsContainer = containerBlok.split('\n').map(r => r.trim()).filter(Boolean);
 
-  // Colli, Volume, Gewicht
+  // Colli, Volume
     const colli = regelsContainer.find(r => /^\d{3,5}$/.test(r)) || '0';
     const volume = regelsContainer.find(r => /m³/i.test(r))?.replace(/[^\d.,]/g, '') || '0';
-    const gewicht = regelsContainer.find(r => /kg/i.test(r))?.replace(/[^\d]/g, '') || '0';
 
   // Lading = alles tussen eerste BLOKPALLET-regel en -20 DEGREES
     const ladingStartIndex = regelsContainer.findIndex(r => /BLOKPALLETS/i.test(r));
@@ -92,14 +91,25 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const ladingArray = regelsContainer.slice(ladingStartIndex, ladingEndIndex + 1);
     const lading = ladingArray.join(' ') || '';
   
-    // 📅 Datum & tijd
+  // 📅 Datum & tijd
     const dateLine = pickupRegels.find(r => /^Date[:\t ]+/i.test(r)) || '';
     const dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
 
+  // 🔍 Gewicht extractie uit tekst, inclusief notaties als "27.500 kg", "27800KG", "Weight: 27,5", etc.
+    const gewichtMatch = text.match(/Weight[:\s]*([\d.,]+)/i) || text.match(/([\d.,]+)\s*kg/i);
+
+    const gewicht = (() => {
+       if (!gewichtMatch) return '0';
+    let raw = gewichtMatch[1].replace(',', '.').replace(/[^\d.]/g, '');
+    let gewichtNum = parseFloat(raw);
+      if (isNaN(gewichtNum)) return '0';
+      return Math.round(gewichtNum).toString(); // altijd hele kilo's
+    })();
+
     // 📆 Fallback = upload datum
-let laadDatum = '';
-let laadTijd = '';
-let bijzonderheid = '';
+    let laadDatum = '';
+    let laadTijd = '';
+    let bijzonderheid = '';
 
 if (dateMatch) {
   const dag = parseInt(dateMatch[1]);
@@ -186,7 +196,6 @@ const data = {
   })()),
       
     volume: text.match(/(\d{2,3})\s*m³/i)?.[1] || '0',
-    gewicht: text.match(/(\d{4,6})\s*kg/i)?.[1] || '0',
     colli: text.match(/\b(\d{2,5})\b.*?m³/i)?.[1] || '0',
     lading: logResult('lading', multiExtract([/Description of goods[:\t ]+(.+)/i]) || '0'),
     imo: logResult('imo', multiExtract([/IMO[:\t ]+(\d+)/i]) || '0'),
@@ -232,7 +241,6 @@ data.klantadres = adres;
 data.klantpostcode = postcode;
 data.klantplaats = plaats;
 console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
-
 
 
 // 🧾 Debug loggen voor controle
