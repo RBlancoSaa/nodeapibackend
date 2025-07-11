@@ -271,15 +271,16 @@ try {
     : data.rederij.trim();
 
   const officiëleRederij = await getRederijNaam(baseRederij);
-
+   console.log('🎯 MATCH uit rederijenlijst:', officiëleRederij);
     if (officiëleRederij && officiëleRederij !== '0') {
     data.rederij = officiëleRederij;
     data.inleverRederij = officiëleRederij;
   }
-
+  
 } catch (e) {
   console.warn('⚠️ Fout in terminal of rederij lookup:', e);
 }
+ 
 
 // 🔁 Locatiestructuur definitief en correct
 data.locaties = [

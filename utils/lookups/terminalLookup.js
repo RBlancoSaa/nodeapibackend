@@ -121,11 +121,13 @@ export async function getRederijNaam(input) {
 
       for (const optie of opties) {
         if (!optie) continue;
-        const optieNorm = optie.toLowerCase().trim();
+        const optieNorm = optie.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
 
-        if (norm === optieNorm) {
-          return item.naam; // 🔥 exacte match
-        }
+        if (optieNorm === norm) return item.naam;
+        if (!besteMatch && norm.includes(optieNorm)) {
+           besteMatch = item.naam;
+          }
+        if (besteMatch) return besteMatch;
 
         if (norm.includes(optieNorm) || optieNorm.includes(norm)) {
           // ⬆️ ook als "COSCO SHIPPING" in "COSCO CONTAINER" zit of andersom
