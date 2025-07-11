@@ -179,8 +179,12 @@ const data = {
       const sectie = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?=Pick[-\s]?up terminal\b|$)/i)?.[1] || '';
       return sectie.match(/Address:\s*(.+)/i)?.[1].trim() || '';
       })()),
-
-
+      // 🔍 Inleverreferentie uit Drop-off terminal sectie
+    inleverreferentie: logResult('inleverreferentie', (() => {
+      const sectie = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?=Pick[-\s]?up terminal\b|$)/i)?.[1] || '';
+      return sectie.match(/Reference\(s\):\s*(.+)/i)?.[1]?.trim() || '';
+  })()),
+      
     volume: text.match(/(\d{2,3})\s*m³/i)?.[1] || '0',
     gewicht: text.match(/(\d{4,6})\s*kg/i)?.[1] || '0',
     colli: text.match(/\b(\d{2,5})\b.*?m³/i)?.[1] || '0',
