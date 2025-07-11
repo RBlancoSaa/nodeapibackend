@@ -116,6 +116,20 @@ export async function generateXmlFromJson(data) {
     fetchList('rederijen'),
     fetchList('containers')
   ]);
+
+  const baseRederij = data.rederij.includes(' - ')
+  ? data.rederij.split(' - ')[1].trim()
+  : data.rederij.trim();
+
+const officiëleRederij = await getRederijNaam(baseRederij);
+
+if (officiëleRederij && officiëleRederij !== '0') {
+  data.rederij = officiëleRederij;
+  data.inleverRederij = officiëleRederij;
+}
+console.log('🧾 InleverRederij in data:', data.inleverRederij);
+console.log('🧾 Rederij in data:', data.rederij);
+
   // 🧊 Temperatuur strippen
   const cleanTemperature = (val) => {
   if (!val || typeof val !== 'string') return zeroFallback(val);
