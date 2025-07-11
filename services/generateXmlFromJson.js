@@ -119,15 +119,19 @@ export async function generateXmlFromJson(data) {
     fetchList('containers')
   ]);
 
-  const baseRederij = data.rederij.includes(' - ')
-  ? data.rederij.split(' - ')[1].trim()
-  : data.rederij.trim();
+let baseRederij = '';
+if (typeof data.rederij === 'string') {
+  const parts = data.rederij.trim().split(' - ').filter(Boolean);
+  baseRederij = parts.at(-1).trim(); // neemt altijd het laatste deel
+}
 
 const officiëleRederij = await getRederijNaam(baseRederij);
 
 if (officiëleRederij && officiëleRederij !== '0') {
   data.rederij = officiëleRederij;
   data.inleverRederij = officiëleRederij;
+} else {
+  console.warn('⚠️ Rederij niet herkend:', baseRederij);
 }
 console.log('🧾 InleverRederij in data:', data.inleverRederij);
 console.log('🧾 Rederij in data:', data.rederij);
@@ -162,14 +166,6 @@ if (!data.actie || data.actie === '0') {
   const acties = (data.locaties || []).map(loc => loc.actie?.toLowerCase());
   if (acties.includes('lossen')) data.actie = 'Lossen';
   else data.actie = 'Laden';
-}
-
-if (data.rederij) {
-  const officiëleRederij = await getRederijNaam(data.rederij);
-  if (officiëleRederij && officiëleRederij !== '0') {
-    data.rederij = officiëleRederij;
-    data.inleverRederij = officiëleRederij;
-  }
 }
 
 console.log('🧾 InleverRederij in data:', data.inleverRederij);
