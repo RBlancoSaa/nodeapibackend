@@ -3,6 +3,8 @@ import '../utils/fsPatch.js'; // ✅ Eerst patchen!
 import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
+import { getRederijNaam } from '../utils/lookups/terminalLookup.js';
+
 
 const SUPABASE_LIST_URL = (process.env.SUPABASE_LIST_PUBLIC_URL || '').replace(/\/$/, '');
 
