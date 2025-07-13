@@ -44,7 +44,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'DFDS') {
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const ritnummerMatch = text.match(/\b(sfim\d{7})\b/i);
+  const ritnummerMatch = text.match(/Onze referentie[:\s]+(SFIM\d{7})/i)
   
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
   const multiExtract = (patterns) => {
@@ -61,34 +61,64 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'DFDS') {
     }
     return '';
   };
-  // ✅ 100% correcte extractie uit alleen het "Pick-up" blok (klant)
-    const pickupBlokMatch = text.match(/Pick-up\s*\n([\s\S]+?)(?=\n(?:Drop-off terminal|Pick-up terminal|Extra Information|$))/i);
-    const pickupBlok = pickupBlokMatch?.[1] || '';
-    const pickupRegels = pickupBlok.split('\n').map(r => r.trim()).filter(Boolean);
 
-  // 👤 Klantgegevens
-    const klantNaam = pickupRegels.find(r => r.startsWith('Address:'))?.replace('Address:', '').trim() || '';
-    const adresIndex = pickupRegels.findIndex(r => r.includes(klantNaam)) + 1;
-    const adres = pickupRegels[adresIndex] || '';
-    const postcode = pickupRegels[adresIndex + 1] || '';
-    const plaats = pickupRegels[adresIndex + 2] || '';
+// 📦 Containers uitlezen uit "Transport informatie" blok
+const containers = [];
+const lines = regels;
 
-  // 📦 Containerinformatie
-    const cargoLine = pickupRegels.find(r => /cargo[:\t ]/i.test(r)) || '';
-    const containertypeMatch =
-      cargoLine.match(/1\s*x\s*(\d{2}ft\s*[-–]?\s*[^,]+)/i) || // 1 x 20ft - 33,2 m³
-      cargoLine.match(/(\d{2}ft\s*(hc)?)/i) ||                // 20ft HC
-      cargoLine.match(/cargo[:\t ]+(.+)/i);                   // fallback: alles na "Cargo:"
+for (let i = 0; i < lines.length; i++) {
+  const line = lines[i];
 
-    const containertype = containertypeMatch?.[1]?.trim() || '';
-      console.log('🔍 Cargo regel:', cargoLine);
-      console.log('📦 Gevonden containertype:', containertype);
+  // Herken containerregel
+  const containerMatch = line.match(/^([A-Z]{4}\d{7})\s+(.+?)\s+Pickup\s+(\S+)\s+(\d{2}-\d{2}-\d{4})$/i);
+  if (containerMatch) {
+    const [
+      _,
+      containernummer,
+      typeInfo,
+      pickupRef,
+      datum
+    ] = containerMatch;
 
-  // 🎯 Uitlezen containerblok (onderaan de PDF)
-    const containerBlok = text.match(/Type Number[\s\S]+?(?=Extra Information|Date:|DFDS|$)/i)?.[0] || '';
-    const regelsContainer = containerBlok.split('\n').map(r => r.trim()).filter(Boolean);
-   
-    
+    // Zoek volgende regel voor lossen en tijd
+    const volgende = lines[i + 1] || '';
+    const lossMatch = volgende.match(/^Lossen\s+(\S+)\s+(\d{2}-\d{2}-\d{4})\s+(\d{2}:\d{2})\s+-\s+(\d{2}:\d{2})/i);
+    const losreferentie = lossMatch?.[1] || '';
+    const tijdVan = lossMatch?.[3] ? `${lossMatch[3]}:00` : '';
+    const tijdTot = lossMatch?.[4] ? `${lossMatch[4]}:00` : '';
+
+    // Zoek zegelregel
+    const zegelRegel = lines.find(r => r.includes(containernummer) && r.includes('Zegel:'));
+    const zegelMatch = zegelRegel?.match(/Zegel:\s*(\S+)/i);
+    const zegelnummer = zegelMatch?.[1] || '';
+
+    // Zoek lading en gewicht
+    const ladingregel = lines.find(r => r.startsWith(containernummer));
+    const inhoudregel = lines.find(r => r.includes('CARTON') || r.match(/\d+\s+[A-Z]/));
+
+    const colliMatch = inhoudregel?.match(/^(\d{1,5})\s+/);
+    const gewichtMatch = inhoudregel?.match(/([\d.,]+)\s*kg/i);
+    const volumeMatch = typeInfo?.match(/[-–]\s*([\d.,]+)\s*m3/i);
+
+    const lading = inhoudregel?.replace(/^\d{1,5}\s+\w+\s+/i, '').replace(/\s*[\d.,]+\s*kg.*$/i, '').trim() || '';
+
+    containers.push({
+      containernummer,
+      containertype: typeInfo.split('-')[0].trim(), // e.g. "40ft HC"
+      zegelnummer,
+      volume: volumeMatch?.[1]?.replace(',', '.') || '0',
+      datum,
+      tijd: tijdVan,
+      tijdTm: tijdTot,
+      laadreferentie: pickupRef,
+      inleverreferentie: losreferentie,
+      gewicht: gewichtMatch?.[1]?.replace(',', '.') || '0',
+      colli: colliMatch?.[1] || '0',
+      lading
+    });
+  }
+}
+
   // 📦 Robuuste containerwaarden uit regelsContainer
 let colli = '0', volume = '0', gewicht = '0';
 
