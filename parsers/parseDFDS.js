@@ -132,13 +132,14 @@ for (const regel of containerRegels) {
     }
   }
 
-  // Containertype
+  
+    // Containertype uit regel zoals "CAIU7388667 40ft HC - 76.3 m3"
   if (!containertype) {
-    const typeMatch = regel.match(/^[A-Z]{4}U\d{7}\s+(.+?)\s*[-–]?\s*[\d.,]+\s*m3/i);
-if (typeMatch) {
-  containertype = typeMatch[1].trim();
-  console.log('📦 Containertype gevonden (zonder volume):', containertype);
-}
+    const match = regel.match(/^[A-Z]{4}U\d{7}\s+(.*?)\s*[-–]\s*[\d.,]+\s*m3/i);
+    if (match) {
+      containertype = match[1].trim();
+      console.log('📦 Containertype gevonden (zonder volume):', containertype);
+    }
   }
 
   // Zegelnummer
