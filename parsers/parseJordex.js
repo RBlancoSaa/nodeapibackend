@@ -81,6 +81,9 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const containerBlok = text.match(/Type Number[\s\S]+?(?=Extra Information|Date:|Jordex|$)/i)?.[0] || '';
     const regelsContainer = containerBlok.split('\n').map(r => r.trim()).filter(Boolean);
    
+  // 📦 Containerwaarden uit regelsContainer
+let colli = '0', volume = '0', gewicht = '0';
+
 for (let regel of regelsContainer) {
   if (/(\d{3,5})\s*m³/i.test(regel)) {
     volume = regel.match(/(\d{3,5})\s*m³/i)?.[1].replace(',', '.') || '0';
@@ -106,24 +109,7 @@ if (gewicht.includes('.')) {
   // 📅 Datum & tijd
     const dateLine = pickupRegels.find(r => /^Date[:\t ]+/i.test(r)) || '';
     const dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
-
- // 🧪 Robuuste gewichtsextractie (Weight, Container weight, Gross weight, GW etc.)
-const gewichtRegex = new RegExp(
-  String.raw`(?:Weight|Container weight|Gross weight|GW)[:\s]*([\d.,]+)\s*(?:kg)?`,
-  'i'
-);
-const fallbackRegex = new RegExp(String.raw`([\d.,]+)\s*kg`, 'i');
-
-const gewichtMatch = text.match(gewichtRegex) || text.match(fallbackRegex);
-
-const gewicht = (() => {
-  if (!gewichtMatch) return '0';
-  let raw = gewichtMatch[1].replace(',', '.').replace(/[^\d.]/g, '');
-  let gewichtNum = parseFloat(raw);
-  if (isNaN(gewichtNum)) return '0';
-  return Math.round(gewichtNum).toString(); // altijd hele kilo's
-})();
-
+    
     // 📆 Fallback = upload datum
     let laadDatum = '';
     let laadTijd = '';
