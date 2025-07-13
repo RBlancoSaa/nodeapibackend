@@ -156,7 +156,15 @@ export async function getRederijNaam(input) {
 export async function getContainerTypeCode(input) {
   if (!input) return '0';
 
-  const normalizedInput = input.toLowerCase().replace(/[\s\-'"]/g, '');
+  let normalizedInput = input.toLowerCase().replace(/[\s\-'"]/g, '');
+
+  // ⛏ Extra normalisatie voor bekende varianten
+  if (/^20\s*ft|20ft/.test(normalizedInput)) normalizedInput = '20ft';
+  if (/^40\s*ft|40ft/.test(normalizedInput)) normalizedInput = '40ft';
+  if (/^45\s*ft|45ft/.test(normalizedInput)) normalizedInput = '45ft';
+
+  // 🧊 Detecteer reefer-container op basis van inputinhoud
+  const isReefer = /r\b|reefer|temperatuur/i.test(input);
 
   const url = `${SUPABASE_LIST_URL}/containers.json`;
   let lijst = [];
@@ -177,7 +185,13 @@ export async function getContainerTypeCode(input) {
 
     for (const label of allLabels) {
       const normalized = label.toLowerCase().replace(/[\s\-'"]/g, '');
+
       if (normalized === normalizedInput) {
+        // ❄️ Alleen R-type toestaan bij reefer / temperatuur
+        if (isReefer && !type.code.includes('R')) continue;
+        // 🛑 Geen R-type toestaan als het geen reefer is
+        if (!isReefer && type.code.includes('R')) continue;
+
         console.log('✅ Containertype match gevonden:', type.code, 'via:', label);
         return type.code;
       }
@@ -187,6 +201,7 @@ export async function getContainerTypeCode(input) {
   console.warn('⚠️ Geen match voor containertype:', input);
   return '0';
 }
+
 
 export async function getKlantData(klantAlias) {
   try {
