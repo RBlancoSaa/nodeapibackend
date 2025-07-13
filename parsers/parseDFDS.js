@@ -5,6 +5,48 @@ import {
   getTerminalInfoMetFallback,
   getContainerTypeCode
 } from '../utils/lookups/terminalLookup.js';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.js';
+async function extractLines(buffer) {
+  const pdf = await getDocument({ data: buffer }).promise;
+  const allLines = [];
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const { items } = await page.getTextContent();
+    // Map naar { text, x, y }
+    const runs = items.map(i => ({
+      text: i.str,
+      x:   i.transform[4],
+      y:   i.transform[5]
+    }));
+
+    // Groepeer runs op hun y-waarde
+    const linesMap = [];
+    for (const run of runs) {
+      let bucket = linesMap.find(line => Math.abs(line.y - run.y) < 2);
+      if (!bucket) {
+        bucket = { y: run.y, runs: [] };
+        linesMap.push(bucket);
+      }
+      bucket.runs.push(run);
+    }
+
+    // Sorteer en join per regel
+    const pageLines = linesMap
+      .sort((a, b) => b.y - a.y)         // hoge y eerst
+      .map(line =>
+        line.runs
+          .sort((r1, r2) => r1.x - r2.x) // lage x eerst
+          .map(r => r.text)
+          .join(' ')
+          .trim()
+      );
+
+    allLines.push(...pageLines);
+  }
+
+  return allLines;
+}
 
 // --- HELPERS MET DEBUG-LOGS ---
 // Veilige match + trim, met logs
@@ -50,22 +92,9 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     console.warn('⚠️ PDF buffer is verdacht klein, waarschijnlijk leeg');
     return {};
   }
-
-    // --- PDF PARSEN & LINES ---
-  const parsed = await pdfParse(pdfBuffer);
-  const rawLines = parsed.text.split('\n');
-
-  // 1) Maak éénmaal je opgeschoonde regels
-  const splitLines = rawLines
-    .map(line =>
-      line
-        .replace(/m3Pickup/i, 'm3 Pickup ')
-        .replace(/([0-9])([A-Z])/g, '$1 $2')
-        .trim()
-    )
-    .filter(Boolean);
-
-  console.log(`ℹ️ In totaal ${splitLines.length} opgeschoonde regels gevonden`);
+// --- PDF PARSEN & LINES (met positie-gebaseerde extractie) ---
+const splitLines = await extractLines(pdfBuffer);
+console.log(`ℹ️ In totaal ${splitLines.length} regels uit PDF gehaald via extractLines()`);
 
   // --- SECTIONS BEPALEN ---
   const idxTransportInfo = splitLines.findIndex(r => /^Transport informatie/i.test(r));
