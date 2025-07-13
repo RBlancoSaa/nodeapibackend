@@ -4,7 +4,9 @@ import {
   getTerminalInfoMetFallback,
   getContainerTypeCode
 } from '../utils/lookups/terminalLookup.js';
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.js';
+import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+const { getDocument } = pdfjsLib;
+
 async function extractLines(buffer) {
   const pdf = await getDocument({ data: buffer }).promise;
   const allLines = [];
