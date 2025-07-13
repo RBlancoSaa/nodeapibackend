@@ -10,8 +10,8 @@ async function extractLines(buffer) {
     ? buffer
     : new Uint8Array(buffer);
 
-  // 2) PDF laden
- const pdf = await getDocument({ data: uint8 }).promise;
+  // 2) PDF laden met de geconverteerde Uint8Array
+  const pdf = await getDocument({ data: uint8 }).promise;
   const allLines = [];
 
   // 3) Per pagina textContent ophalen en groeperen
