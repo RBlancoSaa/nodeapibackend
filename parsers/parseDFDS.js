@@ -8,20 +8,25 @@ import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 const { getDocument } = pdfjsLib;
 
 async function extractLines(buffer) {
-  const pdf = await getDocument({ data: buffer }).promise;
+  // Converteer Buffer → Uint8Array indien nodig
+  const uint8 = buffer instanceof Uint8Array
+    ? buffer
+    : new Uint8Array(buffer);
+
+  // Laad PDF met de juiste data-vorm
+  const pdf = await getDocument({ data: uint8 }).promise;
   const allLines = [];
 
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const { items } = await page.getTextContent();
-    // Map naar { text, x, y }
     const runs = items.map(i => ({
       text: i.str,
       x:   i.transform[4],
       y:   i.transform[5]
     }));
 
-    // Groepeer runs op hun y-waarde
+    // Groepeer op y
     const linesMap = [];
     for (const run of runs) {
       let bucket = linesMap.find(line => Math.abs(line.y - run.y) < 2);
@@ -32,12 +37,12 @@ async function extractLines(buffer) {
       bucket.runs.push(run);
     }
 
-    // Sorteer en join per regel
+    // Sorteer & join per regel
     const pageLines = linesMap
-      .sort((a, b) => b.y - a.y)         // hoge y eerst
+      .sort((a, b) => b.y - a.y)
       .map(line =>
         line.runs
-          .sort((r1, r2) => r1.x - r2.x) // lage x eerst
+          .sort((r1, r2) => r1.x - r2.x)
           .map(r => r.text)
           .join(' ')
           .trim()
