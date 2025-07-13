@@ -1,4 +1,4 @@
-// parsers/parseJordex.js
+// parsers/parseDFDS.js
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import {
@@ -26,7 +26,7 @@ function formatDatum(text) {
 }
 
 
-export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
+export default async function parseDFDS(pdfBuffer, klantAlias = 'DFDS') {
   console.log('📦 Ontvangen pdfBuffer:', pdfBuffer?.length, 'bytes');
 
   // ❌ Voorkom lege of ongeldige input
@@ -78,7 +78,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const containertype = cargoLine.match(/1\s*x\s*(.+)/i)?.[1]?.trim() || '';
 
   // 🎯 Uitlezen containerblok (onderaan de PDF)
-    const containerBlok = text.match(/Type Number[\s\S]+?(?=Extra Information|Date:|Jordex|$)/i)?.[0] || '';
+    const containerBlok = text.match(/Type Number[\s\S]+?(?=Extra Information|Date:|DFDS|$)/i)?.[0] || '';
     const regelsContainer = containerBlok.split('\n').map(r => r.trim()).filter(Boolean);
    
   // 📦 Robuuste containerwaarden uit regelsContainer
@@ -216,14 +216,14 @@ const data = {
     unnr: logResult('unnr', multiExtract([/UN[:\t ]+(\d+)/i]) || '0'),
     brix: logResult('brix', multiExtract([/Brix[:\t ]+(\d+)/i]) || '0'),
 
-    opdrachtgeverNaam: 'JORDEX FORWARDING',
-    opdrachtgeverAdres: 'AMBACHTSWEG 6',
-    opdrachtgeverPostcode: '3161GL',
-    opdrachtgeverPlaats: 'RHOON',
+    opdrachtgeverNaam: 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
+    opdrachtgeverAdres: 'WOLGAWEG 3',
+    opdrachtgeverPostcode: '3200AA',
+    opdrachtgeverPlaats: 'SPIJKENISSE',
     opdrachtgeverTelefoon: '010-1234567',
-    opdrachtgeverEmail: 'TRANSPORT@JORDEX.COM',
-    opdrachtgeverBTW: 'NL815340011B01',
-    opdrachtgeverKVK: '24390991',
+    opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
+    opdrachtgeverBTW: 'NL007129099B01',
+    opdrachtgeverKVK: '24232781',
 
     terminal: '0',
     rederijCode: '0',
@@ -365,7 +365,7 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
 
   console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
   console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
-  console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
+  console.log('📤 DATA OBJECT UIT PARSEDFDS:', JSON.stringify(data, null, 2));
   console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
   console.log('📦 LOCATIES:');
   console.log('👉 Locatie 0 (pickup terminal):', JSON.stringify(data.locaties[0], null, 2));
