@@ -94,12 +94,16 @@ for (let i = 0; i < lines.length; i++) {
 
     // Zoek lading en gewicht
     const ladingregel = lines.find(r => r.startsWith(containernummer));
-    const inhoudregel = lines.find(r => r.includes('CARTON') || r.match(/\d+\s+[A-Z]/));
+    const inhoudregel = lines.find(r => r.includes('CARTON') || /\d+\s+[A-Z]/.test(r)) || '';
 
-    const gewichtMatch = inhoudregel?.match(/([\d.,]+)\s*kg/i);
-    const colliMatch = inhoudregel?.match(/^(\d{1,5})\s+/);
+    const gewichtMatch = inhoudregel.match(/([\d.,]+)\s*kg/i);
+    const colliMatch = inhoudregel.match(/^(\d{1,5})\s+/);
     const volumeMatch = typeInfo?.match(/[-–]\s*([\d.,]+)\s*m3/i);
-    const lading = inhoudregel?.replace(/^\d{1,5}\s+\w+\s+/i, '').replace(/\s*[\d.,]+\s*kg.*$/i, '').trim() || '';
+
+    const lading = inhoudregel
+      .replace(/^\d{1,5}\s+\w+\s+/i, '')
+      .replace(/\s*[\d.,]+\s*kg.*$/i, '')
+      .trim() || '';
 
     containers.push({
       containernummer,
@@ -160,6 +164,8 @@ const data = {
   containers
   };
 
+
+  
 // Verwijder “terminal” suffix zodat je sleutel mét en stemt met Supabase
   const pickupTerminalMatch = text.match(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
   const puKey = pickupTerminalMatch?.[1]?.trim() || '';
