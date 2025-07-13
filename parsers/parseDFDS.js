@@ -12,17 +12,7 @@ function logResult(label, value) {
   return value;
 }
 
-function formatDatum(text) {
-  const match = text.match(/Date[:\t ]+(\d{1,2})\s+(\w+)\s+(\d{4})/i);
-  if (!match) return '';
-  const [_, day, monthStr, year] = match;
-  const months = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-  const maand = months[monthStr.toLowerCase().slice(0, 3)];
-  return `${parseInt(day)}-${maand}-${year}`;
-}
-
 export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
-  console.log('📦 Ontvangen pdfBuffer:', pdfBuffer?.length, 'bytes');
   if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
     console.warn('❌ Ongeldige of ontbrekende PDF buffer');
     return {};
@@ -36,95 +26,86 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   const text = parsed.text;
   const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-  // Multi-pattern extractor
-  const multiExtract = (patterns) => {
-    for (const pattern of patterns) {
-      const found = regels.find(line => pattern.test(line));
-      if (found) {
-        const match = found.match(pattern);
-        if (match?.[1]) {
-          const result = match[1].trim();
-          console.log(`🔎 Pattern match: ${pattern} ➜ ${result}`);
-          return result;
-        }
-      }
+  // Helper: zoek eerste match in alle regels
+  function findFirst(pattern) {
+    for (const r of regels) {
+      const m = r.match(pattern);
+      if (m) return m[1].trim();
     }
     return '';
-  };
+  }
 
-  // 📦 Containerregels extraheren
-  const containerRegels = regels.filter(r =>
-    /[A-Z]{4}U\d{7}/.test(r) || /Zegel[:\s]/i.test(r) || /kg/i.test(r) || /m3/i.test(r)
-  );
-  console.log('📦 Geselecteerde containerregels:', containerRegels);
+  // Containernummer (meest voorkomende containerformaat)
+  const containernummer = findFirst(/([A-Z]{4}\d{7})/);
 
-  // Init vars
-  let containernummer = '', containertype = '', zegelnummer = '', gewicht = '', volume = '', colli = '', referentie = '', lading = '';
+  // Containertype (zoek bv. "40ft HC", "45R1", "20GP", etc.)
+  let containertype = '';
+  for (const r of regels) {
+    // Zoek direct na containernummer
+    const m = r.match(/[A-Z]{4}\d{7}\s+([A-Z0-9]{4,6}|[0-9]{2,3}(?:ft)?\s?[A-Z]{2,3})/i);
+    if (m) {
+      containertype = m[1].replace(/\s+/g, '').toUpperCase();
+      break;
+    }
+    // Zoek los type
+    const t = r.match(/\b(20GP|40GP|40HC|45HC|45R1|20DC|40DC|20RF|40RF|45RF|20OT|40OT|20FR|40FR)\b/i);
+    if (t) {
+      containertype = t[1].toUpperCase();
+      break;
+    }
+  }
 
-  // Zoek in containerRegels
-  for (const regel of containerRegels) {
-    // Containernummer
-    if (!containernummer) {
-      const match = regel.match(/([A-Z]{4}U\d{7})/);
-      if (match) {
-        containernummer = match[1];
-        console.log('🚛 Containernummer gevonden:', containernummer);
+  // Zegelnummer
+  const zegelnummer = findFirst(/Zegel[:\s]+([A-Z0-9]+)/i);
+
+  // Gewicht (zoek grootste getal met "kg" erachter)
+  let gewicht = '';
+  for (const r of regels) {
+    const m = r.match(/([\d.,]+)\s*kg/i);
+    if (m) {
+      const val = m[1].replace(',', '.');
+      if (!gewicht || parseFloat(val) > parseFloat(gewicht)) gewicht = val;
+    }
+  }
+
+  // Volume (zoek grootste getal met "m3" erachter)
+  let volume = '';
+  for (const r of regels) {
+    const m = r.match(/([\d.,]+)\s*m3/i);
+    if (m) {
+      const val = m[1].replace(',', '.');
+      if (!volume || parseFloat(val) > parseFloat(volume)) volume = val;
+    }
+  }
+
+  // Colli (zoek getal gevolgd door "colli" of "carton" of "pcs")
+  let colli = findFirst(/(\d+)\s*(colli|carton|pcs)/i);
+  if (!colli) {
+    // fallback: eerste los getal in een regel met "carton" of "pcs"
+    for (const r of regels) {
+      if (/carton|pcs/i.test(r)) {
+        const m = r.match(/(\d+)/);
+        if (m) { colli = m[1]; break; }
       }
     }
-    // Containertype
-    if (!containertype) {
-      // Zoek bv. "CAIU7388667 40ft HC - 76.3 m3"
-      const match = regel.match(/[A-Z]{4}U\d{7}\s+([^\s-]+(?:\s+[A-Z]+)?)\s*[-–]\s*[\d.,]+\s*m3/i);
-      if (match) {
-        containertype = match[1].trim();
-        console.log('📦 Containertype gevonden:', containertype);
-      }
+  }
+
+  // Referentie (zoek "Order", "Booking", "Reference", "Transport Document No.", etc.)
+  let referentie = findFirst(/(?:Order|Booking|Reference|Transport Document No\.?)[:\s]+([A-Z0-9\-\/]+)/i);
+
+  // Lading (zoek eerste regel met veel hoofdletters/woorden na containernummer)
+  let lading = '';
+  for (const r of regels) {
+    if (containernummer && r.includes(containernummer)) {
+      const m = r.match(/[A-Z]{4}\d{7}\s+[A-Z0-9]{4,6}\s+(.+?)\s+[\d.,]+\s*kg/i);
+      if (m) { lading = m[1].trim(); break; }
     }
-    // Zegelnummer
-    if (!zegelnummer && regel.toLowerCase().includes('zegel')) {
-      const match = regel.match(/Zegel[:\s]+(\w+)/i);
-      if (match) {
-        zegelnummer = match[1];
-        console.log('🔐 Zegelnummer gevonden:', zegelnummer);
-      }
-    }
-    // Gewicht
-    if (regel.toLowerCase().includes('kg') && !gewicht) {
-      const match = regel.match(/([\d.,]+)\s*kg/i);
-      if (match) {
-        gewicht = match[1].replace(',', '.');
-        if (gewicht.includes('.')) gewicht = Math.round(parseFloat(gewicht)).toString();
-        console.log('⚖️ Gewicht gevonden:', gewicht);
-      }
-    }
-    // Volume
-    if (regel.toLowerCase().includes('m3') && !volume) {
-      const match = regel.match(/([\d.,]+)\s*m3/i);
-      if (match) {
-        volume = match[1].replace(',', '.');
-        console.log('📏 Volume gevonden:', volume);
-      }
-    }
-    // Colli
-    if (!colli && regel.match(/^\d{2,5}$/)) {
-      colli = regel.trim();
-      console.log('📦 Colli gevonden:', colli);
-    }
-    // Referentie
-    if (!referentie) {
-      const refMatch = regel.match(/Lossen.*?(\d{7,})/i);
-      if (refMatch) {
-        referentie = refMatch[1];
-        console.log('📌 Referentie gevonden:', referentie);
-      }
-    }
-    // Lading
-    if (!lading) {
-      const ladingMatch = regel.match(/^\d+\s+\w+\s+(.*?)\s+[\d.,]+\s*kg/i);
-      if (ladingMatch) {
-        lading = ladingMatch[1].trim();
-        console.log('📦 Lading gevonden:', lading);
-      }
+  }
+  if (!lading) {
+    // fallback: eerste regel met "kg" en tekst voor het gewicht
+    for (const r of regels) {
+      const m = r.match(/(.+?)\s+[\d.,]+\s*kg/i);
+      if (m && m[1].length > 3) { lading = m[1].trim(); break; }
     }
   }
 
@@ -144,19 +125,30 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     }
   }
 
-  // Datum & tijd
+  // Datum & tijd (zoek "Date:" of "Datum:")
   let laadDatum = '', laadTijd = '', bijzonderheid = '';
-  const dateLine = regels.find(r => /^Date[:\t ]+/i.test(r)) || '';
-  const dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
+  let dateLine = regels.find(r => /^Date[:\t ]+/i.test(r)) || '';
+  let dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
+  if (!dateMatch) {
+    // fallback: zoek "Datum:"
+    dateLine = regels.find(r => /^Datum[:\t ]+/i.test(r)) || '';
+    dateMatch = dateLine.match(/Datum:\s*(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
+    if (dateMatch) {
+      laadDatum = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+      laadTijd = dateMatch[4] ? `${dateMatch[4]}:00` : '';
+    }
+  }
   if (dateMatch) {
-    const dag = parseInt(dateMatch[1]);
-    const maandStr = dateMatch[2].toLowerCase().slice(0, 3);
-    const jaar = dateMatch[3];
-    const tijd = dateMatch[4];
-    const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-    const maand = maanden[maandStr];
-    laadDatum = `${dag}-${maand}-${jaar}`;
-    laadTijd = tijd ? `${tijd}:00` : '';
+    if (!laadDatum) {
+      const dag = parseInt(dateMatch[1]);
+      const maandStr = dateMatch[2].toLowerCase().slice(0, 3);
+      const jaar = dateMatch[3];
+      const tijd = dateMatch[4];
+      const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+      const maand = maanden[maandStr] || maandStr;
+      laadDatum = `${dag}-${maand}-${jaar}`;
+      laadTijd = tijd ? `${tijd}:00` : '';
+    }
   } else {
     const nu = new Date();
     laadDatum = `${nu.getDate()}-${nu.getMonth() + 1}-${nu.getFullYear()}`;
@@ -164,19 +156,17 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     bijzonderheid = 'DATUM STAAT VERKEERD';
   }
 
-  // Terminals
-  const pickupTerminalMatch = text.match(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
-  const puKey = pickupTerminalMatch?.[1]?.trim() || '';
-  const dropoffTerminalMatch = text.match(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i);
-  const doKey = dropoffTerminalMatch?.[1]?.trim() || '';
+  // Terminals (zoek bekende terminalnamen of havennummers)
+  let pickupTerminal = findFirst(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
+  let dropoffTerminal = findFirst(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i);
 
   // Terminal lookups
-  const pickupInfo = await getTerminalInfoMetFallback(puKey);
-  const dropoffInfo = await getTerminalInfoMetFallback(doKey);
+  const pickupInfo = await getTerminalInfoMetFallback(pickupTerminal);
+  const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal);
 
   // Rederij & bootnaam
-  const rederij = multiExtract([/Carrier[:\t ]+(.+)/i]) || '';
-  const bootnaam = multiExtract([/Vessel[:\t ]+(.+)/i]) || '';
+  const rederij = findFirst(/Carrier[:\t ]+(.+)/i) || '';
+  const bootnaam = findFirst(/Vessel[:\t ]+(.+)/i) || '';
 
   // Data object
   const data = {
@@ -192,7 +182,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     inleverreferentie: logResult('inleverreferentie', ''),
     rederij: logResult('rederij', rederij),
     bootnaam: logResult('bootnaam', bootnaam),
-    temperatuur: logResult('temperatuur', multiExtract([/Temperature[:\t ]+([\-\d]+°C)/i]) || '0'),
+    temperatuur: logResult('temperatuur', findFirst(/Temperature[:\t ]+([\-\d]+°C)/i) || '0'),
     datum: logResult('datum', laadDatum),
     tijd: logResult('tijd', laadTijd),
     instructies: logResult('instructies', bijzonderheid),
@@ -200,11 +190,8 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     inleverBootnaam: logResult('inleverBootnaam', bootnaam),
     inleverRederij: logResult('inleverRederij', rederij),
     inleverBestemming: logResult('inleverBestemming', ''),
-    pickupTerminal: logResult('pickupTerminal', puKey),
-    dropoffTerminal: logResult('dropoffTerminal', doKey),
-    imo: logResult('imo', multiExtract([/IMO[:\t ]+(\d+)/i]) || '0'),
-    unnr: logResult('unnr', multiExtract([/UN[:\t ]+(\d+)/i]) || '0'),
-    brix: logResult('brix', multiExtract([/Brix[:\t ]+(\d+)/i]) || '0'),
+    pickupTerminal: logResult('pickupTerminal', pickupTerminal),
+    dropoffTerminal: logResult('dropoffTerminal', dropoffTerminal),
     opdrachtgeverNaam: 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
     opdrachtgeverAdres: 'WOLGAWEG 3',
     opdrachtgeverPostcode: '3200AA',
@@ -227,7 +214,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     {
       volgorde: '0',
       actie: 'Opzetten',
-      naam: pickupInfo.naam || puKey,
+      naam: pickupInfo.naam || pickupTerminal,
       adres: pickupInfo.adres || '',
       postcode: pickupInfo.postcode || '',
       plaats: pickupInfo.plaats || '',
@@ -241,7 +228,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     },
     {
       volgorde: '0',
-      actie: data.isLossenOpdracht ? 'Lossen' : 'Laden',
+      actie: 'Lossen',
       naam: klantnaam || '',
       adres: klantadres || '',
       postcode: klantpostcode || '',
@@ -251,7 +238,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     {
       volgorde: '0',
       actie: 'Afzetten',
-      naam: dropoffInfo.naam || doKey,
+      naam: dropoffInfo.naam || dropoffTerminal,
       adres: dropoffInfo.adres || '',
       postcode: dropoffInfo.postcode || '',
       plaats: dropoffInfo.plaats || '',
@@ -270,14 +257,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   data.ladenOfLossen = data.isLossenOpdracht ? 'Lossen' : 'Laden';
 
   // ADR
-  if (data.imo !== '0' || data.unnr !== '0') {
-    data.adr = 'Waar';
-  } else {
-    data.adr = 'Onwaar';
-    delete data.imo;
-    delete data.unnr;
-    delete data.brix;
-  }
+  data.adr = (findFirst(/IMO[:\t ]+(\d+)/i) || findFirst(/UN[:\t ]+(\d+)/i)) ? 'Waar' : 'Onwaar';
 
   // Debug logs
   console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
