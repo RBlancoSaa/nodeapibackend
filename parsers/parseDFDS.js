@@ -22,6 +22,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
   const ritnummerMatch = text.match(/\b(SFIM\d{7})\b/i);
 
+
   const multiExtract = (patterns) => {
     for (const pattern of patterns) {
       const found = regels.find(line => pattern.test(line));
@@ -39,8 +40,23 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   const laadTijd = '';
   const bijzonderheid = 'DATUM MOET NOG GEFINETUNED WORDEN';
 
+  let ritnummer = ritnummerMatch?.[1];
+
+    if (!ritnummer) {
+    // Fallback op bestandsnaam of onderwerp
+      const fallbackMatch = klantAlias?.match(/SFIM\d{7}/i); // indien alias bestandsnaam bevat
+      if (fallbackMatch) {
+      ritnummer = fallbackMatch[0];
+      console.warn(`⚠️ Ritnummer uit tekst niet gevonden — fallback naar alias: ${ritnummer}`);
+    } else {
+      console.warn('❌ Geen ritnummer gevonden in tekst of fallback');
+      ritnummer = '0';
+    }
+  }
+
+
   const data = {
-    ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
+    ritnummer: logResult('ritnummer', ritnummer),
     referentie: logResult('referentie', multiExtract([/Reference[:\t ]+([A-Z0-9\-]+)/i])),
     colli: logResult('colli', '0'),
     volume: logResult('volume', '0'),
