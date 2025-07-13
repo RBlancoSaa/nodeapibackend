@@ -80,10 +80,22 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   // 🎯 Uitlezen containerblok (onderaan de PDF)
     const containerBlok = text.match(/Type Number[\s\S]+?(?=Extra Information|Date:|Jordex|$)/i)?.[0] || '';
     const regelsContainer = containerBlok.split('\n').map(r => r.trim()).filter(Boolean);
-
-  // Colli, Volume
-    const colli = regelsContainer.find(r => /^\d{3,5}$/.test(r)) || '0';
-    const volume = regelsContainer.find(r => /m³/i.test(r))?.replace(/[^\d.,]/g, '') || '0';
+   
+for (let regel of regelsContainer) {
+  if (/(\d{3,5})\s*m³/i.test(regel)) {
+    volume = regel.match(/(\d{3,5})\s*m³/i)?.[1].replace(',', '.') || '0';
+  }
+  if (/(\d{4,6})\s*kg/i.test(regel)) {
+    gewicht = regel.match(/(\d{4,6})\s*kg/i)?.[1].replace(',', '.') || '0';
+  }
+  const match = regel.trim().split(/\s+/)[2];
+  if (/^\d{3,5}$/.test(match)) {
+    colli = match;
+  }
+}
+if (gewicht.includes('.')) {
+  gewicht = Math.round(parseFloat(gewicht)).toString();
+}
 
   // Lading = alles tussen eerste BLOKPALLET-regel en -20 DEGREES
     const ladingStartIndex = regelsContainer.findIndex(r => /BLOKPALLETS/i.test(r));
@@ -201,8 +213,8 @@ const data = {
       return sectie.match(/Reference\(s\):\s*(.+)/i)?.[1]?.trim() || '';
   })()),
       
-    volume: text.match(/(\d{2,3})\s*m³/i)?.[1] || '0',
-    colli: text.match(/\b(\d{2,5})\b.*?m³/i)?.[1] || '0',
+    colli: logResult('colli', colli),
+    volume: logResult('volume', volume),
     lading: logResult('lading', multiExtract([/Description of goods[:\t ]+(.+)/i]) || '0'),
     imo: logResult('imo', multiExtract([/IMO[:\t ]+(\d+)/i]) || '0'),
     unnr: logResult('unnr', multiExtract([/UN[:\t ]+(\d+)/i]) || '0'),
