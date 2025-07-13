@@ -2,78 +2,84 @@
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 
-function logResult(label, value) {
-  console.log(`🔍 ${label}:`, value || '[LEEG]');
-  return value;
-}
-
-function extractContainers(lines) {
+export default async function parseDFDS(buffer) {
+  const data = await pdfParse(buffer);
+  const text = data.text;
   const containers = [];
-  const startIdx = lines.findIndex(l => l.toLowerCase().includes('goederen informatie'));
-  console.log('🔍 Startindex goederenblok:', startIdx);
+  let ritnummer = '';
+  let referentie = '';
+  let bootnaam = '';
+  let datum = '';
+  let tijdvan = '';
+  let tijdtm = '';
+  let laadplaats = '';
+  let inleverreferentie = '';
+  let dropoffLocatie = '';
 
-  if (startIdx === -1) {
-    console.log('⚠️ Geen "Goederen informatie" gevonden in regels');
-    return [];
+  
+  // ⛴ Bootnaam
+  const bootMatch = text.match(/Vaartuig\s+(.*?)\s+Reis/i);
+  if (bootMatch) bootnaam = bootMatch[1].trim();
+
+  // 📅 Datum
+  const dateMatch = text.match(/Pickup PORTBASE\s+(\d{2}-\d{2}-\d{4})/i);
+  if (dateMatch) datum = dateMatch[1];
+
+  // ⏰ Tijden
+  const timeMatch = text.match(/Lossen\s+\S+\s+(\d{2}:\d{2}) - (\d{2}:\d{2})/);
+  if (timeMatch) {
+    tijdvan = `${timeMatch[1]}:00`;
+    tijdtm = `${timeMatch[2]}:00`;
   }
 
-  for (let i = startIdx + 1; i < lines.length - 1; i++) {
-    const line1 = lines[i];
-    const line2 = lines[i + 1];
+  // 📦 Containers
+  const containerRegex = /([A-Z]{4}\d{7})\s+(\d{2}ft(?: HC)?).*\s+Zegel:\s*(\S+)/g;
+  const omschrijvingRegex = /Zegel:\s*\S+\n(.*?)\s+([\d.,]+)\s+kg\s+[\d.,]+\s+m3/g;
 
-    if (!line1.includes('Zegel:')) {
-      console.log(`⏭️ Regel ${i} overgeslagen (geen Zegel):`, line1);
-      continue;
-    }
+  const sealMatches = [...text.matchAll(containerRegex)];
+  const descMatches = [...text.matchAll(omschrijvingRegex)];
 
-    console.log(`📦 Containerregel gevonden op regel ${i}:`, line1);
-    console.log(`📝 Omschrijvingsregel op regel ${i + 1}:`, line2);
+  for (let i = 0; i < sealMatches.length; i++) {
+    const [, nummer, type, seal] = sealMatches[i];
+    const [, omschrijvingRaw, gewichtRaw] = descMatches[i] || [];
 
-    const [containerLine, sealMatch] = line1.split('/ Zegel:');
-    const [containernummer, ...typeParts] = containerLine.trim().split(' ');
-    const typeInfo = typeParts.join(' ').trim();
-    const seal = sealMatch?.trim();
+    const gewicht = gewichtRaw?.replace(',', '.') || '0';
+    const colli = '0';
+    const volume = '0';
+    const omschrijving = omschrijvingRaw?.trim() || '';
 
-    const omschrijvingMatch = line2?.match(/^(.*)\s+([\d.,]+)\s+kg\s+([\d.,]+)\s+m3$/i);
-
-    if (!omschrijvingMatch) {
-      console.log(`⚠️ Geen geldige omschrijving/gewicht/volume op regel ${i + 1}:`, line2);
-      continue;
-    }
-
-    const omschrijving = omschrijvingMatch[1].trim();
-    const gewicht = omschrijvingMatch[2].replace(',', '.');
-    const volume = omschrijvingMatch[3].replace(',', '.');
-
-    const result = {
-      containernummer,
-      containertype: typeInfo,
+    containers.push({
+      containernummer: nummer,
+      containertype: type.replace('ft', '').trim(),
       sealnummer: seal,
+      colli,
       gewicht,
       volume,
-      omschrijving
-    };
-
-    console.log(`✅ Geëxtraheerd containerobject:`, result);
-    containers.push(result);
-
-    i++; // skip extra regel
+      omschrijving,
+      bootnaam,
+      datum,
+      tijdvan,
+      tijdtm,
+      laadplaats: 'ECT Delta Terminal',
+      inleverreferentie: '',
+      inleverBestemming: '',
+      inleverRederij: '',
+      ritnummer: '0', // wordt gegenereerd in generator
+      referentie: '0',
+      adr: 'Onwaar',
+      ladenOfLossen: 'Lossen',
+    });
   }
 
-  console.log('📦 Totaal aantal containers gevonden:', containers.length);
-  return containers;
-}
-
-export default async function parseDFDS(pdfBuffer) {
-  const { text } = await pdfParse(pdfBuffer);
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-
-  console.log('📄 Regels in PDF:', lines.length);
-  const containers = extractContainers(lines);
-  logResult('Aantal containers', containers.length);
-
   return {
-    ritnummer: 'SFIM2500929', // tijdelijk hardcoded voor test
+    ritnummer: extractReferentie(text), // bijv. SFIM2500929
+    referentie: extractReferentie(text),
     containers
   };
+}
+
+// 📌 hulpfunctie om referentie te vinden
+function extractReferentie(text) {
+  const match = text.match(/Onze referentie\s+([A-Z0-9]+)/i);
+  return match ? match[1].trim() : '0';
 }
