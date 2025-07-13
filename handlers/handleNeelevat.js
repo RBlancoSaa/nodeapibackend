@@ -2,7 +2,7 @@
 import parseNeelevat from '../parsers/parseNeelevat.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 
-export async function handleNeelevatTransport({ buffer, base64, filename }) {
+export default async function handleNeelevat({ buffer, base64, filename }) {
   console.log(`📦 Verwerken van Neelevat-bestand: ${filename}`);
   const parsedData = await parseNeelevat(buffer);
   const easyFiles = [];

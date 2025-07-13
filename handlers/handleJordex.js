@@ -2,7 +2,7 @@
 import parseJordex from '../parsers/parseJordex.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 
-export async function handleJordex({ buffer, filename }) {
+export default async function  handleJordex({ buffer, filename }) {
   const parsedData = await parseJordex(buffer);
 
   if (!parsedData.ritnummer || parsedData.ritnummer === '0') {

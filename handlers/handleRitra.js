@@ -2,7 +2,7 @@
 import parseRitra from '../parsers/parseRitra.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 
-export async function handleRitraTransport({ buffer, base64, filename }) {
+export default async function handleRitra({ buffer, base64, filename }) {
   console.log(`📦 Verwerken van Ritra-bestand: ${filename}`);
   const parsedData = await parseRitra(buffer);
   const easyFiles = [];
