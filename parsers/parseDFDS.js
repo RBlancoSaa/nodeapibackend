@@ -51,28 +51,30 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     return {};
   }
 
-  // --- PDF PARSEN & LINES ---
+    // --- PDF PARSEN & LINES ---
   const parsed = await pdfParse(pdfBuffer);
   const rawLines = parsed.text.split('\n');
-  const splitLines = rawLines
-  .map(line =>
-    line
-      // “m3Pickup” → “m3 Pickup ”
-      .replace(/m3Pickup/i, 'm3 Pickup ')
-      // “7PORT” → “7 PORT”
-      .replace(/([0-9])([A-Z])/g, '$1 $2')
-      .trim()
-  )
-  .filter(Boolean);
 
-console.log(`ℹ️ In totaal ${splitLines.length} opgeschoonde regels gevonden`);
-  
+  // 1) Maak éénmaal je opgeschoonde regels
+  const splitLines = rawLines
+    .map(line =>
+      line
+        .replace(/m3Pickup/i, 'm3 Pickup ')
+        .replace(/([0-9])([A-Z])/g, '$1 $2')
+        .trim()
+    )
+    .filter(Boolean);
+
+  console.log(`ℹ️ In totaal ${splitLines.length} opgeschoonde regels gevonden`);
+
   // --- SECTIONS BEPALEN ---
   const idxTransportInfo = splitLines.findIndex(r => /^Transport informatie/i.test(r));
   const idxGoederenInfo  = splitLines.findIndex(r => /^Goederen informatie/i.test(r));
+  console.log(`ℹ️ Transport-info begint op regel ${idxTransportInfo}, goederen-info op ${idxGoederenInfo}`);
 
+  // --- TRANSPORT INFORMATIE: CONTAINER / REF / DATUM / TIJD ---
   const transportLines = idxTransportInfo >= 0 && idxGoederenInfo > idxTransportInfo
-   ? splitLines.slice(idxTransportInfo + 1, idxGoederenInfo)
+    ? splitLines.slice(idxTransportInfo + 1, idxGoederenInfo)
     : [];
 
   // Container nr
