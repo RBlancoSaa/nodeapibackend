@@ -234,7 +234,57 @@ console.log(`🔍 containertypeRaw: '${containertypeRaw}'`);
     lading: lading,
     gewicht: gewicht
   };
+ // 5) Default opdrachtgever‐velden
+  data.opdrachtgeverNaam     = 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.';
+  data.opdrachtgeverAdres    = 'WOLGAWEG 3';
+  data.opdrachtgeverPostcode = '3198 LR';
+  data.opdrachtgeverPlaats   = 'ROTTERDAM';
+  data.opdrachtgeverTelefoon = '010-1234567';                     // óók aanpassen als je wilt
+  data.opdrachtgeverEmail    = 'nl-rtm-operations@dfds.com';
+  data.opdrachtgeverBTW      = 'NL007129099B01';
+  data.opdrachtgeverKVK      = '24232781';
 
-  console.log('✅ Eindresultaat data object:', JSON.stringify(data, null, 2));
+  // 6) Terminal‐lookups (met fallback) voor je locaties
+  const pickupInfo  = await getTerminalInfoMetFallback(pickupTerminal)  || {};
+  const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal) || {};
+
+  // 7) Bouw de locaties‐array á la je oude full‐versie
+  data.locaties = [
+    {
+      volgorde: '0',
+      actie: 'Opzetten',
+      naam:      pickupInfo.naam  || pickupTerminal,  
+      adres:     pickupInfo.adres || pickupAdres,
+      postcode:  pickupInfo.postcode|| '',
+      plaats:    pickupInfo.plaats|| '',
+      land:      pickupInfo.land  || 'NL',
+      portbase_code: pickupInfo.portbase_code || '',
+      bicsCode:      pickupInfo.bicsCode      || ''
+    },
+    {
+      volgorde: '1',
+      actie: 'Lossen',
+      naam:     klantNaam || '',
+      adres:    klantAdres|| '',
+      postcode: klantPostcode || '',
+      plaats:   klantPlaats   || '',
+      land:     'NL'
+    },
+    {
+      volgorde: '2',
+      actie: 'Afzetten',
+      naam:      dropoffInfo.naam  || dropoffTerminal,  
+      adres:     dropoffInfo.adres || dropoffAdres,
+      postcode:  dropoffInfo.postcode|| '',
+      plaats:    dropoffInfo.plaats|| '',
+      land:      dropoffInfo.land  || 'NL',
+      portbase_code: dropoffInfo.portbase_code || '',
+      bicsCode:      dropoffInfo.bicsCode      || ''
+    }
+  ];
+  // ————————————————————————
+
+  console.log('📍 locaties:', JSON.stringify(data.locaties, null, 2));
+  console.log('✅ Eindresultaat data object met opdrachtgever en locaties:', JSON.stringify(data, null, 2));
   return data;
 }
