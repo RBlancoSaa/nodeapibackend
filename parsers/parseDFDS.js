@@ -2,6 +2,7 @@
 
 import '../utils/fsPatch.js';
 import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+pdfjsLib.disableWorker = true;
 import {
   getTerminalInfoMetFallback,
   getContainerTypeCode
