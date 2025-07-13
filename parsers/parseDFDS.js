@@ -134,11 +134,11 @@ for (const regel of containerRegels) {
 
   // Containertype
   if (!containertype) {
-    const typeMatch = regel.match(/^[A-Z]{4}U\d{7}\s+([\d\w\s\-]+m3)/i);
-    if (typeMatch) {
-      containertype = typeMatch[1].trim();
-      console.log('📦 Containertype gevonden:', containertype);
-    }
+    const typeMatch = regel.match(/^[A-Z]{4}U\d{7}\s+(.+?)\s*[-–]?\s*[\d.,]+\s*m3/i);
+if (typeMatch) {
+  containertype = typeMatch[1].trim();
+  console.log('📦 Containertype gevonden (zonder volume):', containertype);
+}
   }
 
   // Zegelnummer
