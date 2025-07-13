@@ -3,7 +3,6 @@ import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
-  getRederijNaam,
   getContainerTypeCode
 } from '../utils/lookups/terminalLookup.js';
 
@@ -35,19 +34,18 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     return '';
   }
 
-  // Ritnummer (Onze referentie: SFIMxxxxxxx)
-  const ritnummer = findFirst(/Onze referentie[:\t ]+(SFIM\d{7})/i);
-
-  // Referentie (eerst Lossen-regel, dan fallback)
-  let referentie = findFirst(/Lossen[:\s]+(\d{7,})/i);
+  // Ritnummer (Onze referentie: SFIMxxxxxxx) met fallback
+  let referentie = findFirst(/Lossen.*?(\d{7,})/i);
   if (!referentie) {
-    referentie = findFirst(/(?:Order|Booking|Reference|Transport Document No\.?)[:\s]+([A-Z0-9\-\/]+)/i);
+    referentie = findFirst(/(?:Order|Booking|Reference|Transport Document No\.?).*?([A-Z0-9\-\/]+)/i);
   }
+  const fallbackRitnummer = referentie?.match(/SFIM\d{7}/i)?.[0];
+  const ritnummer = findFirst(/Onze referentie[:\t ]+(SFIM\d{7})/i) || fallbackRitnummer || '0';
 
   // Containernummer
   const containernummer = findFirst(/([A-Z]{4}\d{7})/);
 
-  // Containertype (zoek bv. "40ft HC", "45R1", "20GP", etc.)
+  // Containertype (origineel én genormaliseerd)
   let containertype = '';
   for (const r of regels) {
     const m = r.match(/[A-Z]{4}\d{7}\s+([A-Z0-9]{4,6}|[0-9]{2,3}(?:ft)?\s?[A-Z]{2,3})/i);
@@ -64,6 +62,15 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   console.log('🔍 Gevonden containertype:', containertype);
   const normalizedContainertype = (containertype || '').toLowerCase().replace(/[^a-z0-9]/gi, '');
   console.log('🔍 Normalized containertype:', normalizedContainertype);
+
+  // ContainertypeCode lookup vóór data object
+  let typeCode = '0';
+  try {
+    typeCode = await getContainerTypeCode(normalizedContainertype);
+    console.log('📦 Gezochte containertypeCode via getContainerTypeCode():', typeCode);
+  } catch (e) {
+    console.warn('⚠️ Fout bij ophalen containertypeCode:', e);
+  }
 
   // Zegelnummer
   const zegelnummer = findFirst(/Zegel[:\s]+([A-Z0-9]+)/i);
@@ -130,39 +137,13 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     }
   }
 
-  // Datum & tijd (zoek "Date:" of "Datum:")
-  let laadDatum = '', laadTijd = '', bijzonderheid = '';
-  let dateLine = regels.find(r => /^Date[:\t ]+/i.test(r)) || '';
-  let dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
-  if (!dateMatch) {
-    dateLine = regels.find(r => /^Datum[:\t ]+/i.test(r)) || '';
-    dateMatch = dateLine.match(/Datum:\s*(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
-    if (dateMatch) {
-      laadDatum = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
-      laadTijd = dateMatch[4] ? `${dateMatch[4]}:00` : '';
-    }
-  }
-  if (dateMatch) {
-    if (!laadDatum) {
-      const dag = parseInt(dateMatch[1]);
-      const maandStr = dateMatch[2].toLowerCase().slice(0, 3);
-      const jaar = dateMatch[3];
-      const tijd = dateMatch[4];
-      const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-      const maand = maanden[maandStr] || maandStr;
-      laadDatum = `${dag}-${maand}-${jaar}`;
-      laadTijd = tijd ? `${tijd}:00` : '';
-    }
-  } else {
-    const nu = new Date();
-    laadDatum = `${nu.getDate()}-${nu.getMonth() + 1}-${nu.getFullYear()}`;
-    laadTijd = '';
-    bijzonderheid = 'DATUM STAAT VERKEERD';
-  }
-
-  // Terminals (zoek bekende terminalnamen of havennummers)
-  let pickupTerminal = findFirst(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
-  let dropoffTerminal = findFirst(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i);
+  // Terminals (fallbacks toegevoegd)
+  let pickupTerminal = findFirst(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i)
+    || findFirst(/pickup[:\s]+(.+)/i)
+    || '';
+  let dropoffTerminal = findFirst(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i)
+    || findFirst(/dropoff[:\s]+(.+)/i)
+    || '';
 
   // Terminal lookups
   const pickupInfo = await getTerminalInfoMetFallback(pickupTerminal);
@@ -171,6 +152,38 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   // Rederij & bootnaam
   const rederij = findFirst(/Carrier[:\t ]+(.+)/i) || '';
   const bootnaam = findFirst(/Vessel[:\t ]+(.+)/i) || '';
+
+  // Datum & tijd (met padding en seconds)
+  const pad = n => n.toString().padStart(2, '0');
+  let laadDatum = '', laadTijd = '', bijzonderheid = '';
+  let dateLine = regels.find(r => /^Date[:\t ]+/i.test(r)) || '';
+  let dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
+  if (!dateMatch) {
+    dateLine = regels.find(r => /^Datum[:\t ]+/i.test(r)) || '';
+    dateMatch = dateLine.match(/Datum:\s*(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
+    if (dateMatch) {
+      laadDatum = `${pad(dateMatch[1])}-${pad(dateMatch[2])}-${dateMatch[3]}`;
+      laadTijd = dateMatch[4] ? `${dateMatch[4]}:00` : '';
+    }
+  }
+  if (dateMatch) {
+    if (!laadDatum) {
+      const dag = pad(parseInt(dateMatch[1]));
+      const maandStr = dateMatch[2].toLowerCase().slice(0, 3);
+      const jaar = dateMatch[3];
+      const tijd = dateMatch[4];
+      const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+      const maand = pad(maanden[maandStr] || maandStr);
+      laadDatum = `${dag}-${maand}-${jaar}`;
+      laadTijd = tijd ? `${tijd}:00` : '';
+    }
+  } else {
+    const nu = new Date();
+    laadDatum = `${pad(nu.getDate())}-${pad(nu.getMonth() + 1)}-${nu.getFullYear()}`;
+    laadTijd = '';
+    bijzonderheid = 'DATUM STAAT VERKEERD';
+  }
+  if (laadTijd && !/:00$/.test(laadTijd)) laadTijd += ':00';
 
   // Data object
   const data = {
@@ -181,7 +194,8 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     gewicht: logResult('gewicht', gewicht || '0'),
     lading: logResult('lading', lading || ''),
     containernummer: logResult('containernummer', containernummer || ''),
-    containertype: logResult('containertype', normalizedContainertype || ''),
+    containertype: logResult('containertype', containertype || ''),
+    containertypeCode: logResult('containertypeCode', typeCode || '0'),
     zegelnummer: logResult('zegelnummer', zegelnummer || ''),
     inleverreferentie: logResult('inleverreferentie', ''),
     rederij: logResult('rederij', rederij),
@@ -204,8 +218,6 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
     opdrachtgeverBTW: 'NL007129099B01',
     opdrachtgeverKVK: '24232781',
-    terminal: '0',
-    rederijCode: '0',
     klantnaam,
     klantadres,
     klantpostcode,
@@ -262,17 +274,9 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   // ADR
   data.adr = (findFirst(/IMO[:\t ]+(\d+)/i) || findFirst(/UN[:\t ]+(\d+)/i)) ? 'Waar' : 'Onwaar';
 
-  // ContainertypeCode lookup
-  try {
-    const typeCode = await getContainerTypeCode(normalizedContainertype);
-    console.log('📦 Gezochte containertypeCode via getContainerTypeCode():', typeCode);
-    if (typeCode && typeCode !== '0') {
-      data.containertypeCode = typeCode;
-    } else {
-      console.warn(`⚠️ Geen match voor containertype: ${normalizedContainertype}`);
-    }
-  } catch (e) {
-    console.warn('⚠️ Fout bij ophalen containertypeCode:', e);
+  // Fallback check
+  if (!containertype || !data.containertypeCode || data.containertypeCode === '0') {
+    console.warn('🚫 Containertype ontbreekt of wordt niet herkend');
   }
 
   // Debug logs
