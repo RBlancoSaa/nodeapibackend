@@ -3,35 +3,28 @@
 import '../utils/fsPatch.js';
 import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 const { getDocument } = pdfjsLib;
-import {
-  getTerminalInfoMetFallback,
-  getContainerTypeCode
-} from '../utils/lookups/terminalLookup.js';
 
-// ─── extractLines: PDF → visuele regels ─────────────────────────────────────
 async function extractLines(buffer) {
-  // 1) Converteer Buffer → Uint8Array
+  // 1) Buffer → Uint8Array
   const uint8 = buffer instanceof Uint8Array
     ? buffer
     : new Uint8Array(buffer);
 
-  // 2) Laad PDF
+  // 2) PDF laden
   const pdf = await getDocument({ data: uint8 }).promise;
   const allLines = [];
 
-  // 3) Per pagina: textContent ophalen en groeperen op y/x
+  // 3) Per pagina textContent ophalen en groeperen
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const { items } = await page.getTextContent();
-
-    // Map elk item naar { text, x, y }
     const runs = items.map(i => ({
       text: i.str,
       x:   i.transform[4],
       y:   i.transform[5]
     }));
 
-    // Groepeer runs op hun y-positie binnen ±2 punten
+    // Groepeer op y binnen ±2 punten
     const linesMap = [];
     for (const run of runs) {
       let bucket = linesMap.find(l => Math.abs(l.y - run.y) < 2);
@@ -58,6 +51,11 @@ async function extractLines(buffer) {
 
   return allLines;
 }
+
+import {
+  getTerminalInfoMetFallback,
+  getContainerTypeCode
+} from '../utils/lookups/terminalLookup.js';
 
 // ─── HELPERS MET DEBUG-LOGS ──────────────────────────────────────────────────
 function safeMatch(pattern, text, group = 1, label = '') {
@@ -115,7 +113,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
 
   // 5) Container nr
   const containernummer = findFirst(/([A-Z]{4}\d{7})/, transportLines, 'containernummer');
-  
+
   // Containertype (origineel)
 let containertypeRaw = findFirst(
   new RegExp(`${containernummer}\\s*([0-9]{2,3}(?:ft)?\\s?[A-Za-z]{2,3})`, 'i'),
