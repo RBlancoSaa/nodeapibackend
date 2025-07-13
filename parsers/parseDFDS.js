@@ -123,22 +123,21 @@ let containernummer = '', zegelnummer = '', gewicht = '0', volume = '0', colli =
 
 
 for (const regel of containerRegels) {
-
-    // Containertype
-    if (!containertype) {
-      const typeMatch = regel.match(/^[A-Z]{4}U\d{7}\s+([\d\w\s\-]+m³)/i);
-      if (typeMatch) {
-        containertype = typeMatch[1].trim();
-        console.log('📦 Containertype gevonden:', containertype);
-      }
-    }     
-    
   // Containernummer
   if (!containernummer) {
     const match = regel.match(/^([A-Z]{4}U\d{7})/);
     if (match) {
       containernummer = match[1];
       console.log('🚛 Containernummer gevonden:', containernummer);
+    }
+  }
+
+  // Containertype
+  if (!containertype) {
+    const typeMatch = regel.match(/^[A-Z]{4}U\d{7}\s+([\d\w\s\-]+m3)/i);
+    if (typeMatch) {
+      containertype = typeMatch[1].trim();
+      console.log('📦 Containertype gevonden:', containertype);
     }
   }
 
