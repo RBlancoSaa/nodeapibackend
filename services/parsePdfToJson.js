@@ -55,10 +55,10 @@ console.log('📄 Eerste 500 tekens tekst:\n', text.slice(0, 500));
     return await parseB2L(buffer, 'b2l');
   }
 
-  if (text.includes('DFDS')) {
-    console.log('🔍 DFDS PDF herkend');
-    return await parseDFDS(buffer, 'dfds');
-  }
+  // herken DFDS op: nl-rtm-operations@dfds.com of 'DFDS Warehousing Rotterdam B.V.'
+if (text.includes('DFDS Warehousing Rotterdam B.V.') || text.includes('nl-rtm-operations@dfds.com')) {
+  return await parseDFDS(pdfBuffer);
+}
 
   if (text.includes('Easyfresh')) {
     console.log('🔍 Easyfresh PDF herkend');
