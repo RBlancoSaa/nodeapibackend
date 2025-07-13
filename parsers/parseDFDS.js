@@ -11,6 +11,12 @@ function logResult(label, value) {
   return value;
 }
 
+// Helper: veilige match met trim
+function safeMatch(pattern, tekst, group = 0) {
+  const match = tekst?.match(pattern);
+  return match && typeof match[group] === 'string' ? match[group].trim() : '';
+}
+
 // ✅ Veilige findFirst: voorkomt .trim() op undefined
 function findFirst(pattern, regels) {
   for (const r of regels) {
@@ -39,7 +45,8 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   if (!referentie) {
     referentie = findFirst(/(?:Order|Booking|Reference|Transport Document No\.?).*?([A-Z0-9\-\/]+)/i, regels);
   }
-  const fallbackRitnummer = referentie?.match(/SFIM\d{7}/i)?.[0];
+  const fallbackRitnummerMatch = referentie?.match(/SFIM\d{7}/i);
+  const fallbackRitnummer = fallbackRitnummerMatch ? fallbackRitnummerMatch[0].trim() : '';
   const ritnummer = findFirst(/Onze referentie[:\t ]+(SFIM\d{7})/i, regels) || fallbackRitnummer || '0';
 
   // Containernummer
@@ -49,12 +56,12 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   let containertype = '';
   for (const r of regels) {
     const m = r.match(/[A-Z]{4}\d{7}\s+([A-Z0-9]{4,6}|[0-9]{2,3}(?:ft)?\s?[A-Z]{2,3})/i);
-    if (m) {
+    if (m && m[1]) {
       containertype = m[1].replace(/\s+/g, '').toUpperCase();
       break;
     }
     const t = r.match(/\b(20GP|40GP|40HC|45HC|45R1|20DC|40DC|20RF|40RF|45RF|20OT|40OT|20FR|40FR)\b/i);
-    if (t) {
+    if (t && t[1]) {
       containertype = t[1].toUpperCase();
       break;
     }
@@ -64,7 +71,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     const line = regels.find(r => r.includes(containernummer));
     if (line) {
       const m = line.match(/([A-Z0-9]{4,6}|[0-9]{2,3}(?:ft)?\s?[A-Z]{2,3})/i);
-      if (m) containertype = m[1].replace(/\s+/g, '').toUpperCase();
+      if (m && m[1]) containertype = m[1].replace(/\s+/g, '').toUpperCase();
     }
   }
   console.log('🔍 Gevonden containertype:', containertype);
@@ -89,8 +96,8 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   let gewicht = '';
   for (const r of regels) {
     const m = r.match(/([\d.,]+)\s*kg/i);
-    if (m) {
-      const val = m[1].replace(',', '.');
+    if (m && m[1]) {
+      const val = (m[1] || '').replace(',', '.');
       if (!gewicht || parseFloat(val) > parseFloat(gewicht)) gewicht = val;
     }
   }
@@ -99,8 +106,8 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   let volume = '';
   for (const r of regels) {
     const m = r.match(/([\d.,]+)\s*m3/i);
-    if (m) {
-      const val = m[1].replace(',', '.');
+    if (m && m[1]) {
+      const val = (m[1] || '').replace(',', '.');
       if (!volume || parseFloat(val) > parseFloat(volume)) volume = val;
     }
   }
@@ -111,7 +118,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     for (const r of regels) {
       if (/carton|pcs/i.test(r)) {
         const m = r.match(/(\d+)/);
-        if (m) { colli = m[1]; break; }
+        if (m && m[1]) { colli = m[1].trim(); break; }
       }
     }
   }
@@ -121,13 +128,13 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   for (const r of regels) {
     if (containernummer && r.includes(containernummer)) {
       const m = r.match(/[A-Z]{4}\d{7}\s+[A-Z0-9]{4,6}\s+(.+?)\s+[\d.,]+\s*kg/i);
-      if (m) { lading = m[1].trim(); break; }
+      if (m && m[1]) { lading = m[1].trim(); break; }
     }
   }
   if (!lading) {
     for (const r of regels) {
       const m = r.match(/(.+?)\s+[\d.,]+\s*kg/i);
-      if (m && m[1].length > 3) { lading = m[1].trim(); break; }
+      if (m && m[1] && m[1].length > 3) { lading = m[1].trim(); break; }
     }
   }
 
@@ -142,7 +149,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     }
     if (!klantpostcode && /\d{4}\s?[A-Z]{2}/.test(regels[i])) {
       const m = regels[i].match(/(\d{4}\s?[A-Z]{2})/);
-      if (m) klantpostcode = m[1];
+      if (m && m[1]) klantpostcode = m[1].trim();
       klantplaats = regels[i].replace(klantpostcode, '').trim();
     }
   }
