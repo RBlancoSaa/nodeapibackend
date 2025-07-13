@@ -40,7 +40,10 @@ export default async function handler(req, res) {
     const pdfAttachments = allAttachments.filter(att =>
       att.filename && att.filename.toLowerCase().endsWith('.pdf')
     );
-
+    console.log('🧾 PDF-bijlagen gevonden:', pdfAttachments.length);
+    pdfAttachments.forEach(att => {
+    console.log(` - 📎 ${att.filename} (${att.base64 ? 'base64 aanwezig' : 'GEEN base64'})`);
+});
     const uploadedFiles = await uploadPdfAttachmentsToSupabase(pdfAttachments);
   // Na upload van PDF's, verwerk ze tot .easy-bestanden
     for (const mail of mails) {
@@ -70,10 +73,16 @@ export default async function handler(req, res) {
     }
 
 for (const attachment of pdfAttachments) {
+
   const { filename, buffer, base64 } = attachment;
 
   if (!filename) continue;
-
+  console.log(`🧪 Controleren op DFDS: ${filename}`);
+  if (isDfdsTransportOrder(filename)) {
+  console.log(`✅ DFDS transportorder herkend: ${filename}`);
+} else {
+  console.log(`⛔ Niet herkend als DFDS transportorder: ${filename}`);
+}
   if (isDfdsTransportOrder(filename)) {
     console.log(`📄 DFDS transportopdracht gedetecteerd: ${filename}`);
     const parsedData = await parseDFDS(buffer);
