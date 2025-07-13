@@ -55,28 +55,25 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   const parsed = await pdfParse(pdfBuffer);
   const rawLines = parsed.text.split('\n');
   const splitLines = rawLines
-  .map(l =>
-    l
+  .map(line =>
+    line
+      // “m3Pickup” → “m3 Pickup ”
       .replace(/m3Pickup/i, 'm3 Pickup ')
+      // “7PORT” → “7 PORT”
       .replace(/([0-9])([A-Z])/g, '$1 $2')
       .trim()
   )
   .filter(Boolean);
 
 console.log(`ℹ️ In totaal ${splitLines.length} opgeschoonde regels gevonden`);
-  console.log(`ℹ️ In totaal ${regels.length} opgeschoonde regels gevonden`);
-  console.log(`ℹ️ In totaal ${regels.length} niet-lege regels gevonden`);
-
   
   // --- SECTIONS BEPALEN ---
   const idxTransportInfo = splitLines.findIndex(r => /^Transport informatie/i.test(r));
   const idxGoederenInfo  = splitLines.findIndex(r => /^Goederen informatie/i.test(r));
-    console.log(`ℹ️ Transport-info begint op regel ${idxTransportInfo}, goederen-info op ${idxGoederenInfo}`);
 
-  // --- TRANSPORT INFORMATIE: CONTAINER / REF / DATUM / TIJD ---
   const transportLines = idxTransportInfo >= 0 && idxGoederenInfo > idxTransportInfo
-  ? splitLines.slice(idxTransportInfo + 1, idxGoederenInfo)
-  : [];
+   ? splitLines.slice(idxTransportInfo + 1, idxGoederenInfo)
+    : [];
 
   // Container nr
   const containernummer = findFirst(/([A-Z]{4}\d{7})/, transportLines, 'containernummer');
@@ -156,6 +153,10 @@ console.log(`🔍 containertypeRaw: '${containertypeRaw}'`);
   idxGoederenInfo > 0 ? idxGoederenInfo : splitLines.length
 );
 
+  const goederenLines = idxGoederenInfo >= 0
+    ? splitLines.slice(idxGoederenInfo + 1)
+    : [];
+
   // Indices
   const iPU = terminalSection.findIndex(r => /^Pickup\b/i.test(r));
   const iLO = terminalSection.findIndex(r => /^Lossen\b/i.test(r));
@@ -183,11 +184,7 @@ console.log(`🔍 containertypeRaw: '${containertypeRaw}'`);
     console.log(`🔍 dropoffTerminal: ‘${dropoffTerminal}’, dropoffAdres: ‘${dropoffAdres}’`);
   }
 
-  // --- GOEDEREN INFORMATIE: colli, lading, gewicht (grootste kg) ---
-  const goederenLines = idxGoederenInfo >= 0
-  ? splitLines.slice(idxGoederenInfo + 1)
-  : [];
-  
+ 
   let colli = findFirst(/(\d+)\s*(?:carton|colli|pcs)/i, goederenLines, 'colli');
   let lading = findFirst(/(?:\d+\s+(?:carton|colli|pcs)\s+)([A-Za-z0-9\-\s]+)/i, goederenLines, 'lading');
   let gewicht = '';
