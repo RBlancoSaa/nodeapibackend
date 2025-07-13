@@ -96,10 +96,9 @@ for (let i = 0; i < lines.length; i++) {
     const ladingregel = lines.find(r => r.startsWith(containernummer));
     const inhoudregel = lines.find(r => r.includes('CARTON') || r.match(/\d+\s+[A-Z]/));
 
-    const colliMatch = inhoudregel?.match(/^(\d{1,5})\s+/);
     const gewichtMatch = inhoudregel?.match(/([\d.,]+)\s*kg/i);
+    const colliMatch = inhoudregel?.match(/^(\d{1,5})\s+/);
     const volumeMatch = typeInfo?.match(/[-–]\s*([\d.,]+)\s*m3/i);
-
     const lading = inhoudregel?.replace(/^\d{1,5}\s+\w+\s+/i, '').replace(/\s*[\d.,]+\s*kg.*$/i, '').trim() || '';
 
     containers.push({
@@ -119,79 +118,9 @@ for (let i = 0; i < lines.length; i++) {
   }
 }
 
-  // 📦 Robuuste containerwaarden uit regelsContainer
-let colli = '0', volume = '0', gewicht = '0';
-
-for (let regel of regelsContainer) {
-  const lower = regel.toLowerCase();
-
-  if (lower.includes('kg') && gewicht === '0') {
-    const match = regel.match(/([\d.,]+)\s*kg/i);
-    if (match) {
-      gewicht = match[1].replace(',', '.');
-      if (gewicht.includes('.')) {
-        gewicht = Math.round(parseFloat(gewicht)).toString();
-      }
-    }
-  }
-
-  if (lower.includes('m³') && volume === '0') {
-    const match = regel.match(/([\d.,]+)\s*m³/i);
-    if (match) {
-      volume = match[1].replace(',', '.');
-    }
-  }
-
-  const colliMatch = regel.match(/^\d{2,5}$/);
-  if (colliMatch && colli === '0') {
-    colli = colliMatch[0];
-  }
-}
-
-  // Lading = alles tussen eerste BLOKPALLET-regel en -20 DEGREES
-    const ladingStartIndex = regelsContainer.findIndex(r => /BLOKPALLETS/i.test(r));
-    const ladingEndIndex = regelsContainer.findIndex(r => /-20 DEGREES/i.test(r));
-    const ladingArray = regelsContainer.slice(ladingStartIndex, ladingEndIndex + 1);
-    const lading = ladingArray.join(' ') || '';
-  
-  // 📅 Datum & tijd
-    const dateLine = pickupRegels.find(r => /^Date[:\t ]+/i.test(r)) || '';
-    const dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
-    
-    // 📆 Fallback = upload datum
-    let laadDatum = '';
-    let laadTijd = '';
-    let bijzonderheid = '';
-
-if (dateMatch) {
-  const dag = parseInt(dateMatch[1]);
-  const maandStr = dateMatch[2].toLowerCase().slice(0, 3);
-  const jaar = dateMatch[3];
-  const tijd = dateMatch[4];
-
-  const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-  const maand = maanden[maandStr];
-
-  laadDatum = `${dag}-${maand}-${jaar}`;
-  laadTijd = tijd ? `${tijd}:00` : '';
-} else {
-  // Fallback: datum van vandaag zonder voorloopnullen
-    const nu = new Date();
-    laadDatum = `${nu.getDate()}-${nu.getMonth() + 1}-${nu.getFullYear()}`;
-  laadTijd = '';
-  bijzonderheid = 'DATUM STAAT VERKEERD';
-}
-  // 🔗 Referentie
-    const refLine = pickupRegels.find(r => /Reference/.test(r)) || '';
-    const laadreferentie = refLine.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i)?.[1]?.trim() || '';
-
-    const fromMatch = text.match(/From:\s*(.*)/);
- 
-        console.log('📅 Extractie uit pickupRegels:', pickupRegels);
-        console.log('📅 dateLine:', dateLine);
-        console.log('📅 dateMatch:', dateMatch);
-        console.log('📅 laadDatum:', laadDatum);
-        console.log('📅 laadTijd:', laadTijd);
+const gewichtMatch = inhoudregel?.match(/([\d.,]+)\s*kg/i);
+const colliMatch = inhoudregel?.match(/^(\d{1,5})\s+/);
+const volumeMatch = typeInfo?.match(/[-–]\s*([\d.,]+)\s*m3/i);
 
 const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
