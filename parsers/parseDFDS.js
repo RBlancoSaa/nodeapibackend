@@ -20,7 +20,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const ritnummerMatch = text.match(/\b(SFIM\d{7})\b/i);
+
 
 
   const multiExtract = (patterns) => {
@@ -40,19 +40,19 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   const laadTijd = '';
   const bijzonderheid = 'DATUM MOET NOG GEFINETUNED WORDEN';
 
-  let ritnummer = ritnummerMatch?.[1];
+  let ritnummer = '';
+const ritnummerMatch = text.match(/Onze referentie\s+(SFIM\d{7})/i);
+if (ritnummerMatch) ritnummer = ritnummerMatch[1];
 
-    if (!ritnummer) {
-    // Fallback op bestandsnaam of onderwerp
-      const fallbackMatch = klantAlias?.match(/SFIM\d{7}/i); // indien alias bestandsnaam bevat
-      if (fallbackMatch) {
-      ritnummer = fallbackMatch[0];
-      console.warn(`⚠️ Ritnummer uit tekst niet gevonden — fallback naar alias: ${ritnummer}`);
-    } else {
-      console.warn('❌ Geen ritnummer gevonden in tekst of fallback');
-      ritnummer = '0';
-    }
-  }
+if (!ritnummer && klantAlias?.match(/SFIM\d{7}/i)) {
+  ritnummer = klantAlias.match(/SFIM\d{7}/i)[0];
+  console.warn(`⚠️ Ritnummer uit tekst niet gevonden — fallback naar alias: ${ritnummer}`);
+}
+
+if (!ritnummer) {
+  console.warn('❌ Geen ritnummer gevonden in tekst of fallback');
+  ritnummer = '0';
+}
 
 
   const data = {
