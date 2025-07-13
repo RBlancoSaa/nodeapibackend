@@ -10,7 +10,7 @@ import {
 
 // ─── extractLines: PDF → visuele regels ─────────────────────────────────────
 async function extractLines(buffer) {
-  // 1) Converteer Buffer → Uint8Array als nodig
+  // 1) Converteer Buffer → Uint8Array
   const uint8 = buffer instanceof Uint8Array
     ? buffer
     : new Uint8Array(buffer);
@@ -31,7 +31,7 @@ async function extractLines(buffer) {
       y:   i.transform[5]
     }));
 
-    // Groepeer runs op y-positie binnen ±2 punten
+    // Groepeer runs op hun y-positie binnen ±2 punten
     const linesMap = [];
     for (const run of runs) {
       let bucket = linesMap.find(l => Math.abs(l.y - run.y) < 2);
@@ -42,7 +42,7 @@ async function extractLines(buffer) {
       bucket.runs.push(run);
     }
 
-    // Sorteer per lijn (visueel boven→onder) en join op x (links→rechts)
+    // Sorteer en join per regel
     const pageLines = linesMap
       .sort((a, b) => b.y - a.y)
       .map(line =>
@@ -67,15 +67,11 @@ function safeMatch(pattern, text, group = 1, label = '') {
   }
   const match = text.match(pattern);
   if (!match) {
-    console.log(`🔍 safeMatch ${label}: geen match voor ${pattern} in ‘${text}’`);
+    console.log(`🔍 safeMatch ${label}: geen match voor ${pattern} in '${text}'`);
     return '';
   }
-  if (typeof match[group] !== 'string') {
-    console.warn(`⚠️ safeMatch ${label}: groep ${group} geen string:`, match[group]);
-    return '';
-  }
-  const res = match[group].trim();
-  console.log(`✅ safeMatch ${label}: ‘${text}’ → ‘${res}’`);
+  const res = (match[group] || '').trim();
+  console.log(`✅ safeMatch ${label}: '${res}'`);
   return res;
 }
 
@@ -83,7 +79,7 @@ function findFirst(pattern, lines, label = '') {
   for (const line of lines) {
     const m = line.match(pattern);
     if (m && typeof m[1] === 'string') {
-      console.log(`✅ findFirst ${label}: regex ${pattern} in ‘${line}’ → ‘${m[1].trim()}’`);
+      console.log(`✅ findFirst ${label}: '${m[1].trim()}'`);
       return m[1].trim();
     }
   }
@@ -93,7 +89,7 @@ function findFirst(pattern, lines, label = '') {
 
 // ─── MAIN PARSER ────────────────────────────────────────────────────────────
 export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
-  // BASIC VALIDATION
+  // 1) Basic validation
   if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
     console.warn('❌ Ongeldige of ontbrekende PDF buffer');
     return {};
@@ -103,21 +99,21 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     return {};
   }
 
-  // PDF → visuele regels via extractLines()
+  // 2) PDF → visuele regels
   const splitLines = await extractLines(pdfBuffer);
-  console.log(`ℹ️ In totaal ${splitLines.length} regels uit PDF gehaald via extractLines()`);
+  console.log(`ℹ️ In totaal ${splitLines.length} regels uit PDF gehaald`);
 
-  // SECTIONS BEPALEN
+  // 3) Sections bepalen
   const idxTransportInfo = splitLines.findIndex(r => /^Transport informatie/i.test(r));
   const idxGoederenInfo  = splitLines.findIndex(r => /^Goederen informatie/i.test(r));
-  console.log(`ℹ️ Transport-info begint op regel ${idxTransportInfo}, goederen-info op ${idxGoederenInfo}`);
+  console.log(`ℹ️ Transport-info op regel ${idxTransportInfo}, goederen-info op ${idxGoederenInfo}`);
 
-  // TRANSPORT INFORMATIE
+  // 4) Transport-informatie
   const transportLines = (idxTransportInfo >= 0 && idxGoederenInfo > idxTransportInfo)
     ? splitLines.slice(idxTransportInfo + 1, idxGoederenInfo)
     : [];
 
-  // Container nr
+  // 5) Container nr
   const containernummer = findFirst(/([A-Z]{4}\d{7})/, transportLines, 'containernummer');
   
   // Containertype (origineel)
