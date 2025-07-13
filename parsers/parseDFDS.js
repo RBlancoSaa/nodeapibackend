@@ -35,25 +35,35 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     return '';
   }
 
-  // Containernummer (meest voorkomende containerformaat)
+  // Ritnummer (Onze referentie: SFIMxxxxxxx)
+  const ritnummer = findFirst(/Onze referentie[:\t ]+(SFIM\d{7})/i);
+
+  // Referentie (eerst Lossen-regel, dan fallback)
+  let referentie = findFirst(/Lossen[:\s]+(\d{7,})/i);
+  if (!referentie) {
+    referentie = findFirst(/(?:Order|Booking|Reference|Transport Document No\.?)[:\s]+([A-Z0-9\-\/]+)/i);
+  }
+
+  // Containernummer
   const containernummer = findFirst(/([A-Z]{4}\d{7})/);
 
   // Containertype (zoek bv. "40ft HC", "45R1", "20GP", etc.)
   let containertype = '';
   for (const r of regels) {
-    // Zoek direct na containernummer
     const m = r.match(/[A-Z]{4}\d{7}\s+([A-Z0-9]{4,6}|[0-9]{2,3}(?:ft)?\s?[A-Z]{2,3})/i);
     if (m) {
       containertype = m[1].replace(/\s+/g, '').toUpperCase();
       break;
     }
-    // Zoek los type
     const t = r.match(/\b(20GP|40GP|40HC|45HC|45R1|20DC|40DC|20RF|40RF|45RF|20OT|40OT|20FR|40FR)\b/i);
     if (t) {
       containertype = t[1].toUpperCase();
       break;
     }
   }
+  console.log('🔍 Gevonden containertype:', containertype);
+  const normalizedContainertype = (containertype || '').toLowerCase().replace(/[^a-z0-9]/gi, '');
+  console.log('🔍 Normalized containertype:', normalizedContainertype);
 
   // Zegelnummer
   const zegelnummer = findFirst(/Zegel[:\s]+([A-Z0-9]+)/i);
@@ -81,7 +91,6 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   // Colli (zoek getal gevolgd door "colli" of "carton" of "pcs")
   let colli = findFirst(/(\d+)\s*(colli|carton|pcs)/i);
   if (!colli) {
-    // fallback: eerste los getal in een regel met "carton" of "pcs"
     for (const r of regels) {
       if (/carton|pcs/i.test(r)) {
         const m = r.match(/(\d+)/);
@@ -89,9 +98,6 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
       }
     }
   }
-
-  // Referentie (zoek "Order", "Booking", "Reference", "Transport Document No.", etc.)
-  let referentie = findFirst(/(?:Order|Booking|Reference|Transport Document No\.?)[:\s]+([A-Z0-9\-\/]+)/i);
 
   // Lading (zoek eerste regel met veel hoofdletters/woorden na containernummer)
   let lading = '';
@@ -102,7 +108,6 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     }
   }
   if (!lading) {
-    // fallback: eerste regel met "kg" en tekst voor het gewicht
     for (const r of regels) {
       const m = r.match(/(.+?)\s+[\d.,]+\s*kg/i);
       if (m && m[1].length > 3) { lading = m[1].trim(); break; }
@@ -130,7 +135,6 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   let dateLine = regels.find(r => /^Date[:\t ]+/i.test(r)) || '';
   let dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
   if (!dateMatch) {
-    // fallback: zoek "Datum:"
     dateLine = regels.find(r => /^Datum[:\t ]+/i.test(r)) || '';
     dateMatch = dateLine.match(/Datum:\s*(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
     if (dateMatch) {
@@ -170,14 +174,14 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
 
   // Data object
   const data = {
-    ritnummer: logResult('ritnummer', referentie || '0'),
+    ritnummer: logResult('ritnummer', ritnummer || '0'),
     referentie: logResult('referentie', referentie || ''),
     colli: logResult('colli', colli || '0'),
     volume: logResult('volume', volume || '0'),
     gewicht: logResult('gewicht', gewicht || '0'),
     lading: logResult('lading', lading || ''),
     containernummer: logResult('containernummer', containernummer || ''),
-    containertype: logResult('containertype', containertype || ''),
+    containertype: logResult('containertype', normalizedContainertype || ''),
     zegelnummer: logResult('zegelnummer', zegelnummer || ''),
     inleverreferentie: logResult('inleverreferentie', ''),
     rederij: logResult('rederij', rederij),
@@ -202,7 +206,6 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     opdrachtgeverKVK: '24232781',
     terminal: '0',
     rederijCode: '0',
-    containertypeCode: '0',
     klantnaam,
     klantadres,
     klantpostcode,
@@ -258,6 +261,19 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
 
   // ADR
   data.adr = (findFirst(/IMO[:\t ]+(\d+)/i) || findFirst(/UN[:\t ]+(\d+)/i)) ? 'Waar' : 'Onwaar';
+
+  // ContainertypeCode lookup
+  try {
+    const typeCode = await getContainerTypeCode(normalizedContainertype);
+    console.log('📦 Gezochte containertypeCode via getContainerTypeCode():', typeCode);
+    if (typeCode && typeCode !== '0') {
+      data.containertypeCode = typeCode;
+    } else {
+      console.warn(`⚠️ Geen match voor containertype: ${normalizedContainertype}`);
+    }
+  } catch (e) {
+    console.warn('⚠️ Fout bij ophalen containertypeCode:', e);
+  }
 
   // Debug logs
   console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
