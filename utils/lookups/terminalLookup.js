@@ -158,7 +158,17 @@ export async function getContainerTypeCode(input) {
 
   const normalizedInput = input.toLowerCase().replace(/[\s\-'"]/g, '');
 
-  for (const type of containerTypes) {
+  const url = `${SUPABASE_LIST_URL}/containers.json`;
+  let lijst = [];
+  try {
+    const res = await fetch(url);
+    lijst = await res.json();
+  } catch (err) {
+    console.error('❌ Fout bij ophalen containers.json:', err);
+    return '0';
+  }
+
+  for (const type of lijst) {
     const allLabels = [
       type.label,
       type.code,

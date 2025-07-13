@@ -139,20 +139,40 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   }
 
   // Klantgegevens zoeken (tolerant)
-  let klantnaam = '', klantadres = '', klantpostcode = '', klantplaats = '';
-  for (let i = 0; i < regels.length; i++) {
-    if (!klantnaam && /bv|b\.v\.|gmbh|nv|llc|ltd|company|co\.|b v|b v\.|b\. v\./i.test(regels[i])) {
-      klantnaam = regels[i];
+      let klantnaam = '', klantadres = '', klantpostcode = '', klantplaats = '';
+
+    for (let i = 0; i < regels.length; i++) {
+      const regel = regels[i];
+
+      if (
+        !klantnaam &&
+        /(?:bv|b\.v\.|gmbh|nv|llc|ltd|company|co\.|b v|b v\.|b\. v\.)/i.test(regel) &&
+        /^[A-Z0-9][A-Za-z0-9\s\-,.&()]+$/.test(regel) &&
+        regel.length < 80
+      ) {
+        klantnaam = regel.trim();
+      }
+
+      if (
+        !klantadres &&
+        /^[A-Za-z\s\-']+\s\d{1,5}[a-zA-Z]?$/.test(regel) &&
+        regel.length < 60
+      ) {
+        klantadres = regel.trim();
+      }
+
+      if (!klantpostcode && /\d{4}\s?[A-Z]{2}/.test(regel)) {
+        const m = regel.match(/(\d{4}\s?[A-Z]{2})/);
+        if (m && m[1]) {
+          klantpostcode = m[1].trim();
+
+          const rest = regel.replace(klantpostcode, '').trim();
+          if (rest && /^[A-Za-z\s\-']+$/.test(rest)) {
+            klantplaats = rest;
+          }
+        }
+      }
     }
-    if (!klantadres && /\d{1,4}\s+\w+/.test(regels[i])) {
-      klantadres = regels[i];
-    }
-    if (!klantpostcode && /\d{4}\s?[A-Z]{2}/.test(regels[i])) {
-      const m = regels[i].match(/(\d{4}\s?[A-Z]{2})/);
-      if (m && m[1]) klantpostcode = m[1].trim();
-      klantplaats = regels[i].replace(klantpostcode, '').trim();
-    }
-  }
 
   // Terminals (fallbacks toegevoegd)
   let pickupTerminal = findFirst(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i, regels)
