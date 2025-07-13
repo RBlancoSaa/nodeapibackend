@@ -1,4 +1,4 @@
-// parsers/parseJordex.js
+// parsers/parseDFDS.js
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import {
@@ -7,7 +7,7 @@ import {
 } from '../utils/lookups/terminalLookup.js';
 
 function logResult(label, value) {
-  console.log(`🔍 ${label}:`, value || '[LEEG]');
+  console.log(`🔍 ${label}:`, value ?? '[LEEG]');
   return value;
 }
 
@@ -59,17 +59,27 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
       break;
     }
   }
+  // Fallback: probeer uit containernummer-regel te halen
+  if (!containertype && containernummer) {
+    const line = regels.find(r => r.includes(containernummer));
+    if (line) {
+      const m = line.match(/([A-Z0-9]{4,6}|[0-9]{2,3}(?:ft)?\s?[A-Z]{2,3})/i);
+      if (m) containertype = m[1].replace(/\s+/g, '').toUpperCase();
+    }
+  }
   console.log('🔍 Gevonden containertype:', containertype);
   const normalizedContainertype = (containertype || '').toLowerCase().replace(/[^a-z0-9]/gi, '');
   console.log('🔍 Normalized containertype:', normalizedContainertype);
 
   // ContainertypeCode lookup vóór data object
   let typeCode = '0';
-  try {
-    typeCode = await getContainerTypeCode(normalizedContainertype);
-    console.log('📦 Gezochte containertypeCode via getContainerTypeCode():', typeCode);
-  } catch (e) {
-    console.warn('⚠️ Fout bij ophalen containertypeCode:', e);
+  if (normalizedContainertype) {
+    try {
+      typeCode = await getContainerTypeCode(normalizedContainertype);
+      console.log('📦 Gezochte containertypeCode via getContainerTypeCode():', typeCode);
+    } catch (e) {
+      console.warn('⚠️ Fout bij ophalen containertypeCode:', e);
+    }
   }
 
   // Zegelnummer
@@ -145,9 +155,15 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     || findFirst(/dropoff[:\s]+(.+)/i, regels)
     || '';
 
-  // Terminal lookups
-  const pickupInfo = await getTerminalInfoMetFallback(pickupTerminal);
-  const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal);
+  // Terminal lookups, altijd fallback object
+  const pickupInfo = (await getTerminalInfoMetFallback(pickupTerminal)) || {};
+  const dropoffInfo = (await getTerminalInfoMetFallback(dropoffTerminal)) || {};
+
+  // Klantgegevens fallback
+  klantnaam = klantnaam || dropoffInfo.naam || '';
+  klantadres = klantadres || dropoffInfo.adres || '';
+  klantpostcode = klantpostcode || dropoffInfo.postcode || '';
+  klantplaats = klantplaats || dropoffInfo.plaats || '';
 
   // Rederij & bootnaam
   const rederij = findFirst(/Carrier[:\t ]+(.+)/i, regels) || '';
@@ -226,46 +242,46 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
 
   // Locatiestructuur
   data.locaties = [
-  {
-    volgorde: '0',
-    actie: 'Opzetten',
-    naam: pickupInfo.naam || pickupTerminal,
-    adres: pickupInfo.adres || '',
-    postcode: pickupInfo.postcode || '',
-    plaats: pickupInfo.plaats || '',
-    land: pickupInfo.land || 'NL',
-    voorgemeld: typeof pickupInfo.voorgemeld === 'string' && pickupInfo.voorgemeld.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-    aankomst_verw: '',
-    tijslot_van: '',
-    tijslot_tm: '',
-    portbase_code: pickupInfo.portbase_code || '',
-    bicsCode: pickupInfo.bicsCode || ''
-  },
-  {
-    volgorde: '0',
-    actie: 'Lossen',
-    naam: klantnaam || '',
-    adres: klantadres || '',
-    postcode: klantpostcode || '',
-    plaats: klantplaats || '',
-    land: 'NL'
-  },
-  {
-    volgorde: '0',
-    actie: 'Afzetten',
-    naam: dropoffInfo.naam || dropoffTerminal,
-    adres: dropoffInfo.adres || '',
-    postcode: dropoffInfo.postcode || '',
-    plaats: dropoffInfo.plaats || '',
-    land: dropoffInfo.land || 'NL',
-    voorgemeld: typeof dropoffInfo.voorgemeld === 'string' && dropoffInfo.voorgemeld.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-    aankomst_verw: '',
-    tijslot_van: '',
-    tijslot_tm: '',
-    portbase_code: dropoffInfo.portbase_code || '',
-    bicsCode: dropoffInfo.bicsCode || ''
-  }
-];
+    {
+      volgorde: '0',
+      actie: 'Opzetten',
+      naam: pickupInfo.naam || pickupTerminal,
+      adres: pickupInfo.adres || '',
+      postcode: pickupInfo.postcode || '',
+      plaats: pickupInfo.plaats || '',
+      land: pickupInfo.land || 'NL',
+      voorgemeld: typeof pickupInfo.voorgemeld === 'string' && pickupInfo.voorgemeld.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+      aankomst_verw: '',
+      tijslot_van: '',
+      tijslot_tm: '',
+      portbase_code: pickupInfo.portbase_code || '',
+      bicsCode: pickupInfo.bicsCode || ''
+    },
+    {
+      volgorde: '0',
+      actie: 'Lossen',
+      naam: klantnaam || '',
+      adres: klantadres || '',
+      postcode: klantpostcode || '',
+      plaats: klantplaats || '',
+      land: 'NL'
+    },
+    {
+      volgorde: '0',
+      actie: 'Afzetten',
+      naam: dropoffInfo.naam || dropoffTerminal,
+      adres: dropoffInfo.adres || '',
+      postcode: dropoffInfo.postcode || '',
+      plaats: dropoffInfo.plaats || '',
+      land: dropoffInfo.land || 'NL',
+      voorgemeld: typeof dropoffInfo.voorgemeld === 'string' && dropoffInfo.voorgemeld.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+      aankomst_verw: '',
+      tijslot_van: '',
+      tijslot_tm: '',
+      portbase_code: dropoffInfo.portbase_code || '',
+      bicsCode: dropoffInfo.bicsCode || ''
+    }
+  ];
 
   // Bepaal laden/lossen
   data.isLossenOpdracht = !!data.containernummer && data.containernummer !== '0';
