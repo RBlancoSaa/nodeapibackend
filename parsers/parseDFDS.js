@@ -1,59 +1,79 @@
-// 📁 parsers/parseDfds.js
+// 📁 parsers/parseDFDS.js
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
-import {
-  getTerminalInfoMetFallback,
-  getRederijNaam,
-  getContainerTypeCode
-} from '../utils/lookups/terminalLookup.js';
 
 function logResult(label, value) {
   console.log(`🔍 ${label}:`, value || '[LEEG]');
   return value;
 }
+
 function extractContainers(lines) {
   const containers = [];
   const startIdx = lines.findIndex(l => l.toLowerCase().includes('goederen informatie'));
-  if (startIdx === -1) return [];
+  console.log('🔍 Startindex goederenblok:', startIdx);
+
+  if (startIdx === -1) {
+    console.log('⚠️ Geen "Goederen informatie" gevonden in regels');
+    return [];
+  }
 
   for (let i = startIdx + 1; i < lines.length - 1; i++) {
     const line1 = lines[i];
     const line2 = lines[i + 1];
-    if (!line1.includes('Zegel:')) continue;
+
+    if (!line1.includes('Zegel:')) {
+      console.log(`⏭️ Regel ${i} overgeslagen (geen Zegel):`, line1);
+      continue;
+    }
+
+    console.log(`📦 Containerregel gevonden op regel ${i}:`, line1);
+    console.log(`📝 Omschrijvingsregel op regel ${i + 1}:`, line2);
 
     const [containerLine, sealMatch] = line1.split('/ Zegel:');
-    const [containernummer, typeInfo] = containerLine.trim().split(' ', 2);
+    const [containernummer, ...typeParts] = containerLine.trim().split(' ');
+    const typeInfo = typeParts.join(' ').trim();
     const seal = sealMatch?.trim();
 
     const omschrijvingMatch = line2?.match(/^(.*)\s+([\d.,]+)\s+kg\s+([\d.,]+)\s+m3$/i);
-    const omschrijving = omschrijvingMatch?.[1]?.trim();
-    const gewicht = omschrijvingMatch?.[2]?.replace(',', '.');
-    const volume = omschrijvingMatch?.[3]?.replace(',', '.');
 
-    containers.push({
+    if (!omschrijvingMatch) {
+      console.log(`⚠️ Geen geldige omschrijving/gewicht/volume op regel ${i + 1}:`, line2);
+      continue;
+    }
+
+    const omschrijving = omschrijvingMatch[1].trim();
+    const gewicht = omschrijvingMatch[2].replace(',', '.');
+    const volume = omschrijvingMatch[3].replace(',', '.');
+
+    const result = {
       containernummer,
-      containertype: typeInfo?.trim(),
+      containertype: typeInfo,
       sealnummer: seal,
       gewicht,
       volume,
       omschrijving
-    });
+    };
 
-    i++; // skip volgende regel
+    console.log(`✅ Geëxtraheerd containerobject:`, result);
+    containers.push(result);
+
+    i++; // skip extra regel
   }
 
+  console.log('📦 Totaal aantal containers gevonden:', containers.length);
   return containers;
 }
 
-
-
-
 export default async function parseDFDS(pdfBuffer) {
   const { text } = await pdfParse(pdfBuffer);
-  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-  console.log('🧾 Aantal regels in PDF:', lines.length);
-  console.log('📄 Eerste 30 regels:\n', lines.slice(0, 30).join('\n'));
+  console.log('📄 Regels in PDF:', lines.length);
+  const containers = extractContainers(lines);
+  logResult('Aantal containers', containers.length);
 
-  return { lines }; // tijdelijk — puur ter inspectie
+  return {
+    ritnummer: 'SFIM2500929', // tijdelijk hardcoded voor test
+    containers
+  };
 }
