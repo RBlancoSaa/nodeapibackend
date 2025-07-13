@@ -83,11 +83,12 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'DFDS') {
     const containertype = containertypeMatch?.[1]?.trim() || '';
       console.log('🔍 Cargo regel:', cargoLine);
       console.log('📦 Gevonden containertype:', containertype);
-      
+
   // 🎯 Uitlezen containerblok (onderaan de PDF)
     const containerBlok = text.match(/Type Number[\s\S]+?(?=Extra Information|Date:|DFDS|$)/i)?.[0] || '';
     const regelsContainer = containerBlok.split('\n').map(r => r.trim()).filter(Boolean);
    
+    
   // 📦 Robuuste containerwaarden uit regelsContainer
 let colli = '0', volume = '0', gewicht = '0';
 
