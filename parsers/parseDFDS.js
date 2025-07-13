@@ -122,79 +122,42 @@ const gewichtMatch = inhoudregel?.match(/([\d.,]+)\s*kg/i);
 const colliMatch = inhoudregel?.match(/^(\d{1,5})\s+/);
 const volumeMatch = typeInfo?.match(/[-–]\s*([\d.,]+)\s*m3/i);
 
+const eersteContainer = containers[0] || {};
+
 const data = {
-    ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
-    referentie: logResult('referentie', (() => {
-    const blok = text.match(/Pick[-\s]?up terminal[\s\S]+?(?=Pick[-\s]?up|Drop[-\s]?off|Extra Information)/i)?.[0] || '';
-    const match = blok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
-    return match?.[1]?.trim() || '0';
-      })()),
-    colli: logResult('colli', colli),
-    volume: logResult('volume', volume),
-    gewicht: logResult('gewicht', gewicht),
-    lading: logResult('lading', lading),
-    
+  ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
+  referentie: logResult('referentie', eersteContainer.inleverreferentie || '0'),
+  containernummer: logResult('containernummer', eersteContainer.containernummer || ''),
+  containertype: logResult('containertype', eersteContainer.containertype || ''),
+  datum: logResult('datum', eersteContainer.datum || ''),
+  tijd: logResult('tijd', eersteContainer.tijd || ''),
+  tijdTm: logResult('tijdTm', eersteContainer.tijdTm || ''),
+  colli: logResult('colli', eersteContainer.colli || '0'),
+  gewicht: logResult('gewicht', eersteContainer.gewicht || '0'),
+  volume: logResult('volume', eersteContainer.volume || '0'),
+  lading: logResult('lading', eersteContainer.lading || ''),
+  zegelnummer: logResult('zegelnummer', eersteContainer.zegelnummer || ''),
+  laadreferentie: logResult('laadreferentie', eersteContainer.laadreferentie || ''),
+  inleverreferentie: logResult('inleverreferentie', eersteContainer.inleverreferentie || ''),
+  instructies: logResult('instructies', ''),
 
-    inleverreferentie: logResult('inleverreferentie', (() => {
-      const m = text.match(/Drop[-\s]?off terminal:[\s\S]+?Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
-      return m?.[1]?.trim() || '0';
-      })()),
-    rederij: logResult('rederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
-    bootnaam: logResult('bootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
-    containernummer: logResult('containernummer', (() => {
-      const result = multiExtract([
-        /Container no[:\t ]+([A-Z]{4}U\d{7})/i,
-        /([A-Z]{4}U\d{7})/i
-      ]);
-      return /^[A-Z]{4}U\d{7}$/.test(result || '') ? result : '';
-      })()),
-    temperatuur: logResult('temperatuur', multiExtract([/Temperature[:\t ]+([\-\d]+°C)/i]) || '0'),
-    datum: logResult('datum', laadDatum),
-    tijd: logResult('tijd', laadTijd),
-    instructies: logResult('instructies', bijzonderheid),
-    laadreferentie: logResult('laadreferentie', laadreferentie),
-    containertype: logResult('containertype', containertype),
-    inleverBootnaam: logResult('inleverBootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
-    inleverRederij: logResult('inleverRederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
-      inleverBestemming: logResult('inleverBestemming', multiExtract([
-      /Final destination[:\t ]+(.+)/i,
-      /Arrival[:\t ]+(.+)/i
-       ])),
+  bootnaam: logResult('bootnaam', multiExtract([/Vaartuig\s+(.+)/i])),
+  rederij: logResult('rederij', multiExtract([/Rederij\s+(.+)/i])),
 
-// Terminalextractie: werkelijke naam staat onder “Address:” in de sectie
-   pickupTerminal: logResult('pickupTerminal', (() => {
-      const sectie = text.match(/Pick[-\s]?up terminal([\s\S]+?)(?=Drop[-\s]?off terminal\b|$)/i)?.[1] || '';
-      return sectie.match(/Address:\s*(.+)/i)?.[1].trim() || '';
-      })()),
-  dropoffTerminal: logResult('dropoffTerminal', (() => {
-      const sectie = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?=Pick[-\s]?up terminal\b|$)/i)?.[1] || '';
-      return sectie.match(/Address:\s*(.+)/i)?.[1].trim() || '';
-      })()),
-      // 🔍 Inleverreferentie uit Drop-off terminal sectie
-    inleverreferentie: logResult('inleverreferentie', (() => {
-      const sectie = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?=Pick[-\s]?up terminal\b|$)/i)?.[1] || '';
-      return sectie.match(/Reference\(s\):\s*(.+)/i)?.[1]?.trim() || '';
-  })()),
-      
-    colli: logResult('colli', colli),
-    volume: logResult('volume', volume),
-    lading: logResult('lading', multiExtract([/Description of goods[:\t ]+(.+)/i]) || '0'),
-    imo: logResult('imo', multiExtract([/IMO[:\t ]+(\d+)/i]) || '0'),
-    unnr: logResult('unnr', multiExtract([/UN[:\t ]+(\d+)/i]) || '0'),
-    brix: logResult('brix', multiExtract([/Brix[:\t ]+(\d+)/i]) || '0'),
+  opdrachtgeverNaam: 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
+  opdrachtgeverAdres: 'WOLGAWEG 3',
+  opdrachtgeverPostcode: '3200AA',
+  opdrachtgeverPlaats: 'SPIJKENISSE',
+  opdrachtgeverTelefoon: '010-1234567',
+  opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
+  opdrachtgeverBTW: 'NL007129099B01',
+  opdrachtgeverKVK: '24232781',
 
-    opdrachtgeverNaam: 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
-    opdrachtgeverAdres: 'WOLGAWEG 3',
-    opdrachtgeverPostcode: '3200AA',
-    opdrachtgeverPlaats: 'SPIJKENISSE',
-    opdrachtgeverTelefoon: '010-1234567',
-    opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
-    opdrachtgeverBTW: 'NL007129099B01',
-    opdrachtgeverKVK: '24232781',
+  terminal: '0',
+  rederijCode: '0',
+  containertypeCode: '0',
 
-    terminal: '0',
-    rederijCode: '0',
-    containertypeCode: '0'
+  containers
   };
 
 // Verwijder “terminal” suffix zodat je sleutel mét en stemt met Supabase
