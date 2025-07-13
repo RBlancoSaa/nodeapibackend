@@ -2,130 +2,140 @@
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import {
-  getTerminalInfoMetFallback,
+  getTerminalInfo,
   getRederijNaam,
-  getContainerTypeCode
+  getContainerTypeCode,
+  getTerminalInfoMetFallback
 } from '../utils/lookups/terminalLookup.js';
 
-function log(label, val) {
-  console.log(`🔍 ${label}:`, val || '[LEEG]');
-  return val;
+function logResult(label, value) {
+  console.log(`🔍 ${label}:`, value || '[LEEG]');
+  return value;
 }
 
-export default async function parseDFDS(buffer) {
-  if (!buffer || !Buffer.isBuffer(buffer)) return { ritnummer: '0', containers: [] };
+export default async function parseDFDS(pdfBuffer) {
+  console.log('📦 Ontvangen pdfBuffer:', pdfBuffer?.length, 'bytes');
+  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) return {};
 
-  const parsed = await pdfParse(buffer);
+  const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-  const ritnummer = log('ritnummer', (text.match(/\bSFIM\d{7}\b/i) || [])[0] || '0');
-
-  // ⛓️ Terminal-info ophalen (vast voor alle containers)
-  const pickupTerminalKey = (text.match(/Pickup (.+)/i) || [])[1]?.trim();
-  const dropoffTerminalKey = (text.match(/Dropoff (.+)/i) || [])[1]?.trim();
-
-  const pickupTerminal = await getTerminalInfoMetFallback(pickupTerminalKey || '');
-  const dropoffTerminal = await getTerminalInfoMetFallback(dropoffTerminalKey || '');
-
-  const klant = {
-    naam: 'TIARO',
-    adres: 'CHRIS BEMEKERSLAAN 2',
-    postcode: '3061 EA',
-    plaats: 'ROTTERDAM'
+  const extract = (regex) => {
+    const match = text.match(regex);
+    return match?.[1]?.trim() || '';
   };
 
-  // 📦 Containers detecteren
+  const extractAll = (regex) => {
+    const matches = [...text.matchAll(regex)];
+    return matches.map(m => m[1].trim());
+  };
+
+  const ritnummer = extract(/\b(SFIM\d{7})\b/i);
+  logResult('ritnummer', ritnummer);
+  if (!ritnummer) return {};
+
+  const containerBlokken = text.split(/\n(?=\w{4}U?\d{7})/g).filter(b => b.match(/\d{4}U?\d{7}/));
   const containers = [];
-  const containerBlokken = text.split(/\n(?=[A-Z]{4}U?\d{6,7})/g);
 
   for (const blok of containerBlokken) {
-    const containerNr = (blok.match(/\b([A-Z]{4}U?\d{6,7})\b/) || [])[1] || '';
-    if (!containerNr) continue;
+    const regels = blok.split('\n');
+    const containernummer = extract(/\b([A-Z]{4}U?\d{7})\b/i);
+    const referentie = extract(/Lossen\s+(\S+)/i);
+    const datum = extract(/Pickup.*?(\d{2}-\d{2}-\d{4})/i);
+    const tijd = extract(/(\d{2}:\d{2})/i);
+    const containertype = extract(/20ft\s*-\s*([\d,\.]+)\s*m³/i);
+    const gewicht = extract(/(\d{2}\.\d{3},\d{2}|\d{1,3},\d{3})\s*kg/i)?.replace(',', '.');
 
-    const containertype = (blok.match(/20ft.*?33,2 m³/) || [])[0] || '';
-    const gewicht = (blok.match(/([\d.]+)\s*kg/) || [])[1]?.replace(',', '.') || '0';
-    const lading = (blok.match(/[A-Z ]+\(UL\)/i) || [])[0]?.trim() || '';
-    const seal = (blok.match(/Zegel: (\d+)/i) || [])[1] || '';
+    const pickupTerminal = extract(/Pickup\s+(.*Terminal.*)/i);
+    const dropoffTerminal = extract(/Dropoff\s+(.+)/i);
+    const klantlocatie = extract(/Lossen\s+(.*)/i);
 
-    const containertypeCode = await getContainerTypeCode(containertype);
+    const pickupInfo = await getTerminalInfoMetFallback(pickupTerminal);
+    const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal);
 
-    containers.push({
-      ritnummer,
-      referentie: (blok.match(/Lossen\s+(\d{8})/) || [])[1] || '',
-      containernummer: containerNr,
-      containertype,
-      containertypeCode,
-      lading,
-      colli: '0',
-      gewicht,
-      volume: '0',
-      temperatuur: '0',
-      laadreferentie: '',
-      datum: '14-7-2025',
-      tijd: '06:30:00',
-      instructies: '',
-      adr: 'Onwaar',
-      rederij: 'MSC',
-      bootnaam: 'MSC CORUNA',
+    const rederij = extract(/Rederij\s+([A-Z ]+)/i);
+    const bootnaam = extract(/Vaartuig\s+(.+?)\s+Reis/i);
+
+    const container = {
+      ritnummer: logResult('ritnummer', ritnummer),
+      referentie: logResult('referentie', referentie),
+      colli: logResult('colli', '0'),
+      volume: logResult('volume', '0'),
+      gewicht: logResult('gewicht', gewicht || '0'),
+      lading: logResult('lading', extract(/Omschrijving\s+(.+)/i) || '0'),
+      inleverreferentie: logResult('inleverreferentie', '0'),
+      rederij: logResult('rederij', rederij),
+      bootnaam: logResult('bootnaam', bootnaam),
+      containernummer: logResult('containernummer', containernummer),
+      temperatuur: logResult('temperatuur', '0'),
+      datum: logResult('datum', datum || new Date().toLocaleDateString('nl-NL')),
+      tijd: logResult('tijd', tijd || ''),
+      instructies: logResult('instructies', datum ? '' : 'DATUM ONTBREEKT'),
+      laadreferentie: logResult('laadreferentie', referentie),
+      containertype: logResult('containertype', containertype),
       inleverBootnaam: '',
-      inleverRederij: 'MSC',
-      inleverreferentie: (blok.match(/Dropoff\s+([A-Z0-9]+)/) || [])[1] || '',
-      inleverBestemming: 'Medrepair Nederland',
-
-      pickupTerminal: pickupTerminalKey || '',
-      dropoffTerminal: dropoffTerminalKey || '',
-      terminal: dropoffTerminal.naam || '',
-      rederijCode: '0',
-
-      klantnaam: klant.naam,
-      klantadres: klant.adres,
-      klantpostcode: klant.postcode,
-      klantplaats: klant.plaats,
-
+      inleverRederij: '',
+      inleverBestemming: dropoffTerminal,
+      pickupTerminal,
+      dropoffTerminal,
+      imo: '',
+      unnr: '',
+      brix: '',
+      klantnaam: klantlocatie,
+      klantadres: '',
+      klantpostcode: '',
+      klantplaats: '',
+      adr: 'Onwaar',
+      ladenOfLossen: 'Lossen',
       locaties: [
         {
           volgorde: '0',
           actie: 'Opzetten',
-          naam: pickupTerminal.naam || '',
-          adres: pickupTerminal.adres || '',
-          postcode: pickupTerminal.postcode || '',
-          plaats: pickupTerminal.plaats || '',
-          land: 'NL',
-          voorgemeld: pickupTerminal.voorgemeld === 'ja' ? 'Waar' : 'Onwaar',
-          portbase_code: pickupTerminal.portbase_code || '',
-          bicsCode: pickupTerminal.bicsCode || '',
+          naam: pickupInfo.naam || pickupTerminal,
+          adres: pickupInfo.adres || '',
+          postcode: pickupInfo.postcode || '',
+          plaats: pickupInfo.plaats || '',
+          land: pickupInfo.land || 'NL',
+          voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
           aankomst_verw: '',
           tijslot_van: '',
-          tijslot_tm: ''
+          tijslot_tm: '',
+          portbase_code: pickupInfo.portbase_code || '',
+          bicsCode: pickupInfo.bicsCode || ''
         },
         {
           volgorde: '0',
           actie: 'Lossen',
-          naam: klant.naam,
-          adres: klant.adres,
-          postcode: klant.postcode,
-          plaats: klant.plaats,
+          naam: klantlocatie,
+          adres: '',
+          postcode: '',
+          plaats: '',
           land: 'NL'
         },
         {
           volgorde: '0',
           actie: 'Afzetten',
-          naam: dropoffTerminal.naam || '',
-          adres: dropoffTerminal.adres || '',
-          postcode: dropoffTerminal.postcode || '',
-          plaats: dropoffTerminal.plaats || '',
-          land: 'NL',
-          voorgemeld: dropoffTerminal.voorgemeld === 'ja' ? 'Waar' : 'Onwaar',
-          portbase_code: dropoffTerminal.portbase_code || '',
-          bicsCode: dropoffTerminal.bicsCode || '',
+          naam: dropoffInfo.naam || dropoffTerminal,
+          adres: dropoffInfo.adres || '',
+          postcode: dropoffInfo.postcode || '',
+          plaats: dropoffInfo.plaats || '',
+          land: dropoffInfo.land || 'NL',
+          voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
           aankomst_verw: '',
           tijslot_van: '',
-          tijslot_tm: ''
+          tijslot_tm: '',
+          portbase_code: dropoffInfo.portbase_code || '',
+          bicsCode: dropoffInfo.bicsCode || ''
         }
       ]
-    });
+    };
+
+    containers.push(container);
   }
 
-  return { ritnummer, containers };
+  return {
+    ritnummer,
+    containers
+  };
 }
