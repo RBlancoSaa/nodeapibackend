@@ -2,7 +2,7 @@
 import parseKWE from '../parsers/parseKWE.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 
-export async function handleKWETransport({ buffer, base64, filename }) {
+export default async function handleKWE({ buffer, base64, filename }) {
   console.log(`📦 Verwerken van KWE-bestand: ${filename}`);
   const parsedData = await parseKWE(buffer);
   const easyFiles = [];
