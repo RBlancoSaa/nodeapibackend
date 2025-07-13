@@ -2,8 +2,9 @@
 import parseB2L from '../parsers/parseB2L.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 
-export async function handleB2LTransport({ buffer, base64, filename }) {
+export default async function handleB2L({ buffer, base64, filename }) {
   console.log(`📦 Verwerken van B2L-bestand: ${filename}`);
+
   const parsedData = await parseB2L(buffer);
   const easyFiles = [];
 
