@@ -5,26 +5,28 @@ import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 const { getDocument } = pdfjsLib;
 
 async function extractLines(buffer) {
-  // 1) Buffer → Uint8Array
+  // 1) Maak een echte Uint8Array-view over de Buffer
   const uint8 = buffer instanceof Uint8Array
     ? buffer
-    : new Uint8Array(buffer);
+    : new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
 
-  // 2) PDF laden met de geconverteerde Uint8Array
+  // 2) Laad de PDF met die Uint8Array
   const pdf = await getDocument({ data: uint8 }).promise;
   const allLines = [];
 
-  // 3) Per pagina textContent ophalen en groeperen
+  // 3) Per pagina: textContent ophalen en groeperen op y/x
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const { items } = await page.getTextContent();
+
+    // Zet elk item om in { text, x, y }
     const runs = items.map(i => ({
       text: i.str,
       x:   i.transform[4],
       y:   i.transform[5]
     }));
 
-    // Groepeer op y binnen ±2 punten
+    // Groepeer runs op hun y-positie binnen ±2 punten
     const linesMap = [];
     for (const run of runs) {
       let bucket = linesMap.find(l => Math.abs(l.y - run.y) < 2);
