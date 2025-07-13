@@ -8,7 +8,7 @@ import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.j
 // ✅ Parsers (handlers) importeren
 import handleJordex from '../handlers/handleJordex.js';
 import handleDFDS from '../handlers/handleDFDS.js';
-import handleB2L from '../handlers/handleB2L.js';
+import { handleB2L } from '../handlers/handleB2L.js';
 import handleEasyfresh from '../handlers/handleEasyfresh.js';
 import handleKWE from '../handlers/handleKWE.js';
 import handleNeelevat from '../handlers/handleNeelevat.js';
