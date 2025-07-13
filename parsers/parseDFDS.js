@@ -53,17 +53,37 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
 
   // --- PDF PARSEN & LINES ---
   const parsed = await pdfParse(pdfBuffer);
+  const rawLines = parsed.text.split('\n');
   const text = parsed.text;
-  const regels = text
-    .split('\n')
-    .map(l => l.trim())
-    .filter(Boolean);
+  const regels = rawLines
+  .map(l =>
+    l
+      // m3Pickup → m3 Pickup
+      .replace(/m3Pickup/i, 'm3 Pickup ')
+      // 7PORT → 7 PORT
+      .replace(/([0-9])([A-Z])/g, '$1 $2')
+      .trim()
+  )
+  .filter(Boolean);
+
+  console.log(`ℹ️ In totaal ${regels.length} opgeschoonde regels gevonden`);
   console.log(`ℹ️ In totaal ${regels.length} niet-lege regels gevonden`);
 
+  
   // --- SECTIONS BEPALEN ---
   const idxTransportInfo = regels.findIndex(r => /^Transport informatie/i.test(r));
   const idxGoederenInfo = regels.findIndex(r => /^Goederen informatie/i.test(r));
   console.log(`ℹ️ Transport-info begint op regel ${idxTransportInfo}, goederen-info op ${idxGoederenInfo}`);
+
+const splitLines = tekst
+  .split('\n')
+  .map(l =>
+    l
+      .replace(/m3Pickup/i, 'm3 Pickup ')
+      .replace(/([0-9])([A-Z])/g, '$1 $2')  // '7PORT' → '7 PORT'
+      .trim()
+  )
+  .filter(Boolean);
 
   // --- TRANSPORT INFORMATIE: CONTAINER / REF / DATUM / TIJD ---
   const transportLines = idxTransportInfo >= 0 && idxGoederenInfo > idxTransportInfo
@@ -73,20 +93,24 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   // Container nr
   const containernummer = findFirst(/([A-Z]{4}\d{7})/, transportLines, 'containernummer');
 
-  // Container type (origineel)
-  let containertypeRaw = findFirst(
-    new RegExp(`${containernummer}\\s+([0-9]{2,3}(?:ft)?\\s?[A-Za-z]{2,3})`, 'i'),
+  // Containertype (origineel)
+let containertypeRaw = findFirst(
+  new RegExp(`${containernummer}\\s*([0-9]{2,3}(?:ft)?\\s?[A-Za-z]{2,3})`, 'i'),
+  transportLines,
+  'containertype-via-contnr'
+);
+
+if (!containertypeRaw) {
+  // fallback: match eender waar “40ft HC”, “20GP” etc.
+  containertypeRaw = findFirst(
+    /([0-9]{2,3}ft\s?[A-Za-z]{2,3}|20GP|40GP|40HC|45HC|45R1|20DC|40DC|20RF|40RF|45RF|20OT|40OT|20FR|40FR)/i,
     transportLines,
-    'containertype-via-contnr'
+    'containertype-standaard'
   );
-  if (!containertypeRaw) {
-    containertypeRaw = findFirst(
-      /\b(20GP|40GP|40HC|45HC|45R1|20DC|40DC|20RF|40RF|45RF|20OT|40OT|20FR|40FR)\b/i,
-      transportLines,
-      'containertype-standaard'
-    );
-  }
-  console.log(`🔍 containertypeRaw: ‘${containertypeRaw}’`);
+}
+
+console.log(`🔍 containertypeRaw: '${containertypeRaw}'`);
+
   const normalizedContainertype = containertypeRaw
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '');
@@ -106,22 +130,32 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   console.log(`🔍 volume: ‘${volume}’`);
 
   // Referenties: pickup & lossen
-  const pickupReferentie = findFirst(/^Pickup\s+([A-Za-z0-9]+)/i, transportLines, 'pickup-ref');
-  const lossenReferentie = findFirst(/^Lossen\s+([A-Za-z0-9]+)/i, transportLines, 'lossen-ref');
-  console.log(`🔍 pickupReferentie: ‘${pickupReferentie}’, lossenReferentie: ‘${lossenReferentie}’`);
-
-  // Datum & Tijd (Lossen)
-  let datum = '', tijd = '';
-  const lossenLine = transportLines.find(l => /^Lossen\s+[A-Za-z0-9]+\s+(\d{2}-\d{2}-\d{4})/i);
-  if (lossenLine) {
-    datum = safeMatch(/(\d{2}-\d{2}-\d{4})/, lossenLine, 1, 'datum');
-    tijd = safeMatch(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/, lossenLine, 0, 'tijd');
-    // zet naar hhmm-hhmm
+    const pickupReferentie = findFirst(
+    /Pickup[:\s]*([A-Za-z0-9]+)/i,
+    transportLines,
+    'pickup-ref'
+    );
+    const lossenReferentie = findFirst(
+      /Lossen[:\s]*([A-Za-z0-9]+)/i,
+      transportLines,
+      'lossen-ref'
+    );
+    console.log(`🔍 pickupReferentie: '${pickupReferentie}', lossenReferentie: '${lossenReferentie}'`);
+      
+// Datum & Tijd (Lossen)
+  let datum = '';
+  let tijd = '';
+  const anyDateLine = transportLines.find(l => /\d{2}-\d{2}-\d{4}/.test(l));
+  if (anyDateLine) {
+    datum = safeMatch(/(\d{2}-\d{2}-\d{4})/, anyDateLine, 1, 'datum');
+    // tijd kan ook in dezelfde lijn staan: “07:30-15:30” of “07:30 - 15:30”
+    tijd = safeMatch(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/, anyDateLine, 0, 'tijd');
+    // normaliseren naar “hhmm-hhmm”
     if (tijd) {
-      tijd = tijd.replace(':', '').replace(' - ', '-');
+      tijd = tijd.replace(/:/g, '').replace(/\s*-\s*/, '-');
     }
   }
-  console.log(`🔍 datum: ‘${datum}’, tijd: ‘${tijd}’`);
+  console.log(`🔍 datum: '${datum}', tijd: '${tijd}'`);
 
   // --- TERMINALS: NAAM + ADRES uit blok vóór Goederen informatie ---
   let pickupTerminal = '', pickupAdres = '';
