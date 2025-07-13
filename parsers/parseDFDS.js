@@ -2,13 +2,19 @@
 
 import '../utils/fsPatch.js';
 import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import {
+  getTerminalInfoMetFallback,
+  getContainerTypeCode
+} from '../utils/lookups/terminalLookup.js';
+
 const { getDocument } = pdfjsLib;
+
 
 async function extractLines(buffer) {
   // 1) Maak een echte Uint8Array-view over de Buffer
-  const uint8 = buffer instanceof Uint8Array
-    ? buffer
-    : new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  const uint8 = buffer.buffer !== undefined && buffer.byteOffset !== undefined
+  ? new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+  : buffer;
 
   // 2) Laad de PDF met die Uint8Array
   const pdf = await getDocument({ data: uint8 }).promise;
@@ -54,10 +60,6 @@ async function extractLines(buffer) {
   return allLines;
 }
 
-import {
-  getTerminalInfoMetFallback,
-  getContainerTypeCode
-} from '../utils/lookups/terminalLookup.js';
 
 // ─── HELPERS MET DEBUG-LOGS ──────────────────────────────────────────────────
 function safeMatch(pattern, text, group = 1, label = '') {
@@ -90,7 +92,7 @@ function findFirst(pattern, lines, label = '') {
 // ─── MAIN PARSER ────────────────────────────────────────────────────────────
 export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   // 1) Basic validation
-  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
+  if (!pdfBuffer || !(pdfBuffer instanceof Uint8Array || Buffer.isBuffer(pdfBuffer))) {
     console.warn('❌ Ongeldige of ontbrekende PDF buffer');
     return {};
   }
@@ -107,6 +109,10 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   const idxTransportInfo = splitLines.findIndex(r => /^Transport informatie/i.test(r));
   const idxGoederenInfo  = splitLines.findIndex(r => /^Goederen informatie/i.test(r));
   console.log(`ℹ️ Transport-info op regel ${idxTransportInfo}, goederen-info op ${idxGoederenInfo}`);
+
+  const goederenLines = idxGoederenInfo >= 0
+  ? splitLines.slice(idxGoederenInfo + 1)
+  : [];
 
   // 4) Transport-informatie
   const transportLines = (idxTransportInfo >= 0 && idxGoederenInfo > idxTransportInfo)
@@ -190,10 +196,6 @@ console.log(`🔍 containertypeRaw: '${containertypeRaw}'`);
   idxTransportInfo + 1,
   idxGoederenInfo > 0 ? idxGoederenInfo : splitLines.length
 );
-
-  const goederenLines = idxGoederenInfo >= 0
-    ? splitLines.slice(idxGoederenInfo + 1)
-    : [];
 
   // Indices
   const iPU = terminalSection.findIndex(r => /^Pickup\b/i.test(r));
