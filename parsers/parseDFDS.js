@@ -14,7 +14,7 @@ async function extractLines(buffer) {
     : new Uint8Array(buffer);
 
   // Laad PDF met de juiste data-vorm
-  const pdf = await getDocument({ data: uint8 }).promise;
+  const pdf = await getDocument({ data: buffer }).promise;
   const allLines = [];
 
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
