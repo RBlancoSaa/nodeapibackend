@@ -156,12 +156,26 @@ export async function getRederijNaam(input) {
 export async function getContainerTypeCode(input) {
   if (!input) return '0';
 
-  let normalizedInput = input.toLowerCase().replace(/[\s\-'"]/g, '');
+  // ——— Container type mapping voor uitzonderingen ———
+  // maak van “40ft HC” altijd code 45G1
+  const mappingKey = input.toLowerCase().replace(/[\s\-'"]/g, '');
+  const containerTypeMapping = {
+    '40fthc': '45G1',
+    // hier kun je later extra mappings toevoegen
+  };
+  if (containerTypeMapping[mappingKey]) {
+    console.log(`🔄 getContainerTypeCode: '${input}' gemapped naar '${containerTypeMapping[mappingKey]}'`);
+    return containerTypeMapping[mappingKey];
+  }
+  // ————————————————————————————————————————————————
+
+  // normale normalisatie
+  let normalizedInput = mappingKey;
 
   // ⛏ Extra normalisatie voor bekende varianten
-  if (/^20\s*ft|20ft/.test(normalizedInput)) normalizedInput = '20ft';
-  if (/^40\s*ft|40ft/.test(normalizedInput)) normalizedInput = '40ft';
-  if (/^45\s*ft|45ft/.test(normalizedInput)) normalizedInput = '45ft';
+  if (/^20\s*ft|20ft/.test(input.toLowerCase())) normalizedInput = '20ft';
+  if (/^40\s*ft|40ft/.test(input.toLowerCase())) normalizedInput = '40ft';
+  if (/^45\s*ft|45ft/.test(input.toLowerCase())) normalizedInput = '45ft';
 
   // 🧊 Detecteer reefer-container op basis van inputinhoud
   const isReefer = /r\b|reefer|temperatuur/i.test(input);
@@ -198,7 +212,6 @@ export async function getContainerTypeCode(input) {
     }
   }
 
-  console.warn('⚠️ Geen match voor containertype:', input);
   return '0';
 }
 
