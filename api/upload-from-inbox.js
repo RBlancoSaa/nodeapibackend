@@ -3,6 +3,13 @@ import '../utils/fsPatch.js';
 import { parseAttachmentsFromEmails } from '../services/parseAttachments.js';
 import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
 import { ImapFlow } from 'imapflow';
+import parseDFDS from '../parsers/parseDFDS.js';
+import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js'; // voeg toe aan top
+
+function isDfdsTransportOrder(filename) {
+  const name = filename.toLowerCase();
+  return name.includes('transportorder') && name.includes('dfds');
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
@@ -62,6 +69,69 @@ export default async function handler(req, res) {
       }
     }
 
+for (const attachment of pdfAttachments) {
+  const { filename, buffer, base64 } = attachment;
+
+  if (!filename) continue;
+
+  if (isDfdsTransportOrder(filename)) {
+    console.log(`📄 DFDS transportopdracht gedetecteerd: ${filename}`);
+    const parsedData = await parseDFDS(buffer);
+
+    const easyFiles = [];
+
+    for (const container of parsedData.containers) {
+      try {
+        const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reference: parsedData.ritnummer || '0',
+            laadplaats: container.laadplaats || '0',
+            pdfBestandsnaam: filename,
+            skipReprocessing: false,
+            originalPdfBase64: base64,
+            ...container
+          })
+        });
+
+        const result = await response.json();
+        console.log('📤 .easy gegenereerd voor DFDS-container:', result);
+
+        easyFiles.push({
+          filename: result.bestandsnaam,
+          xmlBase64: result.xmlBase64
+        });
+
+      } catch (err) {
+        console.warn('⚠️ Fout bij DFDS .easy-generatie:', err.message);
+      }
+    }
+
+    // 📬 Verstuur .easy-bestanden + originele PDF
+    try {
+      await sendEmailWithAttachments({
+        ritnummer: parsedData.ritnummer,
+        attachments: [
+          ...easyFiles.map(file => ({
+            filename: file.filename,
+            content: Buffer.from(file.xmlBase64, 'base64')
+          })),
+          {
+            filename,
+            content: Buffer.from(base64, 'base64')
+          }
+        ]
+      });
+
+      console.log(`✅ Mail verstuurd voor rit ${parsedData.ritnummer}`);
+    } catch (err) {
+      console.error('📧 Fout bij e-mailverzending DFDS:', err.message);
+    }
+  } else {
+    console.log(`⏭️ Bijlage is geen DFDS transportorder: ${filename}`);
+  }
+}
 
 await client.logout();
 

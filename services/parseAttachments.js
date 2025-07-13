@@ -46,9 +46,12 @@ mails.push({
 
       allAttachments.push(...attachments.map(att => ({
         uid: message.uid,
-        filename: att.filename,
+        filename: part.disposition?.params?.filename || 'bijlage.pdf',
+  buffer,
         contentType: att.contentType,
-        content: att.content
+        content: att.content,
+        buffer: att.content,
+        base64: buffer.toString('base64') // ✅ voeg dit toe
       })));
 
     } catch (err) {
