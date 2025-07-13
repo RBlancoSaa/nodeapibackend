@@ -2,7 +2,7 @@
 import parseEasyfresh from '../parsers/parseEasyfresh.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 
-export async function handleEasyfreshTransport({ buffer, base64, filename }) {
+export default async function handleEasyfresh({ buffer, base64, filename }) {
   console.log(`📦 Verwerken van Easyfresh-bestand: ${filename}`);
   const parsedData = await parseEasyfresh(buffer);
   const easyFiles = [];

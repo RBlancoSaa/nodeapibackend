@@ -2,7 +2,7 @@
 import parseDFDS from '../parsers/parseDFDS.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 
-export async function handleDFDS({ buffer, filename }) {
+export default async function handleDFDS({ buffer, filename }) {
   const parsedData = await parseDFDS(buffer);
 
   if (!parsedData.ritnummer || parsedData.ritnummer === '0') {
