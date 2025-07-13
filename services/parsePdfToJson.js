@@ -65,7 +65,7 @@ if (
   textLower.includes('dfds warehousing rotterdam b.v.') ||
   textLower.includes('@dfds.com')
 ) {
-  return await parseDFDS(pdfBuffer);
+ return await parseDFDS(buffer);
 }
 
   if (text.includes('Easyfresh')) {
