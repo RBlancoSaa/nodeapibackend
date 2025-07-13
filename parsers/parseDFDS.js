@@ -11,6 +11,15 @@ function logResult(label, value) {
   return value;
 }
 
+// ✅ Veilige findFirst: voorkomt .trim() op undefined
+function findFirst(pattern, regels) {
+  for (const r of regels) {
+    const m = r.match(pattern);
+    if (m && typeof m[1] !== 'undefined') return m[1].trim();
+  }
+  return '';
+}
+
 export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
     console.warn('❌ Ongeldige of ontbrekende PDF buffer');
@@ -25,25 +34,16 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   const text = parsed.text;
   const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-  // Helper: zoek eerste match in alle regels
-  function findFirst(pattern) {
-    for (const r of regels) {
-      const m = r.match(pattern);
-      if (m) return m[1].trim();
-    }
-    return '';
-  }
-
   // Ritnummer (Onze referentie: SFIMxxxxxxx) met fallback
-  let referentie = findFirst(/Lossen.*?(\d{7,})/i);
+  let referentie = findFirst(/Lossen.*?(\d{7,})/i, regels);
   if (!referentie) {
-    referentie = findFirst(/(?:Order|Booking|Reference|Transport Document No\.?).*?([A-Z0-9\-\/]+)/i);
+    referentie = findFirst(/(?:Order|Booking|Reference|Transport Document No\.?).*?([A-Z0-9\-\/]+)/i, regels);
   }
   const fallbackRitnummer = referentie?.match(/SFIM\d{7}/i)?.[0];
-  const ritnummer = findFirst(/Onze referentie[:\t ]+(SFIM\d{7})/i) || fallbackRitnummer || '0';
+  const ritnummer = findFirst(/Onze referentie[:\t ]+(SFIM\d{7})/i, regels) || fallbackRitnummer || '0';
 
   // Containernummer
-  const containernummer = findFirst(/([A-Z]{4}\d{7})/);
+  const containernummer = findFirst(/([A-Z]{4}\d{7})/, regels);
 
   // Containertype (origineel én genormaliseerd)
   let containertype = '';
@@ -73,7 +73,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   }
 
   // Zegelnummer
-  const zegelnummer = findFirst(/Zegel[:\s]+([A-Z0-9]+)/i);
+  const zegelnummer = findFirst(/Zegel[:\s]+([A-Z0-9]+)/i, regels);
 
   // Gewicht (zoek grootste getal met "kg" erachter)
   let gewicht = '';
@@ -96,7 +96,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   }
 
   // Colli (zoek getal gevolgd door "colli" of "carton" of "pcs")
-  let colli = findFirst(/(\d+)\s*(colli|carton|pcs)/i);
+  let colli = findFirst(/(\d+)\s*(colli|carton|pcs)/i, regels);
   if (!colli) {
     for (const r of regels) {
       if (/carton|pcs/i.test(r)) {
@@ -138,11 +138,11 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   }
 
   // Terminals (fallbacks toegevoegd)
-  let pickupTerminal = findFirst(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i)
-    || findFirst(/pickup[:\s]+(.+)/i)
+  let pickupTerminal = findFirst(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i, regels)
+    || findFirst(/pickup[:\s]+(.+)/i, regels)
     || '';
-  let dropoffTerminal = findFirst(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i)
-    || findFirst(/dropoff[:\s]+(.+)/i)
+  let dropoffTerminal = findFirst(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i, regels)
+    || findFirst(/dropoff[:\s]+(.+)/i, regels)
     || '';
 
   // Terminal lookups
@@ -150,8 +150,8 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal);
 
   // Rederij & bootnaam
-  const rederij = findFirst(/Carrier[:\t ]+(.+)/i) || '';
-  const bootnaam = findFirst(/Vessel[:\t ]+(.+)/i) || '';
+  const rederij = findFirst(/Carrier[:\t ]+(.+)/i, regels) || '';
+  const bootnaam = findFirst(/Vessel[:\t ]+(.+)/i, regels) || '';
 
   // Datum & tijd (met padding en seconds)
   const pad = n => n.toString().padStart(2, '0');
@@ -200,7 +200,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     inleverreferentie: logResult('inleverreferentie', ''),
     rederij: logResult('rederij', rederij),
     bootnaam: logResult('bootnaam', bootnaam),
-    temperatuur: logResult('temperatuur', findFirst(/Temperature[:\t ]+([\-\d]+°C)/i) || '0'),
+    temperatuur: logResult('temperatuur', findFirst(/Temperature[:\t ]+([\-\d]+°C)/i, regels) || '0'),
     datum: logResult('datum', laadDatum),
     tijd: logResult('tijd', laadTijd),
     instructies: logResult('instructies', bijzonderheid),
@@ -226,53 +226,53 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
 
   // Locatiestructuur
   data.locaties = [
-    {
-      volgorde: '0',
-      actie: 'Opzetten',
-      naam: pickupInfo.naam || pickupTerminal,
-      adres: pickupInfo.adres || '',
-      postcode: pickupInfo.postcode || '',
-      plaats: pickupInfo.plaats || '',
-      land: pickupInfo.land || 'NL',
-      voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-      aankomst_verw: '',
-      tijslot_van: '',
-      tijslot_tm: '',
-      portbase_code: pickupInfo.portbase_code || '',
-      bicsCode: pickupInfo.bicsCode || ''
-    },
-    {
-      volgorde: '0',
-      actie: 'Lossen',
-      naam: klantnaam || '',
-      adres: klantadres || '',
-      postcode: klantpostcode || '',
-      plaats: klantplaats || '',
-      land: 'NL'
-    },
-    {
-      volgorde: '0',
-      actie: 'Afzetten',
-      naam: dropoffInfo.naam || dropoffTerminal,
-      adres: dropoffInfo.adres || '',
-      postcode: dropoffInfo.postcode || '',
-      plaats: dropoffInfo.plaats || '',
-      land: dropoffInfo.land || 'NL',
-      voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-      aankomst_verw: '',
-      tijslot_van: '',
-      tijslot_tm: '',
-      portbase_code: dropoffInfo.portbase_code || '',
-      bicsCode: dropoffInfo.bicsCode || ''
-    }
-  ];
+  {
+    volgorde: '0',
+    actie: 'Opzetten',
+    naam: pickupInfo.naam || pickupTerminal,
+    adres: pickupInfo.adres || '',
+    postcode: pickupInfo.postcode || '',
+    plaats: pickupInfo.plaats || '',
+    land: pickupInfo.land || 'NL',
+    voorgemeld: typeof pickupInfo.voorgemeld === 'string' && pickupInfo.voorgemeld.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+    aankomst_verw: '',
+    tijslot_van: '',
+    tijslot_tm: '',
+    portbase_code: pickupInfo.portbase_code || '',
+    bicsCode: pickupInfo.bicsCode || ''
+  },
+  {
+    volgorde: '0',
+    actie: 'Lossen',
+    naam: klantnaam || '',
+    adres: klantadres || '',
+    postcode: klantpostcode || '',
+    plaats: klantplaats || '',
+    land: 'NL'
+  },
+  {
+    volgorde: '0',
+    actie: 'Afzetten',
+    naam: dropoffInfo.naam || dropoffTerminal,
+    adres: dropoffInfo.adres || '',
+    postcode: dropoffInfo.postcode || '',
+    plaats: dropoffInfo.plaats || '',
+    land: dropoffInfo.land || 'NL',
+    voorgemeld: typeof dropoffInfo.voorgemeld === 'string' && dropoffInfo.voorgemeld.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+    aankomst_verw: '',
+    tijslot_van: '',
+    tijslot_tm: '',
+    portbase_code: dropoffInfo.portbase_code || '',
+    bicsCode: dropoffInfo.bicsCode || ''
+  }
+];
 
   // Bepaal laden/lossen
   data.isLossenOpdracht = !!data.containernummer && data.containernummer !== '0';
   data.ladenOfLossen = data.isLossenOpdracht ? 'Lossen' : 'Laden';
 
   // ADR
-  data.adr = (findFirst(/IMO[:\t ]+(\d+)/i) || findFirst(/UN[:\t ]+(\d+)/i)) ? 'Waar' : 'Onwaar';
+  data.adr = (findFirst(/IMO[:\t ]+(\d+)/i, regels) || findFirst(/UN[:\t ]+(\d+)/i, regels)) ? 'Waar' : 'Onwaar';
 
   // Fallback check
   if (!containertype || !data.containertypeCode || data.containertypeCode === '0') {
