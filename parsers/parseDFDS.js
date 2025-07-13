@@ -126,7 +126,8 @@ if (dateMatch) {
         console.log('📦 Containertype gevonden:', containertype);
       }
     }     
-let containernummer = '', zegelnummer = '', gewicht = '0', volume = '0', colli = '0', referentie = '', lading = '';
+let containernummer = '', zegelnummer = '', gewicht = '0', volume = '0', colli = '0', referentie = '', lading = '', containertype = '';
+
 
 for (const regel of containerRegels) {
   // Containernummer
