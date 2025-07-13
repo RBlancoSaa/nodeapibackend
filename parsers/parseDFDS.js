@@ -1,35 +1,40 @@
 // parsers/parseDFDS.js
+
 import '../utils/fsPatch.js';
+import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+const { getDocument } = pdfjsLib;
 import {
   getTerminalInfoMetFallback,
   getContainerTypeCode
 } from '../utils/lookups/terminalLookup.js';
-import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
-const { getDocument } = pdfjsLib;
 
+// ─── extractLines: PDF → visuele regels ─────────────────────────────────────
 async function extractLines(buffer) {
-  // Converteer Buffer → Uint8Array indien nodig
+  // 1) Converteer Buffer → Uint8Array als nodig
   const uint8 = buffer instanceof Uint8Array
     ? buffer
     : new Uint8Array(buffer);
 
-  // Laad PDF met de juiste data-vorm
-  const pdf = await getDocument({ data: buffer }).promise;
+  // 2) Laad PDF
+  const pdf = await getDocument({ data: uint8 }).promise;
   const allLines = [];
 
+  // 3) Per pagina: textContent ophalen en groeperen op y/x
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const { items } = await page.getTextContent();
+
+    // Map elk item naar { text, x, y }
     const runs = items.map(i => ({
       text: i.str,
       x:   i.transform[4],
       y:   i.transform[5]
     }));
 
-    // Groepeer op y
+    // Groepeer runs op y-positie binnen ±2 punten
     const linesMap = [];
     for (const run of runs) {
-      let bucket = linesMap.find(line => Math.abs(line.y - run.y) < 2);
+      let bucket = linesMap.find(l => Math.abs(l.y - run.y) < 2);
       if (!bucket) {
         bucket = { y: run.y, runs: [] };
         linesMap.push(bucket);
@@ -37,7 +42,7 @@ async function extractLines(buffer) {
       bucket.runs.push(run);
     }
 
-    // Sorteer & join per regel
+    // Sorteer per lijn (visueel boven→onder) en join op x (links→rechts)
     const pageLines = linesMap
       .sort((a, b) => b.y - a.y)
       .map(line =>
@@ -54,8 +59,7 @@ async function extractLines(buffer) {
   return allLines;
 }
 
-// --- HELPERS MET DEBUG-LOGS ---
-// Veilige match + trim, met logs
+// ─── HELPERS MET DEBUG-LOGS ──────────────────────────────────────────────────
 function safeMatch(pattern, text, group = 1, label = '') {
   if (typeof text !== 'string') {
     console.warn(`⚠️ safeMatch ${label}: tekst is geen string:`, text);
@@ -67,7 +71,7 @@ function safeMatch(pattern, text, group = 1, label = '') {
     return '';
   }
   if (typeof match[group] !== 'string') {
-    console.warn(`⚠️ safeMatch ${label}: groep ${group} niet-string:`, match[group]);
+    console.warn(`⚠️ safeMatch ${label}: groep ${group} geen string:`, match[group]);
     return '';
   }
   const res = match[group].trim();
@@ -75,7 +79,6 @@ function safeMatch(pattern, text, group = 1, label = '') {
   return res;
 }
 
-// Zoek de eerste match in een array regels, met logs
 function findFirst(pattern, lines, label = '') {
   for (const line of lines) {
     const m = line.match(pattern);
@@ -88,8 +91,9 @@ function findFirst(pattern, lines, label = '') {
   return '';
 }
 
+// ─── MAIN PARSER ────────────────────────────────────────────────────────────
 export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
-  // --- BASIC VALIDATION ---
+  // BASIC VALIDATION
   if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
     console.warn('❌ Ongeldige of ontbrekende PDF buffer');
     return {};
@@ -98,23 +102,24 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     console.warn('⚠️ PDF buffer is verdacht klein, waarschijnlijk leeg');
     return {};
   }
-// --- PDF PARSEN & LINES (met positie-gebaseerde extractie) ---
-const splitLines = await extractLines(pdfBuffer);
-console.log(`ℹ️ In totaal ${splitLines.length} regels uit PDF gehaald via extractLines()`);
 
-  // --- SECTIONS BEPALEN ---
+  // PDF → visuele regels via extractLines()
+  const splitLines = await extractLines(pdfBuffer);
+  console.log(`ℹ️ In totaal ${splitLines.length} regels uit PDF gehaald via extractLines()`);
+
+  // SECTIONS BEPALEN
   const idxTransportInfo = splitLines.findIndex(r => /^Transport informatie/i.test(r));
   const idxGoederenInfo  = splitLines.findIndex(r => /^Goederen informatie/i.test(r));
   console.log(`ℹ️ Transport-info begint op regel ${idxTransportInfo}, goederen-info op ${idxGoederenInfo}`);
 
-  // --- TRANSPORT INFORMATIE: CONTAINER / REF / DATUM / TIJD ---
-  const transportLines = idxTransportInfo >= 0 && idxGoederenInfo > idxTransportInfo
+  // TRANSPORT INFORMATIE
+  const transportLines = (idxTransportInfo >= 0 && idxGoederenInfo > idxTransportInfo)
     ? splitLines.slice(idxTransportInfo + 1, idxGoederenInfo)
     : [];
 
   // Container nr
   const containernummer = findFirst(/([A-Z]{4}\d{7})/, transportLines, 'containernummer');
-
+  
   // Containertype (origineel)
 let containertypeRaw = findFirst(
   new RegExp(`${containernummer}\\s*([0-9]{2,3}(?:ft)?\\s?[A-Za-z]{2,3})`, 'i'),
