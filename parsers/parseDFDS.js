@@ -44,7 +44,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'DFDS') {
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
+  const ritnummerMatch = text.match(/\b(sfim\d{7})\b/i);
   
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
   const multiExtract = (patterns) => {
@@ -356,8 +356,8 @@ data.locaties = [
     console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
   }
 
-if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes('OE')) {
-  const match = parsed.info.Title.match(/(O[EI]\d{7})/i);
+if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes('SFIM')) {
+  const match = parsed.info.Title.match(/(sfim\d{7})/i);
   if (match) {
     data.ritnummer = match[1];
   }
