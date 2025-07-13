@@ -17,7 +17,7 @@ export default async function handleDFDS({ buffer, filename }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        reference: parsedData.ritnummer,
+        reference: container.referentie || '0',
         laadplaats: container.laadplaats || '0',
         pdfBestandsnaam: filename,
         skipReprocessing: false,
