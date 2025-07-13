@@ -1,4 +1,4 @@
-// parsers/parseDFDS.js
+// parsers/parseJordex.js
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import {
@@ -26,7 +26,7 @@ function formatDatum(text) {
 }
 
 
-export default async function parseDFDS(pdfBuffer, klantAlias = 'DFDS') {
+export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   console.log('📦 Ontvangen pdfBuffer:', pdfBuffer?.length, 'bytes');
 
   // ❌ Voorkom lege of ongeldige input
@@ -44,8 +44,14 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'DFDS') {
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const ritnummerMatch = text.match(/Onze referentie[:\s]+(SFIM\d{7})/i)
+  const ritnummerMatch = text.match(/Onze referentie[:\s]+(SFIM\d{7})/i);
   
+  // 📦 Containerregels extraheren bij DFDS
+  const containerRegels = regels.filter(r =>
+    /^[A-Z]{4}U\d{7}/.test(r) || /Zegel[:\s]/i.test(r) || /kg/i.test(r) || /m3/i.test(r)
+  );
+  console.log('📦 Geselecteerde containerregels:', containerRegels);
+
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
   const multiExtract = (patterns) => {
     for (const pattern of patterns) {
@@ -61,111 +67,201 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'DFDS') {
     }
     return '';
   };
+  // ✅ 100% correcte extractie uit alleen het "Pick-up" blok (klant)
+    const pickupBlokMatch = text.match(/Pick-up\s*\n([\s\S]+?)(?=\n(?:Drop-off terminal|Pick-up terminal|Extra Information|$))/i);
+    const pickupBlok = pickupBlokMatch?.[1] || '';
+    const pickupRegels = pickupBlok.split('\n').map(r => r.trim()).filter(Boolean);
 
-// 📦 Containers uitlezen uit "Transport informatie" blok
-const containers = [];
-const lines = regels;
+  // 👤 Klantgegevens
+    const klantNaam = pickupRegels.find(r => r.startsWith('Address:'))?.replace('Address:', '').trim() || '';
+    const adresIndex = pickupRegels.findIndex(r => r.includes(klantNaam)) + 1;
+    const adres = pickupRegels[adresIndex] || '';
+    const postcode = pickupRegels[adresIndex + 1] || '';
+    const plaats = pickupRegels[adresIndex + 2] || '';
 
-for (let i = 0; i < lines.length; i++) {
-  const line = lines[i];
+  // 📦 Containerinformatie
+    const cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
+    const containertype = cargoLine.match(/1\s*x\s*(.+)/i)?.[1]?.trim() || '';
 
-  // Herken containerregel
-  const containerMatch = line.match(/^([A-Z]{4}\d{7})\s+(.+?)\s+Pickup\s+(\S+)\s+(\d{2}-\d{2}-\d{4})$/i);
-  if (containerMatch) {
-    const [
-      _,
-      containernummer,
-      typeInfo,
-      pickupRef,
-      datum
-    ] = containerMatch;
+  // 📅 Datum & tijd
+    const dateLine = pickupRegels.find(r => /^Date[:\t ]+/i.test(r)) || '';
+    const dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
+    
+    // 📆 Fallback = upload datum
+    let laadDatum = '';
+    let laadTijd = '';
+    let bijzonderheid = '';
 
-    // Zoek volgende regel voor lossen en tijd
-    const volgende = lines[i + 1] || '';
-    const lossMatch = volgende.match(/^Lossen\s+(\S+)\s+(\d{2}-\d{2}-\d{4})\s+(\d{2}:\d{2})\s+-\s+(\d{2}:\d{2})/i);
-    const losreferentie = lossMatch?.[1] || '';
-    const tijdVan = lossMatch?.[3] ? `${lossMatch[3]}:00` : '';
-    const tijdTot = lossMatch?.[4] ? `${lossMatch[4]}:00` : '';
+if (dateMatch) {
+  const dag = parseInt(dateMatch[1]);
+  const maandStr = dateMatch[2].toLowerCase().slice(0, 3);
+  const jaar = dateMatch[3];
+  const tijd = dateMatch[4];
 
-    // Zoek zegelregel
-    const zegelRegel = lines.find(r => r.includes(containernummer) && r.includes('Zegel:'));
-    const zegelMatch = zegelRegel?.match(/Zegel:\s*(\S+)/i);
-    const zegelnummer = zegelMatch?.[1] || '';
+  const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+  const maand = maanden[maandStr];
 
-    // Zoek lading en gewicht
-    const ladingregel = lines.find(r => r.startsWith(containernummer));
-    const inhoudregel = lines.find(r => r.includes('CARTON') || /\d+\s+[A-Z]/.test(r)) || '';
+  laadDatum = `${dag}-${maand}-${jaar}`;
+  laadTijd = tijd ? `${tijd}:00` : '';
+} else {
+  // Fallback: datum van vandaag zonder voorloopnullen
+    const nu = new Date();
+    laadDatum = `${nu.getDate()}-${nu.getMonth() + 1}-${nu.getFullYear()}`;
+  laadTijd = '';
+  bijzonderheid = 'DATUM STAAT VERKEERD';
+}
+  // 🔗 Referentie
+    const refLine = pickupRegels.find(r => /Reference/.test(r)) || '';
+    const laadreferentie = refLine.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i)?.[1]?.trim() || '';
 
-    const gewichtMatch = inhoudregel.match(/([\d.,]+)\s*kg/i);
-    const colliMatch = inhoudregel.match(/^(\d{1,5})\s+/);
-    const volumeMatch = typeInfo?.match(/[-–]\s*([\d.,]+)\s*m3/i);
+    const fromMatch = text.match(/From:\s*(.*)/);
+ 
+        console.log('📅 Extractie uit pickupRegels:', pickupRegels);
+        console.log('📅 dateLine:', dateLine);
+        console.log('📅 dateMatch:', dateMatch);
+        console.log('📅 laadDatum:', laadDatum);
+        console.log('📅 laadTijd:', laadTijd);
+let containernummer = '', zegelnummer = '', gewicht = '0', volume = '0', colli = '0', referentie = '', lading = '';
 
-    const lading = inhoudregel
-      .replace(/^\d{1,5}\s+\w+\s+/i, '')
-      .replace(/\s*[\d.,]+\s*kg.*$/i, '')
-      .trim() || '';
+for (const regel of containerRegels) {
+  // Containernummer
+  if (!containernummer) {
+    const match = regel.match(/^([A-Z]{4}U\d{7})/);
+    if (match) {
+      containernummer = match[1];
+      console.log('🚛 Containernummer gevonden:', containernummer);
+    }
+  }
 
-    containers.push({
-      containernummer,
-      containertype: typeInfo.split('-')[0].trim(), // e.g. "40ft HC"
-      zegelnummer,
-      volume: volumeMatch?.[1]?.replace(',', '.') || '0',
-      datum,
-      tijd: tijdVan,
-      tijdTm: tijdTot,
-      laadreferentie: pickupRef,
-      inleverreferentie: losreferentie,
-      gewicht: gewichtMatch?.[1]?.replace(',', '.') || '0',
-      colli: colliMatch?.[1] || '0',
-      lading
-    });
+  // Zegelnummer
+  if (!zegelnummer && regel.toLowerCase().includes('zegel')) {
+    const match = regel.match(/Zegel[:\s]+(\d+)/i);
+    if (match) {
+      zegelnummer = match[1];
+      console.log('🔐 Zegelnummer gevonden:', zegelnummer);
+    }
+  }
+
+  // Gewicht
+  if (regel.toLowerCase().includes('kg') && gewicht === '0') {
+    const match = regel.match(/([\d.,]+)\s*kg/i);
+    if (match) {
+      gewicht = match[1].replace(',', '.');
+      if (gewicht.includes('.')) {
+        gewicht = Math.round(parseFloat(gewicht)).toString();
+      }
+      console.log('⚖️ Gewicht gevonden:', gewicht);
+    }
+  }
+
+  // Volume
+  if (regel.toLowerCase().includes('m3') && volume === '0') {
+    const match = regel.match(/([\d.,]+)\s*m3/i);
+    if (match) {
+      volume = match[1].replace(',', '.');
+      console.log('📏 Volume gevonden:', volume);
+    }
+  }
+
+  // Colli
+  if (regel.match(/^\d{2,5}$/) && colli === '0') {
+    colli = regel.trim();
+    console.log('📦 Colli gevonden:', colli);
+  }
+
+  // Lading + referentie
+  if (!referentie || !lading) {
+    const refMatch = regel.match(/Lossen.*?(\d{7,})/i);
+    if (refMatch) {
+      referentie = refMatch[1];
+      console.log('📌 Referentie gevonden:', referentie);
+    }
+
+    const ladingMatch = regel.match(/^\d+\s+\w+\s+(.*?)\s+[\d.,]+\s*kg/i);
+    if (ladingMatch) {
+      lading = ladingMatch[1].trim();
+      console.log('📦 Lading gevonden:', lading);
+    }
   }
 }
 
-const gewichtMatch = inhoudregel?.match(/([\d.,]+)\s*kg/i);
-const colliMatch = inhoudregel?.match(/^(\d{1,5})\s+/);
-const volumeMatch = typeInfo?.match(/[-–]\s*([\d.,]+)\s*m3/i);
 
-const eersteContainer = containers[0] || {};
 
 const data = {
-  ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
-  referentie: logResult('referentie', eersteContainer.inleverreferentie || '0'),
-  containernummer: logResult('containernummer', eersteContainer.containernummer || ''),
-  containertype: logResult('containertype', eersteContainer.containertype || ''),
-  datum: logResult('datum', eersteContainer.datum || ''),
-  tijd: logResult('tijd', eersteContainer.tijd || ''),
-  tijdTm: logResult('tijdTm', eersteContainer.tijdTm || ''),
-  colli: logResult('colli', eersteContainer.colli || '0'),
-  gewicht: logResult('gewicht', eersteContainer.gewicht || '0'),
-  volume: logResult('volume', eersteContainer.volume || '0'),
-  lading: logResult('lading', eersteContainer.lading || ''),
-  zegelnummer: logResult('zegelnummer', eersteContainer.zegelnummer || ''),
-  laadreferentie: logResult('laadreferentie', eersteContainer.laadreferentie || ''),
-  inleverreferentie: logResult('inleverreferentie', eersteContainer.inleverreferentie || ''),
-  instructies: logResult('instructies', ''),
+    ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
+    referentie: logResult('referentie', (() => {
+    const blok = text.match(/Pick[-\s]?up terminal[\s\S]+?(?=Pick[-\s]?up|Drop[-\s]?off|Extra Information)/i)?.[0] || '';
+    const match = blok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
+    return match?.[1]?.trim() || '0';
+      })()),
+    colli: logResult('colli', colli),
+    volume: logResult('volume', volume),
+    gewicht: logResult('gewicht', gewicht),
+    lading: logResult('lading', lading),
+    containernummer: logResult('containernummer', containernummer),
+    zegelnummer: logResult('zegelnummer', zegelnummer),
+    gewicht: logResult('gewicht', gewicht),
+    volume: logResult('volume', volume),
+    colli: logResult('colli', colli),
+    referentie: logResult('referentie', referentie),
+    lading: logResult('lading', lading),
 
-  bootnaam: logResult('bootnaam', multiExtract([/Vaartuig\s+(.+)/i])),
-  rederij: logResult('rederij', multiExtract([/Rederij\s+(.+)/i])),
+    inleverreferentie: logResult('inleverreferentie', (() => {
+      const m = text.match(/Drop[-\s]?off terminal:[\s\S]+?Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
+      return m?.[1]?.trim() || '0';
+      })()),
+    rederij: logResult('rederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
+    bootnaam: logResult('bootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
+    
+    temperatuur: logResult('temperatuur', multiExtract([/Temperature[:\t ]+([\-\d]+°C)/i]) || '0'),
+    datum: logResult('datum', laadDatum),
+    tijd: logResult('tijd', laadTijd),
+    instructies: logResult('instructies', bijzonderheid),
+    laadreferentie: logResult('laadreferentie', laadreferentie),
+    containertype: logResult('containertype', containertype),
+    inleverBootnaam: logResult('inleverBootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
+    inleverRederij: logResult('inleverRederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
+      inleverBestemming: logResult('inleverBestemming', multiExtract([
+      /Final destination[:\t ]+(.+)/i,
+      /Arrival[:\t ]+(.+)/i
+       ])),
 
-  opdrachtgeverNaam: 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
-  opdrachtgeverAdres: 'WOLGAWEG 3',
-  opdrachtgeverPostcode: '3200AA',
-  opdrachtgeverPlaats: 'SPIJKENISSE',
-  opdrachtgeverTelefoon: '010-1234567',
-  opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
-  opdrachtgeverBTW: 'NL007129099B01',
-  opdrachtgeverKVK: '24232781',
+// Terminalextractie: werkelijke naam staat onder “Address:” in de sectie
+   pickupTerminal: logResult('pickupTerminal', (() => {
+      const sectie = text.match(/Pick[-\s]?up terminal([\s\S]+?)(?=Drop[-\s]?off terminal\b|$)/i)?.[1] || '';
+      return sectie.match(/Address:\s*(.+)/i)?.[1].trim() || '';
+      })()),
+  dropoffTerminal: logResult('dropoffTerminal', (() => {
+      const sectie = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?=Pick[-\s]?up terminal\b|$)/i)?.[1] || '';
+      return sectie.match(/Address:\s*(.+)/i)?.[1].trim() || '';
+      })()),
+      // 🔍 Inleverreferentie uit Drop-off terminal sectie
+    inleverreferentie: logResult('inleverreferentie', (() => {
+      const sectie = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?=Pick[-\s]?up terminal\b|$)/i)?.[1] || '';
+      return sectie.match(/Reference\(s\):\s*(.+)/i)?.[1]?.trim() || '';
+  })()),
+      
+    colli: logResult('colli', colli),
+    volume: logResult('volume', volume),
+    lading: logResult('lading', multiExtract([/Description of goods[:\t ]+(.+)/i]) || '0'),
+    imo: logResult('imo', multiExtract([/IMO[:\t ]+(\d+)/i]) || '0'),
+    unnr: logResult('unnr', multiExtract([/UN[:\t ]+(\d+)/i]) || '0'),
+    brix: logResult('brix', multiExtract([/Brix[:\t ]+(\d+)/i]) || '0'),
 
-  terminal: '0',
-  rederijCode: '0',
-  containertypeCode: '0',
+    opdrachtgeverNaam: 'JORDEX FORWARDING',
+    opdrachtgeverAdres: 'AMBACHTSWEG 6',
+    opdrachtgeverPostcode: '3161GL',
+    opdrachtgeverPlaats: 'RHOON',
+    opdrachtgeverTelefoon: '010-1234567',
+    opdrachtgeverEmail: 'TRANSPORT@JORDEX.COM',
+    opdrachtgeverBTW: 'NL815340011B01',
+    opdrachtgeverKVK: '24390991',
 
-  containers
+    terminal: '0',
+    rederijCode: '0',
+    containertypeCode: '0'
   };
 
-
-  
 // Verwijder “terminal” suffix zodat je sleutel mét en stemt met Supabase
   const pickupTerminalMatch = text.match(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
   const puKey = pickupTerminalMatch?.[1]?.trim() || '';
@@ -293,7 +389,7 @@ data.locaties = [
   }
 
 if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes('SFIM')) {
-  const match = parsed.info.Title.match(/(sfim\d{7})/i);
+  const match = parsed.info.Title.match(/(SFIM\d{7})/i);
   if (match) {
     data.ritnummer = match[1];
   }
@@ -301,7 +397,7 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
 
   console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
   console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
-  console.log('📤 DATA OBJECT UIT PARSEDFDS:', JSON.stringify(data, null, 2));
+  console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
   console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
   console.log('📦 LOCATIES:');
   console.log('👉 Locatie 0 (pickup terminal):', JSON.stringify(data.locaties[0], null, 2));
