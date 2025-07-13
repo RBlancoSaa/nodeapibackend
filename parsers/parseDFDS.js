@@ -74,9 +74,16 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'DFDS') {
     const plaats = pickupRegels[adresIndex + 2] || '';
 
   // 📦 Containerinformatie
-    const cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
-    const containertype = cargoLine.match(/1\s*x\s*(.+)/i)?.[1]?.trim() || '';
+    const cargoLine = pickupRegels.find(r => /cargo[:\t ]/i.test(r)) || '';
+    const containertypeMatch =
+      cargoLine.match(/1\s*x\s*(\d{2}ft\s*[-–]?\s*[^,]+)/i) || // 1 x 20ft - 33,2 m³
+      cargoLine.match(/(\d{2}ft\s*(hc)?)/i) ||                // 20ft HC
+      cargoLine.match(/cargo[:\t ]+(.+)/i);                   // fallback: alles na "Cargo:"
 
+    const containertype = containertypeMatch?.[1]?.trim() || '';
+      console.log('🔍 Cargo regel:', cargoLine);
+      console.log('📦 Gevonden containertype:', containertype);
+      
   // 🎯 Uitlezen containerblok (onderaan de PDF)
     const containerBlok = text.match(/Type Number[\s\S]+?(?=Extra Information|Date:|DFDS|$)/i)?.[0] || '';
     const regelsContainer = containerBlok.split('\n').map(r => r.trim()).filter(Boolean);
