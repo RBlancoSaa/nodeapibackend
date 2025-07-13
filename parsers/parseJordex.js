@@ -81,23 +81,33 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const containerBlok = text.match(/Type Number[\s\S]+?(?=Extra Information|Date:|Jordex|$)/i)?.[0] || '';
     const regelsContainer = containerBlok.split('\n').map(r => r.trim()).filter(Boolean);
    
-  // 📦 Containerwaarden uit regelsContainer
+  // 📦 Robuuste containerwaarden uit regelsContainer
 let colli = '0', volume = '0', gewicht = '0';
 
 for (let regel of regelsContainer) {
-  if (/(\d{3,5})\s*m³/i.test(regel)) {
-    volume = regel.match(/(\d{3,5})\s*m³/i)?.[1].replace(',', '.') || '0';
+  const lower = regel.toLowerCase();
+
+  if (lower.includes('kg') && gewicht === '0') {
+    const match = regel.match(/([\d.,]+)\s*kg/i);
+    if (match) {
+      gewicht = match[1].replace(',', '.');
+      if (gewicht.includes('.')) {
+        gewicht = Math.round(parseFloat(gewicht)).toString();
+      }
+    }
   }
-  if (/(\d{4,6})\s*kg/i.test(regel)) {
-    gewicht = regel.match(/(\d{4,6})\s*kg/i)?.[1].replace(',', '.') || '0';
+
+  if (lower.includes('m³') && volume === '0') {
+    const match = regel.match(/([\d.,]+)\s*m³/i);
+    if (match) {
+      volume = match[1].replace(',', '.');
+    }
   }
-  const match = regel.trim().split(/\s+/)[2];
-  if (/^\d{3,5}$/.test(match)) {
-    colli = match;
+
+  const colliMatch = regel.match(/^\d{2,5}$/);
+  if (colliMatch && colli === '0') {
+    colli = colliMatch[0];
   }
-}
-if (gewicht.includes('.')) {
-  gewicht = Math.round(parseFloat(gewicht)).toString();
 }
 
   // Lading = alles tussen eerste BLOKPALLET-regel en -20 DEGREES
