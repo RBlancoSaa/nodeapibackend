@@ -6,13 +6,13 @@ import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachments
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 
 // ✅ Parsers (handlers) importeren
-import { handleJordex } from '../handlers/handleJordex.js';
-import { handleDFDS }from '../handlers/handleDFDS.js';
-import { handleB2L } from '../handlers/handleB2L.js';
-import { handleEasyfresh } from '../handlers/handleEasyfresh.js';
-import { handleKWE } from '../handlers/handleKWE.js';
-import { handleNeelevat } from '../handlers/handleNeelevat.js';
-import { handleRitra } from '../handlers/handleRitra.js';
+import handleJordex from '../handlers/handleJordex.js';
+import handleDFDS from '../handlers/handleDFDS.js';
+import handleB2L from '../handlers/handleB2L.js';
+import handleEasyfresh from '../handlers/handleEasyfresh.js';
+import handleKWE from '../handlers/handleKWE.js';
+import handleNeelevat from '../handlers/handleNeelevat.js';
+import handleRitra from '../handlers/handleRitra.js';
 
 // ✅ Klantdetectie en handlermapping
 const handlers = {
