@@ -1,13 +1,9 @@
 // parsers/parseDFDS.js
-
 import '../utils/fsPatch.js';
 import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
-pdfjsLib.disableWorker = true;
-import {
-  getTerminalInfoMetFallback,
-  getContainerTypeCode
-} from '../utils/lookups/terminalLookup.js';
+import { getTerminalInfoMetFallback, getContainerTypeCode } from '../utils/lookups/terminalLookup.js';
 
+pdfjsLib.disableWorker = true;
 const { getDocument } = pdfjsLib;
 
 
