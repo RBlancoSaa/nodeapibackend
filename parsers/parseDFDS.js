@@ -118,7 +118,13 @@ if (dateMatch) {
         console.log('📅 laadDatum:', laadDatum);
         console.log('📅 laadTijd:', laadTijd);
 
-  // Containertype
+
+let containernummer = '', zegelnummer = '', gewicht = '0', volume = '0', colli = '0', referentie = '', lading = '', containertype = '';
+
+
+for (const regel of containerRegels) {
+
+    // Containertype
     if (!containertype) {
       const typeMatch = regel.match(/^[A-Z]{4}U\d{7}\s+([\d\w\s\-]+m³)/i);
       if (typeMatch) {
@@ -126,10 +132,7 @@ if (dateMatch) {
         console.log('📦 Containertype gevonden:', containertype);
       }
     }     
-let containernummer = '', zegelnummer = '', gewicht = '0', volume = '0', colli = '0', referentie = '', lading = '', containertype = '';
-
-
-for (const regel of containerRegels) {
+    
   // Containernummer
   if (!containernummer) {
     const match = regel.match(/^([A-Z]{4}U\d{7})/);
