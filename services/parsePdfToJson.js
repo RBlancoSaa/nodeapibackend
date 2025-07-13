@@ -56,8 +56,14 @@ console.log('📄 Eerste 500 tekens tekst:\n', text.slice(0, 500));
   }
 
   // herken DFDS op: nl-rtm-operations@dfds.com of 'DFDS Warehousing Rotterdam B.V.'
-if (text.includes('DFDS Warehousing Rotterdam B.V.') || text.includes('nl-rtm-operations@dfds.com')) {
-  return await parseDFDS(pdfBuffer);
+  if (
+    textLower.includes('dfds') ||
+    textLower.includes('estron') ||
+    textLower.includes('nl-rtm-operations@dfds.com') ||
+    textLower.includes('dfds warehousing rotterdam b.v.') ||
+    textLower.includes('@dfds.com')
+  ) {
+    return await parseDFDS(pdfBuffer);
 }
 
   if (text.includes('Easyfresh')) {
