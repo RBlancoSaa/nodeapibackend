@@ -12,82 +12,70 @@ function logResult(label, value) {
   console.log(`🔍 ${label}:`, value || '[LEEG]');
   return value;
 }
-
 export default async function parseDFDS(pdfBuffer) {
-  console.log('📦 Ontvangen pdfBuffer:', pdfBuffer?.length, 'bytes');
-  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 100) return {};
-
+  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) return {};
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
-  const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const regels = text.split('\n').map(r => r.trim()).filter(Boolean);
 
-  const extract = (regex) => {
-    const match = text.match(regex);
-    return match?.[1]?.trim() || '';
-  };
+  const ritnummer = text.match(/\bSFIM\d{7}\b/i)?.[0] || '0';
+  const bootnaam = text.match(/Vaartuig\s+(.+?)\s+Reis/i)?.[1] || '';
+  const eta = text.match(/ETA\s+(\d{2})-(\d{2})-(\d{4})/i);
+  const datum = eta ? `${parseInt(eta[1])}-${parseInt(eta[2])}-${eta[3]}` : '';
+  const rederij = text.match(/Rederij\s+(.+)/i)?.[1] || '';
+  const referentie = text.match(/Lossen\s+(\d{8})/i)?.[1] || '';
 
-  const extractAll = (regex) => {
-    const matches = [...text.matchAll(regex)];
-    return matches.map(m => m[1].trim());
-  };
+  const pickupTerminal = regels.find(r => r.toLowerCase().startsWith('pickup ect')) || '';
+  const dropoffTerminal = regels.find(r => r.toLowerCase().startsWith('dropoff medrepair')) || '';
+  const lossTerminal = regels.find(r => r.toLowerCase().startsWith('lossen c. steinweg')) || '';
 
-  const ritnummer = extract(/\b(SFIM\d{7})\b/i);
-  logResult('ritnummer', ritnummer);
-  if (!ritnummer) return {};
-
-  const containerBlokken = text.split(/\n(?=\w{4}U?\d{7})/g).filter(b => b.match(/\d{4}U?\d{7}/));
   const containers = [];
+  const containerLines = regels.filter(r => /^[A-Z]{4}U?\d{7}/.test(r));
+  const omschrijvingen = regels.filter(r => /^\d+\s+BAG/.test(r));
 
-  for (const blok of containerBlokken) {
-    const regels = blok.split('\n');
-    const containernummer = extract(/\b([A-Z]{4}U?\d{7})\b/i);
-    const referentie = extract(/Lossen\s+(\S+)/i);
-    const datum = extract(/Pickup.*?(\d{2}-\d{2}-\d{4})/i);
-    const tijd = extract(/(\d{2}:\d{2})/i);
-    const containertype = extract(/20ft\s*-\s*([\d,\.]+)\s*m³/i);
-    const gewicht = extract(/(\d{2}\.\d{3},\d{2}|\d{1,3},\d{3})\s*kg/i)?.replace(',', '.');
+  for (let i = 0; i < containerLines.length; i++) {
+    const lijn = containerLines[i];
+    const match = lijn.match(/^([A-Z]{4}U?\d{7})\s+(\d{2}ft.*?)\s+\/\s+Zegel:\s+(\d+)/i);
+    if (!match) continue;
 
-    const pickupTerminal = extract(/Pickup\s+(.*Terminal.*)/i);
-    const dropoffTerminal = extract(/Dropoff\s+(.+)/i);
-    const klantlocatie = extract(/Lossen\s+(.*)/i);
+    const [_, containerNummer, type, zegel] = match;
+    const gewichtMatch = omschrijvingen[i]?.match(/([\d.,]+)\s*kg/i);
+    const gewicht = gewichtMatch ? gewichtMatch[1].replace(',', '.') : '0';
 
+    const containerTypeCode = await getContainerTypeCode(type);
     const pickupInfo = await getTerminalInfoMetFallback(pickupTerminal);
     const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal);
 
-    const rederij = extract(/Rederij\s+([A-Z ]+)/i);
-    const bootnaam = extract(/Vaartuig\s+(.+?)\s+Reis/i);
-
-    const container = {
-      ritnummer: logResult('ritnummer', ritnummer),
-      referentie: logResult('referentie', referentie),
-      colli: logResult('colli', '0'),
-      volume: logResult('volume', '0'),
-      gewicht: logResult('gewicht', gewicht || '0'),
-      lading: logResult('lading', extract(/Omschrijving\s+(.+)/i) || '0'),
-      inleverreferentie: logResult('inleverreferentie', '0'),
-      rederij: logResult('rederij', rederij),
-      bootnaam: logResult('bootnaam', bootnaam),
-      containernummer: logResult('containernummer', containernummer),
-      temperatuur: logResult('temperatuur', '0'),
-      datum: logResult('datum', datum || new Date().toLocaleDateString('nl-NL')),
-      tijd: logResult('tijd', tijd || ''),
-      instructies: logResult('instructies', datum ? '' : 'DATUM ONTBREEKT'),
-      laadreferentie: logResult('laadreferentie', referentie),
-      containertype: logResult('containertype', containertype),
-      inleverBootnaam: '',
-      inleverRederij: '',
+    containers.push({
+      ritnummer,
+      referentie,
+      datum,
+      tijd: '',
+      containernummer: containerNummer,
+      containertype: type,
+      containertypeCode: containerTypeCode || '0',
+      zegelnummer: zegel,
+      lading: '',
+      gewicht,
+      volume: '0',
+      adr: 'Onwaar',
+      bootnaam,
+      rederij,
+      inleverBootnaam: bootnaam,
+      inleverRederij: rederij,
+      inleverreferentie: referentie,
       inleverBestemming: dropoffTerminal,
-      pickupTerminal,
-      dropoffTerminal,
-      imo: '',
-      unnr: '',
-      brix: '',
-      klantnaam: klantlocatie,
+
+      laadreferentie: referentie,
+      meldtijd: '',
+      temperatuur: '0',
+      tijdvenster: '',
+
+      klantnaam: '',
       klantadres: '',
       klantpostcode: '',
       klantplaats: '',
-      adr: 'Onwaar',
-      ladenOfLossen: 'Lossen',
+
       locaties: [
         {
           volgorde: '0',
@@ -98,16 +86,13 @@ export default async function parseDFDS(pdfBuffer) {
           plaats: pickupInfo.plaats || '',
           land: pickupInfo.land || 'NL',
           voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-          aankomst_verw: '',
-          tijslot_van: '',
-          tijslot_tm: '',
           portbase_code: pickupInfo.portbase_code || '',
           bicsCode: pickupInfo.bicsCode || ''
         },
         {
           volgorde: '0',
           actie: 'Lossen',
-          naam: klantlocatie,
+          naam: '',
           adres: '',
           postcode: '',
           plaats: '',
@@ -122,20 +107,20 @@ export default async function parseDFDS(pdfBuffer) {
           plaats: dropoffInfo.plaats || '',
           land: dropoffInfo.land || 'NL',
           voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-          aankomst_verw: '',
-          tijslot_van: '',
-          tijslot_tm: '',
           portbase_code: dropoffInfo.portbase_code || '',
           bicsCode: dropoffInfo.bicsCode || ''
         }
       ]
-    };
-
-    containers.push(container);
+    });
   }
 
+  const officiëleRederij = await getRederijNaam(rederij);
+  const rederijNaam = officiëleRederij && officiëleRederij !== '0' ? officiëleRederij : rederij;
+
   return {
-    ritnummer,
-    containers
+    ritnummer: logResult('ritnummer', ritnummer),
+    containers,
+    bootnaam: logResult('bootnaam', bootnaam),
+    rederij: logResult('rederij', rederijNaam)
   };
 }
