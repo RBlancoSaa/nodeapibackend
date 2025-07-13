@@ -153,31 +153,29 @@ export async function getRederijNaam(input) {
   }
 }
 
-export async function getContainerTypeCode(type) {
-  try {
-    if (!type || typeof type !== 'string') return '0';
+export async function getContainerTypeCode(input) {
+  if (!input) return '0';
 
-    const url = `${SUPABASE_LIST_URL}/containers.json`;
-    const res = await fetch(url);
-    const lijst = await res.json();
+  const normalizedInput = input.toLowerCase().replace(/[\s\-'"]/g, '');
 
-    const norm = normalizeContainerOmschrijving(type);
+  for (const type of containerTypes) {
+    const allLabels = [
+      type.label,
+      type.code,
+      ...(type.altLabels || [])
+    ];
 
-    for (const item of lijst) {
-      const opties = [
-        item.naam,
-        item.label,
-        ...(item.altLabels || [])
-      ].map(normalizeContainerOmschrijving);
-
-      if (opties.includes(norm)) return item.code;
+    for (const label of allLabels) {
+      const normalized = label.toLowerCase().replace(/[\s\-'"]/g, '');
+      if (normalized === normalizedInput) {
+        console.log('✅ Containertype match gevonden:', type.code, 'via:', label);
+        return type.code;
+      }
     }
-
-    return '0';
-  } catch (e) {
-    console.error('❌ getContainerTypeCode error:', e);
-    return '0';
   }
+
+  console.warn('⚠️ Geen match voor containertype:', input);
+  return '0';
 }
 
 export async function getKlantData(klantAlias) {
