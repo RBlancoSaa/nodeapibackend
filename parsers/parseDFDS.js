@@ -79,10 +79,6 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const postcode = pickupRegels[adresIndex + 1] || '';
     const plaats = pickupRegels[adresIndex + 2] || '';
 
-  // 📦 Containerinformatie
-    const cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
-    const containertype = cargoLine.match(/1\s*x\s*(.+)/i)?.[1]?.trim() || '';
-
   // 📅 Datum & tijd
     const dateLine = pickupRegels.find(r => /^Date[:\t ]+/i.test(r)) || '';
     const dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
@@ -121,6 +117,15 @@ if (dateMatch) {
         console.log('📅 dateMatch:', dateMatch);
         console.log('📅 laadDatum:', laadDatum);
         console.log('📅 laadTijd:', laadTijd);
+
+  // Containertype
+    if (!containertype) {
+      const typeMatch = regel.match(/^[A-Z]{4}U\d{7}\s+([\d\w\s\-]+m³)/i);
+      if (typeMatch) {
+        containertype = typeMatch[1].trim();
+        console.log('📦 Containertype gevonden:', containertype);
+      }
+    }     
 let containernummer = '', zegelnummer = '', gewicht = '0', volume = '0', colli = '0', referentie = '', lading = '';
 
 for (const regel of containerRegels) {
@@ -199,6 +204,7 @@ const data = {
     gewicht: logResult('gewicht', gewicht),
     lading: logResult('lading', lading),
     containernummer: logResult('containernummer', containernummer),
+    containertype: logResult('containertype', containertype),
     zegelnummer: logResult('zegelnummer', zegelnummer),
     gewicht: logResult('gewicht', gewicht),
     volume: logResult('volume', volume),
