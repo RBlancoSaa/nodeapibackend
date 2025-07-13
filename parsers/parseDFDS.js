@@ -41,22 +41,22 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   const bijzonderheid = 'DATUM MOET NOG GEFINETUNED WORDEN';
 
   let ritnummer = '';
-const ritnummerMatch = text.match(/Onze referentie\s+(SFIM\d{7})/i);
-if (ritnummerMatch) ritnummer = ritnummerMatch[1];
+  const ritnummerMatch = text.match(/SFIM\d{7}/i);
+    if (ritnummerMatch) ritnummer = ritnummerMatch[1];
 
-if (!ritnummer && klantAlias?.match(/SFIM\d{7}/i)) {
+    if (!ritnummer && klantAlias?.match(/SFIM\d{7}/i)) {
   ritnummer = klantAlias.match(/SFIM\d{7}/i)[0];
   console.warn(`⚠️ Ritnummer uit tekst niet gevonden — fallback naar alias: ${ritnummer}`);
-}
+  }
 
-if (!ritnummer) {
+    if (!ritnummer) {
   console.warn('❌ Geen ritnummer gevonden in tekst of fallback');
   ritnummer = '0';
-}
+  }
 
 
   const data = {
-    ritnummer: logResult('ritnummer', ritnummer),
+    ritnummer: logResult('ritnummer', ritnummerMatch?.[0] || '0'),
     referentie: logResult('referentie', multiExtract([/Reference[:\t ]+([A-Z0-9\-]+)/i])),
     colli: logResult('colli', '0'),
     volume: logResult('volume', '0'),
