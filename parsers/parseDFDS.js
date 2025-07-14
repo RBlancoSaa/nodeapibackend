@@ -1,71 +1,55 @@
 // parsers/parseDFDS.js
 import '../utils/fsPatch.js';
-import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
-import { getTerminalInfoMetFallback, getContainerTypeCode } from '../utils/lookups/terminalLookup.js';
 import { Buffer } from 'buffer';
+import PdfParser from 'pdf2json';
+import {
+  getTerminalInfoMetFallback,
+  getContainerTypeCode
+} from '../utils/lookups/terminalLookup.js';
 
-// ─── ZET PDF.JS IN NODE-MODE ZONDER WORKER ─────────────────────────────────
-pdfjsLib.GlobalWorkerOptions.disableWorker = true;  // écht de worker uitzetten
-pdfjsLib.GlobalWorkerOptions.workerSrc = '';        // zorg dat er niet naar pdf.worker.js wordt gezocht
+// ─── extractLines via pdf2json ──────────────────────────────────────────────
+function extractLines(buffer) {
+  return new Promise((resolve, reject) => {
+    const pdfParser = new PdfParser();
 
-const { getDocument } = pdfjsLib;
+    pdfParser.on('pdfParser_dataError', err => {
+      console.error('❌ pdf2json error:', err.parserError);
+      reject(err.parserError);
+    });
 
-// ─── EXTRACTLINES─HELPER ─────────────────────────────────────────────────────
-async function extractLines(buffer) {
-  // 1) Maak een zuivere Uint8Array-view over de Node Buffer
-  const uint8 = Buffer.isBuffer(buffer)
-    ? new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
-    : buffer;
+    pdfParser.on('pdfParser_dataReady', pdf => {
+      const linesMap = new Map();
 
-  // 2) Laad de PDF zonder worker (disableWorker op loadingTask)
-  const loadingTask = getDocument({
-    data: uint8,
-    disableWorker: true           // <<< hier schakel je de worker per document uit
-  });
-  let pdf;
-  try {
-    pdf = await loadingTask.promise;
-  } catch (e) {
-    console.error('❌ Fout bij laden PDF in extractLines:', e);
-    return [];
-  }
-
-  const allLines = [];
-  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-    const page = await pdf.getPage(pageNum);
-    const { items } = await page.getTextContent();
-    const runs = items.map(i => ({
-      text: i.str,
-      x:   i.transform[4],
-      y:   i.transform[5]
-    }));
-
-    // Groepeer op y binnen ±2 punten
-    const linesMap = [];
-    for (const run of runs) {
-      let bucket = linesMap.find(l => Math.abs(l.y - run.y) < 2);
-      if (!bucket) {
-        bucket = { y: run.y, runs: [] };
-        linesMap.push(bucket);
+      // pdf.Pages is een array van pagina's
+      for (const page of pdf.Pages) {
+        for (const textItem of page.Texts) {
+          // de property T is URL-encoded, dus eerst decoderen
+          const str = decodeURIComponent(textItem.R[0].T);
+          // groepeer op y-coördinaat (2 decimalen)
+          const yKey = textItem.y.toFixed(2);
+          if (!linesMap.has(yKey)) linesMap.set(yKey, []);
+          linesMap.get(yKey).push({ x: textItem.x, text: str });
+        }
       }
-      bucket.runs.push(run);
-    }
 
-    // Sorteer en join per regel
-    const pageLines = linesMap
-      .sort((a, b) => b.y - a.y)
-      .map(line =>
-        line.runs
-          .sort((r1, r2) => r1.x - r2.x)
-          .map(r => r.text)
+      // bouw een gesorteerde array van regels
+      const sortedY = Array.from(linesMap.keys())
+        .map(k => parseFloat(k))
+        .sort((a,b) => b - a); // hoge y eerst
+      const allLines = sortedY.map(y => {
+        return linesMap.get(y.toFixed(2))
+          .sort((a,b) => a.x - b.x)   // op x van links→rechts
+          .map(o => o.text)
           .join(' ')
-          .trim()
-      );
+          .trim();
+      });
 
-    allLines.push(...pageLines);
-  }
+      resolve(allLines);
+    });
 
-  return allLines;
+    // start parsing
+    pdfParser.parseBuffer(buffer);
+  });
 }
 
 
@@ -309,7 +293,7 @@ console.log(`🔍 containertypeRaw: '${containertypeRaw}'`);
       bicsCode:      pickupInfo.bicsCode      || ''
     },
     {
-      volgorde: '1',
+      volgorde: '0',
       actie: 'Lossen',
       naam:     klantNaam || '',
       adres:    klantAdres|| '',
@@ -318,7 +302,7 @@ console.log(`🔍 containertypeRaw: '${containertypeRaw}'`);
       land:     'NL'
     },
     {
-      volgorde: '2',
+      volgorde: '0',
       actie: 'Afzetten',
       naam:      dropoffInfo.naam  || dropoffTerminal,  
       adres:     dropoffInfo.adres || dropoffAdres,
