@@ -91,16 +91,10 @@ export default async function handler(req, res) {
     }
     await sendEmailWithAttachments({
   ritnummer: verwerkingsresultaten.find(v => v.parsed)?.ritnummer || 'onbekend',
-  attachments: [
-    ...pdfAttachments.map(att => ({
-      filename: att.filename,
-      content: att.content
-    })),
-    ...uploadedFiles.map(file => ({
-      filename: file.filename,
-      path: `/tmp/${file.filename}`
-    }))
-  ],
+  attachments: uploadedFiles.map(file => ({
+    filename: file.filename,
+    content: file.content
+  })),
   verwerkingsresultaten
 });
 
