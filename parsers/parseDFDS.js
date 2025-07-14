@@ -12,15 +12,19 @@ const { getDocument } = pdfjsLib;
 
 // ─── EXTRACTLINES─HELPER ─────────────────────────────────────────────────────
 async function extractLines(buffer) {
-  // 1) Maak een zuivere Uint8Array-view over Node-Buffer of gebruik de array zelf
+  // 1) Maak een zuivere Uint8Array-view over de Node Buffer
   const uint8 = Buffer.isBuffer(buffer)
     ? new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
     : buffer;
 
-  // 2) Nu laadt PDF.js de bytes direct, zonder fake worker
+  // 2) Laad de PDF zonder worker (disableWorker op loadingTask)
+  const loadingTask = getDocument({
+    data: uint8,
+    disableWorker: true           // <<< hier schakel je de worker per document uit
+  });
   let pdf;
   try {
-    pdf = await getDocument({ data: uint8 }).promise;
+    pdf = await loadingTask.promise;
   } catch (e) {
     console.error('❌ Fout bij laden PDF in extractLines:', e);
     return [];
@@ -36,7 +40,7 @@ async function extractLines(buffer) {
       y:   i.transform[5]
     }));
 
-    // groeperen & joinen …
+    // Groepeer op y binnen ±2 punten
     const linesMap = [];
     for (const run of runs) {
       let bucket = linesMap.find(l => Math.abs(l.y - run.y) < 2);
@@ -46,6 +50,8 @@ async function extractLines(buffer) {
       }
       bucket.runs.push(run);
     }
+
+    // Sorteer en join per regel
     const pageLines = linesMap
       .sort((a, b) => b.y - a.y)
       .map(line =>
@@ -55,8 +61,10 @@ async function extractLines(buffer) {
           .join(' ')
           .trim()
       );
+
     allLines.push(...pageLines);
   }
+
   return allLines;
 }
 
