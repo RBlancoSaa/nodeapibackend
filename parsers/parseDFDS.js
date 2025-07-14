@@ -121,7 +121,7 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     : [];
 
   // 5) Container nr
-  const containernummer = findFirst(/([A-Z]{4}\d{7})/, transportLines, 'containernummer');
+  const containernummer = findFirst(/([A-Z]{3}U\d{7})/, transportLines, 'containernummer');
 
   // Containertype (origineel)
 let containertypeRaw = findFirst(
