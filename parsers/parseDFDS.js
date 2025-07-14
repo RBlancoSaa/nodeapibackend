@@ -86,12 +86,37 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     console.log('ℹ️ extractLinesPdfParse:', splitLines.slice(0,20));
   }
 
+  // ─── PLAATS HET FILTER-BLOK HIER ─────────────────────────────────────────
+  const headerPatterns = [
+    /^DFDS Warehousing Rotterdam B\.V\./i,
+    /^P\.O\. Box/i,
+    /^KvK nr\./i,
+    /^BTW nr\./i,
+    /^Operations/i,
+    /^Accounts/i,
+    /^Rabobank - EUR/i,
+    /^www\.dfds\.com$/i
+  ];
+  const footerPatterns = [
+    /^Al onze offertes en werkzaamheden/i,
+    /^Voorts zijn van toepassing de TLN Algemene/i,
+    /^Goederen liggen voor rekening en risico/i,
+    /^All quotations and services are subject/i,
+    /^Goods are stored for account and risk/i
+  ];
+
+  splitLines = splitLines.filter(line =>
+    !headerPatterns.some(re => re.test(line)) &&
+    !footerPatterns.some(re => re.test(line))
+  );
+  console.log(`ℹ️ Na filteren kop/voettekst: ${splitLines.length} regels over`);
+
   if (!splitLines.length) {
     console.error('❌ Geen regels uit PDF gehaald');
     return {};
   }
 
-  // 2) Vind secties
+    // 2) Vind secties
   const idxTransportInfo = splitLines.findIndex(r =>
   /^(Transport informatie|Transport information)/i.test(r)
   );
