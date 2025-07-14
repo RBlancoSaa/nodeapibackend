@@ -92,12 +92,24 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   }
 
   // 2) Vind secties
-  const idxT = splitLines.findIndex(r => /^Transport informatie/i.test(r));
-  const idxG = splitLines.findIndex(r => /^Goederen informatie/i.test(r));
-
-  const transportLines = (idxT>=0 && idxG>idxT)
-    ? splitLines.slice(idxT+1, idxG)
-    : [];
+  const idxTransportInfo = splitLines.findIndex(r =>
+  /^(Transport informatie|Transport information)/i.test(r)
+  );
+  const idxGoederenInfo = splitLines.findIndex(r =>
+    /^(Goederen informatie|Goods information)/i.test(r)
+  );
+    let transportLines = [];
+  if (idxTransportInfo >= 0 && idxGoederenInfo > idxTransportInfo) {
+    transportLines = splitLines.slice(idxTransportInfo + 1, idxGoederenInfo);
+  } else {
+    const contIdx = splitLines.findIndex(r => /[A-Z]{3}U\d{7}/.test(r));
+    if (contIdx !== -1) {
+      transportLines = splitLines.slice(
+        Math.max(0, contIdx - 1),
+        contIdx + 2
+      );
+    }
+  }
   const goederenLines = (idxG>=0)
     ? splitLines.slice(idxG+1)
     : [];
