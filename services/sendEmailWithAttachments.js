@@ -20,7 +20,7 @@ export async function sendEmailWithAttachments({ ritnummer, attachments, verwerk
       : '⚠️ Geen bijlages konden verwerkt worden als transportopdracht.',
     '',
     nietVerwerkt.length
-      ? `📎 Bijlages die niet verwerkt konden worden:\n${nietVerwerkt.map(v => `- ${v.filename}: ${v.reden || 'onbekend'}`).join('\n')}`
+      ? `---\n📎Bijlages die niet verwerkt konden worden:\n${nietVerwerkt.map(v => `- ${v.filename}: ${v.reden || 'onbekend'}`).join('\n')}`
       : ''
   ];
 
