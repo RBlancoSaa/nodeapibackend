@@ -135,8 +135,8 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
       );
     }
   }
-  const goederenLines = (idxG>=0)
-    ? splitLines.slice(idxG+1)
+    const goederenLines = (idxGoederenInfo >= 0)
+    ? splitLines.slice(idxGoederenInfo + 1)
     : [];
 
   console.log('🛠 transportLines:', transportLines);
