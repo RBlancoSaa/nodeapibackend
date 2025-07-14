@@ -128,7 +128,7 @@ verwerkteBestanden.add(att.filename);
         }
 
       } catch (err) {
-        const msg = `⛔ Lege buffer`;
+        const msg = `⚠️ Easy-bestand fout: ${err.message}`;
         console.error(msg);
         att.parsed = false;
         att.parseError = msg;
