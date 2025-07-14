@@ -6,7 +6,7 @@ import transporter from '../utils/smtpTransport.js';
 export async function sendEmailWithAttachments({ ritnummer, attachments, verwerkingsresultaten = [] }) {
   const formattedAttachments = attachments.map(att => ({
     filename: att.filename,
-    content: att.content || (att.path ? fs.readFileSync(att.path) : Buffer.from(''))
+    content: att.content || (att.path && fs.existsSync(att.path) ? fs.readFileSync(att.path) : Buffer.from('Bestand niet gevonden'))
   }));
 
   const verwerkte = verwerkingsresultaten.filter(v => v.parsed);
