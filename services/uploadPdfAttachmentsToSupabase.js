@@ -86,7 +86,7 @@ verwerkteBestanden.add(att.filename);
 
       uploadedFiles.push({
         filename: fileName,
-        url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${juisteBucket}/${fileName}`
+        content: contentBuffer
       });
 
     } catch (err) {
