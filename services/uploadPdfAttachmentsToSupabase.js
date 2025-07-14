@@ -1,7 +1,6 @@
 // 📁 services/uploadPdfAttachmentsToSupabase.js
 import '../utils/fsPatch.js';
 import { createClient } from '@supabase/supabase-js';
-import nodemailer from 'nodemailer';
 import parsePdfToJson from './parsePdfToJson.js';
 import { generateXmlFromJson } from './generateXmlFromJson.js';
 
@@ -10,38 +9,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT),
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  }
-});
-
-async function notifyError(att, reason) {
-  const meta = att.emailMeta || {};
-  const subject = `🚨 Fout bij verwerken van ${att.filename || 'onbekend bestand'}`;
-  const body = `Bestand: ${att.originalFilename || att.filename || 'Onbekend'}
-Gesanitized: ${att.filename || 'Onbekend'}
-Afzender: ${meta.from || 'Onbekend'}
-Onderwerp: ${meta.subject || 'Onbekend'}
-Binnenkomst: ${meta.received || 'Onbekend'}
-
-Bijlagen in e-mail:
-${(meta.attachments || []).join('\n')}
-
-Foutmelding:
-${reason}`;
-
-  await transporter.sendMail({
-    from: process.env.FROM_EMAIL,
-    to: process.env.FROM_EMAIL,
-    subject,
-    text: body
-  });
-}
 
 export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
   const uploadedFiles = [];
@@ -129,6 +96,8 @@ verwerkteBestanden.add(att.filename);
     if (isPdf) {
       try {
         const json = await parsePdfToJson(contentBuffer);
+        att.parsed = true;
+        att.ritnummer = json.ritnummer || '';
         if (!json || Object.keys(json).length === 0) throw new Error('Parser gaf geen bruikbare data terug');
 
         const xml = await generateXmlFromJson(json);
@@ -159,12 +128,21 @@ verwerkteBestanden.add(att.filename);
         }
 
       } catch (err) {
-        const msg = `⚠️ Easy-bestand fout: ${err.message}`;
+        const msg = `⛔ Lege buffer`;
         console.error(msg);
-        await notifyError(att, msg);
+        att.parsed = false;
+        att.parseError = msg;
+        continue;
       }
     }
   }
 
-  return uploadedFiles;
-}
+  return {
+  uploadedFiles,
+  verwerkingsresultaten: sanitizedAttachments.map(att => ({
+    filename: att.filename,
+    parsed: att.parsed || false,
+    ritnummer: att.ritnummer || '',
+    reden: att.parseError || ''
+  }))
+};}

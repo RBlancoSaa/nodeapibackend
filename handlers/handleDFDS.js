@@ -1,4 +1,4 @@
-// 📁 parsers/parseDFDS.js
+// 📁 parsers/handleDFDS.js
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import {

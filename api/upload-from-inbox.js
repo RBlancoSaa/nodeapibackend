@@ -63,7 +63,7 @@ export default async function handler(req, res) {
       console.log(` - ${att.filename} (${att.base64 ? 'base64 ✅' : 'base64 ❌'})`);
     });
 
-    const uploadedFiles = await uploadPdfAttachmentsToSupabase(pdfAttachments);
+    const { uploadedFiles, verwerkingsresultaten } = await uploadPdfAttachmentsToSupabase(pdfAttachments);
     console.log(`☁️ Upload naar Supabase voltooid: ${uploadedFiles.length} bestanden`);
 
     for (const attachment of pdfAttachments) {
@@ -89,6 +89,20 @@ export default async function handler(req, res) {
         console.log(`⏭️ Geen handler gevonden voor: ${filename}`);
       }
     }
+    await sendEmailWithAttachments({
+  ritnummer: verwerkingsresultaten.find(v => v.parsed)?.ritnummer || 'onbekend',
+  attachments: [
+    ...pdfAttachments.map(att => ({
+      filename: att.filename,
+      content: att.content
+    })),
+    ...uploadedFiles.map(file => ({
+      filename: file.filename,
+      path: `/tmp/${file.filename}`
+    }))
+  ],
+  verwerkingsresultaten
+});
 
     await client.logout();
     return res.status(200).json({
