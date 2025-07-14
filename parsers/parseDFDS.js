@@ -3,21 +3,17 @@
 import '../utils/fsPatch.js';
 import { Buffer } from 'buffer';
 import PDFParser from 'pdf2json';
+import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
   getContainerTypeCode
 } from '../utils/lookups/terminalLookup.js';
 
-// ─── extractLines via pdf2json ──────────────────────────────────────────────
-function extractLines(buffer) {
+// ─── 1) PDF → lijnen met pdf2json ─────────────────────────────────────────
+function extractLinesPdf2Json(buffer) {
   return new Promise((resolve, reject) => {
     const pdfParser = new PDFParser();
-
-    pdfParser.on('pdfParser_dataError', err => {
-      console.error('❌ pdf2json error:', err.parserError);
-      reject(err.parserError);
-    });
-
+    pdfParser.on('pdfParser_dataError', err => reject(err.parserError));
     pdfParser.on('pdfParser_dataReady', pdf => {
       const linesMap = new Map();
       for (const page of pdf.Pages) {
@@ -41,18 +37,24 @@ function extractLines(buffer) {
       });
       resolve(allLines);
     });
-
     pdfParser.parseBuffer(buffer);
   });
 }
 
-// ─── HELPERS MET DEBUG-LOGS ──────────────────────────────────────────────────
-function safeMatch(pattern, text, group = 1) {
-  if (typeof text !== 'string') return '';
-  const m = text.match(pattern);
-  return m && m[group] ? m[group].trim() : '';
+// ─── 2) Fallback: PDF → plain‐text → lijnen met pdf-parse ─────────────────
+async function extractLinesPdfParse(buffer) {
+  const { text } = await pdfParse(buffer);
+  return text
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean);
 }
 
+// ─── HELPERS MET DEBUG-LOGS ────────────────────────────────────────────────
+function safeMatch(pattern, text, group = 1) {
+  const m = typeof text==='string' && text.match(pattern);
+  return m && m[group] ? m[group].trim() : '';
+}
 function findFirst(pattern, lines) {
   for (const l of lines) {
     const m = l.match(pattern);
@@ -63,47 +65,49 @@ function findFirst(pattern, lines) {
 
 // ─── MAIN PARSER ────────────────────────────────────────────────────────────
 export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
-  // 1) VALIDATIE
+  // VALIDATIE
   if (!pdfBuffer || !(Buffer.isBuffer(pdfBuffer) || pdfBuffer instanceof Uint8Array)) {
-    console.warn('❌ Ongeldige PDF buffer');
+    console.warn('❌ Ongeldige PDF-buffer');
     return {};
   }
   if (pdfBuffer.length < 100) {
-    console.warn('⚠️ PDF buffer is verdacht klein, waarschijnlijk leeg');
+    console.warn('⚠️ PDF-buffer te klein');
     return {};
   }
 
-  // 2) PDF → splitLines
-  let splitLines;
+  // 1) Probeer eerst pdf2json...
+  let splitLines = [];
   try {
-    splitLines = await extractLines(pdfBuffer);
-  } catch (e) {
-    console.error('❌ extractLines faalde:', e);
-    return {};
+    splitLines = await extractLinesPdf2Json(pdfBuffer);
+    console.log('ℹ️ extractLinesPdf2Json:', splitLines.slice(0,20));
+  } catch (_) {
+    console.warn('⚠️ pdf2json mislukte, fallback naar pdf-parse');
+    splitLines = await extractLinesPdfParse(pdfBuffer);
+    console.log('ℹ️ extractLinesPdfParse:', splitLines.slice(0,20));
   }
+
   if (!splitLines.length) {
     console.error('❌ Geen regels uit PDF gehaald');
     return {};
   }
 
-  // 3) SECTIES BEPALEN
-  const idxTransportInfo = splitLines.findIndex(r => /^Transport informatie/i.test(r));
-  const idxGoederenInfo = splitLines.findIndex(r => /^Goederen informatie/i.test(r));
+  // 2) Vind secties
+  const idxT = splitLines.findIndex(r => /^Transport informatie/i.test(r));
+  const idxG = splitLines.findIndex(r => /^Goederen informatie/i.test(r));
 
-  // 4) TRANSPORT & GOEDEREN LINES
-  const transportLines = (idxTransportInfo >= 0 && idxGoederenInfo > idxTransportInfo)
-    ? splitLines.slice(idxTransportInfo + 1, idxGoederenInfo)
+  const transportLines = (idxT>=0 && idxG>idxT)
+    ? splitLines.slice(idxT+1, idxG)
     : [];
-  const goederenLines = (idxGoederenInfo >= 0)
-    ? splitLines.slice(idxGoederenInfo + 1)
+  const goederenLines = (idxG>=0)
+    ? splitLines.slice(idxG+1)
     : [];
 
   console.log('🛠 transportLines:', transportLines);
 
-  // 5) CONTAINERNUMMER (3 letters + U + 7 cijfers)
+  // 3) Containernummer (3 letters + U + 7 cijfers)
   const containernummer = findFirst(/([A-Z]{3}U\d{7})/, transportLines);
 
-  // 6) CONTAINERTYPE (RAW)
+  // 4) Containertype
   let containertypeRaw = '';
   if (containernummer) {
     containertypeRaw = findFirst(
@@ -115,26 +119,20 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     containertypeRaw = findFirst(/([0-9]{2,3}ft\s?[A-Za-z]{2,3}|20GP|40HC)/i, transportLines);
   }
   if (!containertypeRaw) {
-    containertypeRaw = findFirst(/([0-9]{2,3}ft(?:HC|GP))/i, transportLines);
-  }
-  if (!containertypeRaw) {
     console.error('❌ Containertype ontbreekt');
     return {};
   }
   console.log(`🔍 containertypeRaw: '${containertypeRaw}'`);
 
-  // 7) NORMALIZE & TYPECODE OPHALEN
-  const normalizedContainertype = containertypeRaw
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
+  // 5) Normaliseer & code ophalen
+  const normType = containertypeRaw.toLowerCase().replace(/[^a-z0-9]/g,'');
   let containertypeCode = '0';
   try {
-    containertypeCode = await getContainerTypeCode(normalizedContainertype);
-  } catch (e) {
-    console.warn('⚠️ Fout bij ophalen containertypeCode:', e);
+    containertypeCode = await getContainerTypeCode(normType);
+  } catch(e) {
+    console.warn('⚠️ typeCode-fetch faalde:', e);
   }
   console.log(`📦 containertypeCode: '${containertypeCode}'`);
-
   // 8) VOLUME (grootste m3)
   let volume = '';
   for (const l of transportLines) {
