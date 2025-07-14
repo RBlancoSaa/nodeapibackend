@@ -243,66 +243,83 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
     if (z && z[1]) zegelnummer = z[1].trim();
   }
   console.log(`🔍 colli: '${colli}', lading: '${lading}', gewicht: '${gewicht}', zegel: '${zegelnummer}'`);
-
-  // 13) BUILD DATA OBJECT
+  // 13) BUILD FULL DATA OBJECT
   const data = {
-    container_nr: containernummer,
-    containertype: containertypeRaw,
-    containertype_code: containertypeCode,
-    volume,
-    pickup_referentie: pickupReferentie,
-    lossen_referentie: lossenReferentie,
-    datum,
-    tijd,
-    pickup_terminal: pickupTerminal,
-    pickup_adres: pickupAdres,
-    klant_naam: klantNaam,
-    klant_adres: klantAdres,
-    klant_postcode: klantPostcode,
-    klant_plaats: klantPlaats,
-    dropoff_terminal: dropoffTerminal,
-    dropoff_adres: dropoffAdres,
-    colli,
-    lading,
-    gewicht,
-    zegelnummer,
-    opdrachtgeverNaam: 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
-    opdrachtgeverAdres: 'WOLGAWEG 3',
-    opdrachtgeverPostcode: '3198 LR',
-    opdrachtgeverPlaats: 'ROTTERDAM',
-    opdrachtgeverTelefoon: '010-1234567',
-    opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
-    opdrachtgeverBTW: 'NL007129099B01',
-    opdrachtgeverKVK: '24232781'
+    containerNumber: containernummer || '',
+    containerType: containertypeRaw || '',
+    containerTypeCode: containertypeCode || '',
+    volumeCubicMeters: volume || '',
+    pickupReference: pickupReferentie || '',
+    dropoffReference: lossenReferentie || '',
+    scheduledDate: datum || '',
+    scheduledTimeRange: tijd || '',
+    pickupTerminalName: pickupTerminal || '',
+    pickupTerminalAddress: pickupAdres || '',
+    customerName: klantNaam || '',
+    customerAddress: klantAdres || '',
+    customerPostalCode: klantPostcode || '',
+    customerCity: klantPlaats || '',
+    dropoffTerminalName: dropoffTerminal || '',
+    dropoffTerminalAddress: dropoffAdres || '',
+    numberOfCartons: colli || '',
+    cargoDescription: lading || '',
+    cargoWeightKilograms: gewicht || '',
+    sealNumber: zegelnummer || '',
+    principalName: 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
+    principalAddress: 'WOLGAWEG 3',
+    principalPostalCode: '3198 LR',
+    principalCity: 'ROTTERDAM',
+    principalPhoneNumber: '010-1234567',
+    principalEmailAddress: 'nl-rtm-operations@dfds.com',
+    principalVatNumber: 'NL007129099B01',
+    principalChamberOfCommerceNumber: '24232781'
   };
 
-  // 14) Terminal lookups & locaties-array
-  const pickupInfo  = await getTerminalInfoMetFallback(pickupTerminal)  || {};
-  const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal) || {};
+  // 14) PERFORM TERMINAL LOOKUPS AND BUILD LOCATIONS ARRAY
+  const pickupLocationInfo  = await getTerminalInfoMetFallback(pickupTerminal)  || {};
+  const dropoffLocationInfo = await getTerminalInfoMetFallback(dropoffTerminal) || {};
 
-  data.locaties = [
+  const locations = [
     {
-      volgorde: '0', actie: 'Opzetten',
-      naam: pickupInfo.naam || pickupTerminal, adres: pickupInfo.adres || pickupAdres,
-      postcode: pickupInfo.postcode || '', plaats: pickupInfo.plaats || '',
-      land: pickupInfo.land || 'NL', portbase_code: pickupInfo.portbase_code || '',
-      bicsCode: pickupInfo.bicsCode || ''
+      orderSequence: '0',
+      actionName: 'Opzetten',
+      locationName:  pickupLocationInfo.naam    || pickupTerminal,
+      locationAddress: pickupLocationInfo.adres || pickupAdres,
+      postalCode:    pickupLocationInfo.postcode || '',
+      city:          pickupLocationInfo.plaats   || '',
+      country:       pickupLocationInfo.land     || 'NL',
+      portBaseCode:  pickupLocationInfo.portbase_code || '',
+      bicCode:       pickupLocationInfo.bicsCode      || ''
     },
     {
-      volgorde: '0', actie: 'Lossen',
-      naam: klantNaam, adres: klantAdres, postcode: klantPostcode,
-      plaats: klantPlaats, land: 'NL'
+      orderSequence: '1',
+      actionName: 'Lossen',
+      locationName:  data.customerName,
+      locationAddress: data.customerAddress,
+      postalCode:    data.customerPostalCode,
+      city:          data.customerCity,
+      country:       'NL'
     },
     {
-      volgorde: '0', actie: 'Afzetten',
-      naam: dropoffInfo.naam || dropoffTerminal, adres: dropoffInfo.adres || dropoffAdres,
-      postcode: dropoffInfo.postcode || '', plaats: dropoffInfo.plaats || '',
-      land: dropoffInfo.land || 'NL', portbase_code: dropoffInfo.portbase_code || '',
-      bicsCode: dropoffInfo.bicsCode || ''
+      orderSequence: '2',
+      actionName: 'Afzetten',
+      locationName:  dropoffLocationInfo.naam    || dropoffTerminal,
+      locationAddress: dropoffLocationInfo.adres || dropoffAdres,
+      postalCode:    dropoffLocationInfo.postcode || '',
+      city:          dropoffLocationInfo.plaats   || '',
+      country:       dropoffLocationInfo.land     || 'NL',
+      portBaseCode:  dropoffLocationInfo.portbase_code || '',
+      bicCode:       dropoffLocationInfo.bicsCode      || ''
     }
   ];
 
-  console.log('📍 locaties:', JSON.stringify(data.locaties, null, 2));
-  console.log('✅ Eindresultaat data object:', JSON.stringify(data, null, 2));
+  // 15) ATTACH LOCATIONS TO DATA
+  data.locations = locations;
+
+  // 16) DEBUG LOGS
+  console.log('📍 Locations array (orderSequence/actionName/locationName/...):\n', JSON.stringify(locations, null, 2));
+  console.log('✅ Complete data object ready for XML generation:\n', JSON.stringify(data, null, 2));
+
+  // 17) RETURN DATA
   return data;
 }
