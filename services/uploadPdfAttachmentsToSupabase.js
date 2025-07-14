@@ -84,10 +84,12 @@ verwerkteBestanden.add(att.filename);
             continue;
           }
 
-      uploadedFiles.push({
-        filename: fileName,
-        content: contentBuffer
-      });
+      if (att.filename.toLowerCase().endsWith('.pdf')) {
+        uploadedFiles.push({
+          filename: fileName,
+          content: contentBuffer
+        });
+      }
 
     } catch (err) {
       const msg = `❌ Uploadfout: ${err.message}`;
@@ -125,6 +127,11 @@ verwerkteBestanden.add(att.filename);
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
+           const easyBuffer = Buffer.from(xml, 'utf-8');
+            uploadedFiles.push({
+              filename: `${payload.ritnummer}_${payload.laadplaats}.easy`,
+              content: easyBuffer
+            });
           if (verwerkteBestanden.has(att.filename)) {
           console.log(`⏭️ Bestand ${att.filename} is al verwerkt, wordt overgeslagen`);
           continue;
