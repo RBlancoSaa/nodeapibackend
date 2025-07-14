@@ -44,17 +44,20 @@ verwerkteBestanden.add(att.filename);
       }
     } catch (err) {
       const msg = `❌ Buffer fout: ${err.message}`;
-      console.error(msg);
-      await notifyError(att, msg);
-      continue;
+        console.error(msg);
+        att.parsed = false;
+        att.parseError = msg;
+        continue;
+
     }
 
     if (!contentBuffer?.length) {
-      const msg = `⛔ Lege buffer`;
-      console.error(msg);
-      await notifyError(att, msg);
-      continue;
-    }
+        const msg = `⛔ Lege buffer`;
+        console.error(msg);
+        att.parsed = false;
+        att.parseError = msg;
+        continue;
+      }
 
      const isPdf = att.contentType?.includes('pdf') || att.filename.toLowerCase().endsWith('.pdf');
     const fileName = att.ritnummer && att.ritnummer !== '0' && isPdf
@@ -74,11 +77,12 @@ verwerkteBestanden.add(att.filename);
         });
 
       if (error) {
-        const msg = `❌ Supabase upload error: ${error.message}`;
-        console.error(msg);
-        await notifyError(att, msg);
-        continue;
-      }
+          const msg = `❌ Supabase upload error: ${error.message}`;
+            console.error(msg);
+            att.parsed = false;
+            att.parseError = msg;
+            continue;
+          }
 
       uploadedFiles.push({
         filename: fileName,
@@ -88,7 +92,8 @@ verwerkteBestanden.add(att.filename);
     } catch (err) {
       const msg = `❌ Uploadfout: ${err.message}`;
       console.error(msg);
-      await notifyError(att, msg);
+      att.parsed = false;
+      att.parseError = msg;
       continue;
     }
     
