@@ -64,7 +64,7 @@ try {
 ];
 
 splitLines = splitLines.filter(line =>
-  !bekendeVoetteksten.some(fragment => line.includes(fragment))
+  !bekendeVoetteksten.some(fragment => line.toLowerCase().includes(fragment.toLowerCase()))
 );
   console.log('📄 Eerste 10 regels PDF:', splitLines.slice(0, 10));
 } catch {
@@ -201,6 +201,8 @@ const containersData = [];
   }
 if (containersData.length === 0) {
   console.warn(`⚠️ Geen containers gevonden in DFDS-opdracht (ritnummer: ${ritnummer})`);
+  console.warn('🔍 Alle regels:', splitLines);
+}
 }
   return containersData;
 }
