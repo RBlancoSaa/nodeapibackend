@@ -16,6 +16,7 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
   const verwerkteBestanden = new Set();
   const sanitizedAttachments = attachments.map(att => ({
     ...att,
+    emailSubject: att.emailSubject || '',
     originalFilename: att.filename,
     filename: att.filename
       .normalize('NFKD')
@@ -62,6 +63,13 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
       }
 
      const isPdf = att.contentType?.includes('pdf') || att.filename.toLowerCase().endsWith('.pdf');
+     if (!att.ritnummer || att.ritnummer === '0') {
+  const subjectMatch = att.emailSubject?.match(/\bSFIM\d{7}\b/i);
+  if (subjectMatch) {
+    att.ritnummer = subjectMatch[0];
+    console.log(`📩 Ritnummer afgeleid uit onderwerp: ${att.ritnummer}`);
+  }
+}
     const fileName = att.ritnummer && att.ritnummer !== '0' && isPdf
       ? `${att.ritnummer}.pdf`
       : att.filename;
