@@ -151,36 +151,38 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
       }
   }
 }
-const failures = sanitizedAttachments.filter(a => !a.parsed);
+  }
 
-if (failures.length) {
-for (const [ritnummer, fouten] of foutenPerRit.entries()) {
-  const lines = [
-    '⚠️ Geen bijlages konden verwerkt worden als transportopdracht.',
-    '',
-    '---',
-    '📎Bijlages die niet verwerkt konden worden:',
-    ...fouten.map(f => `- ${f.filename}: ⚠️ ${f.error}`)
-  ];
+  const failures = sanitizedAttachments.filter(a => !a.parsed);
 
-  await sendEmailWithAttachments({
-    ritnummer,
-    attachments: [],
-    extraText: lines.join('\n')
-  });
-}
-}
+  if (failures.length) {
+    for (const [ritnummer, fouten] of foutenPerRit.entries()) {
+      const lines = [
+        '⚠️ Geen bijlages konden verwerkt worden als transportopdracht.',
+        '',
+        '---',
+        '📎Bijlages die niet verwerkt konden worden:',
+        ...fouten.map(f => `- ${f.filename}: ⚠️ ${f.error}`)
+      ];
 
-for (const [ritnummer, attachments] of emailPerRit.entries()) {
-  await sendEmailWithAttachments({ ritnummer, attachments });
-}
-return {
-  uploadedFiles,
-  verwerkingsresultaten: sanitizedAttachments.map(att => ({
-    filename: att.filename,
-    parsed: att.parsed || false,
-    ritnummer: att.ritnummer || '',
-    reden: att.parseError || ''
-  }))
-}
-};
+      await sendEmailWithAttachments({
+        ritnummer,
+        attachments: [],
+        extraText: lines.join('\n')
+      });
+    }
+  }
+
+  for (const [ritnummer, attachments] of emailPerRit.entries()) {
+    await sendEmailWithAttachments({ ritnummer, attachments });
+  }
+
+  return {
+    uploadedFiles,
+    verwerkingsresultaten: sanitizedAttachments.map(att => ({
+      filename: att.filename,
+      parsed: att.parsed || false,
+      ritnummer: att.ritnummer || '',
+      reden: att.parseError || ''
+    }))
+  };
