@@ -3,6 +3,7 @@ import '../utils/fsPatch.js';
 import { createClient } from '@supabase/supabase-js';
 import parsePdfToJson from './parsePdfToJson.js';
 import { generateXmlFromJson } from './generateXmlFromJson.js';
+import { sendEmailWithAttachments } from './sendEmailWithAttachments.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -30,26 +31,25 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
   console.log(`⏭️ Bestand ${att.filename} is al verwerkt, wordt overgeslagen`);
   continue;
   }
-verwerkteBestanden.add(att.filename);
-    let contentBuffer;
-    try {
-      if (Buffer.isBuffer(att.content)) {
-        contentBuffer = att.content;
-      } else if (att.content instanceof Uint8Array) {
-        contentBuffer = Buffer.from(att.content);
-      } else if (att.content instanceof ArrayBuffer) {
-        contentBuffer = Buffer.from(new Uint8Array(att.content));
-      } else {
-        throw new Error('Attachment is geen geldige buffer');
+  verwerkteBestanden.add(att.filename);
+      let contentBuffer;
+      try {
+        if (Buffer.isBuffer(att.content)) {
+          contentBuffer = att.content;
+        } else if (att.content instanceof Uint8Array) {
+          contentBuffer = Buffer.from(att.content);
+        } else if (att.content instanceof ArrayBuffer) {
+          contentBuffer = Buffer.from(new Uint8Array(att.content));
+        } else {
+          throw new Error('Attachment is geen geldige buffer');
+        }
+      } catch (err) {
+        const msg = `❌ Buffer fout: ${err.message}`;
+          console.error(msg);
+          att.parsed = false;
+          att.parseError = msg;
+          continue;
       }
-    } catch (err) {
-      const msg = `❌ Buffer fout: ${err.message}`;
-        console.error(msg);
-        att.parsed = false;
-        att.parseError = msg;
-        continue;
-
-    }
 
     if (!contentBuffer?.length) {
         const msg = `⛔ Lege buffer`;
@@ -104,41 +104,34 @@ verwerkteBestanden.add(att.filename);
       try {
         const json = await parsePdfToJson(contentBuffer);
         att.parsed = true;
-        att.ritnummer = json.ritnummer || '';
         if (!json || Object.keys(json).length === 0) throw new Error('Parser gaf geen bruikbare data terug');
+        att.ritnummer = json.ritnummer || '';
+          const xml = await generateXmlFromJson(json);
+          const xmlBase64 = Buffer.from(xml).toString('base64');
 
-        const xml = await generateXmlFromJson(json);
-        const xmlBase64 = Buffer.from(xml).toString('base64');
+          const payload = {
+            ...json,
+            reference: json.referentie || json.reference || 'Onbekend',
+            ritnummer: json.ritnummer || '0',
+            laadplaats: json.laadplaats || json.klantplaats || '0',
+            xmlBase64,
+            pdfBestandsnaam: att.filename
+          };
 
-        const payload = {
-          ...json,
-          reference: json.referentie || json.reference || 'Onbekend',
-          ritnummer: json.ritnummer || '0',
-          laadplaats: json.laadplaats || json.klantplaats || '0',
-          xmlBase64,
-          pdfBestandsnaam: att.filename
-        };
+          const easyBuffer = Buffer.from(xml, 'utf-8');
+          const easyBestandsnaam = payload.ritnummer !== '0'
+            ? `${payload.ritnummer}_${payload.laadplaats}.easy`
+            : `${att.filename.replace('.pdf', '')}.easy`;
 
-        // ✅ Alleen 1 fetch — geen dubbele trigger!
-        if (!att.skipReprocessing) {
-          console.log('📡 Versturen naar generate-easy-files:', payload.reference);
-          await fetch(`${process.env.PUBLIC_URL}/api/generate-easy-files`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-           const easyBuffer = Buffer.from(xml, 'utf-8');
-            uploadedFiles.push({
-              filename: `${payload.ritnummer}_${payload.laadplaats}.easy`,
-              content: easyBuffer
-            });
-          if (verwerkteBestanden.has(att.filename)) {
-          console.log(`⏭️ Bestand ${att.filename} is al verwerkt, wordt overgeslagen`);
-          continue;
-          }
           verwerkteBestanden.add(att.filename);
-        }
 
+          await sendEmailWithAttachments({
+            ritnummer: payload.ritnummer,
+            attachments: [
+              { filename: easyBestandsnaam, content: easyBuffer },
+              { filename: att.filename, content: contentBuffer }
+            ]
+          });
       } catch (err) {
         const msg = `⚠️ Easy-bestand fout: ${err.message}`;
         console.error(msg);
@@ -148,6 +141,23 @@ verwerkteBestanden.add(att.filename);
       }
     }
   }
+const failures = sanitizedAttachments.filter(a => !a.parsed);
+
+if (failures.length) {
+  const lines = [
+    '⚠️ Geen bijlages konden verwerkt worden als transportopdracht.',
+    '',
+    '---',
+    '📎Bijlages die niet verwerkt konden worden:',
+    ...failures.map(f => `- ${f.filename}: ⚠️ Easy-bestand fout: ${f.parseError || 'Parser gaf geen bruikbare data terug'}`)
+  ];
+
+  await sendEmailWithAttachments({
+    ritnummer: 'onbekend',
+    attachments: [],
+    extraText: lines.join('\n')
+  });
+}
 
   return {
   uploadedFiles,
