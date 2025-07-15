@@ -13,22 +13,26 @@ function extractLinesPdf2Json(buffer) {
     const pdfParser = new PDFParser();
     pdfParser.on('pdfParser_dataError', err => reject(err.parserError));
     pdfParser.on('pdfParser_dataReady', pdf => {
-      const linesMap = new Map();
+      const allObjects = [];
+
       for (const page of pdf.Pages) {
         for (const item of page.Texts) {
-          const text = decodeURIComponent(item.R[0].T);
-          const yKey = item.y.toFixed(2);
-          if (!linesMap.has(yKey)) linesMap.set(yKey, []);
-          linesMap.get(yKey).push({ x: item.x, text });
+          const text = decodeURIComponent(item.R[0].T).trim();
+          const x = item.x;
+          const y = item.y;
+          if (text) allObjects.push({ text, x, y });
         }
       }
-      const ys = Array.from(linesMap.keys()).map(k => parseFloat(k)).sort((a, b) => b - a);
-      const allLines = ys.map(y => {
-        const key = y.toFixed(2);
-        return linesMap.get(key).sort((a, b) => a.x - b.x).map(run => run.text).join(' ').trim();
-      });
-      resolve(allLines);
+
+      // 📌 FILTER: alleen regels tussen 100 en 700 op Y-coördinaat
+      const inhoudsregels = allObjects
+        .filter(obj => obj.y >= 100 && obj.y <= 700)
+        .sort((a, b) => b.y - a.y || a.x - b.x)  // visuele sortering
+        .map(obj => obj.text);
+
+      resolve(inhoudsregels);
     });
+
     pdfParser.parseBuffer(buffer);
   });
 }
@@ -52,26 +56,24 @@ export default async function parseDFDS(pdfBuffer) {
   let splitLines = [];
 try {
   splitLines = await extractLinesPdf2Json(pdfBuffer);
+  const bekendeVoetteksten = [
+  'FENEX',
+  'TLN Algemene Betalingsvoorwaarden',
+  'All quotations and services are subject',
+  'Opdrachtgever dient zelf voor verzekering'
+];
+
+splitLines = splitLines.filter(line =>
+  !bekendeVoetteksten.some(fragment => line.includes(fragment))
+);
   console.log('📄 Eerste 10 regels PDF:', splitLines.slice(0, 10));
 } catch {
   const { text } = await pdfParse(pdfBuffer);
   splitLines = text.split('\n').map(l => l.trim()).filter(Boolean);
 }
 
-// Vind duidelijke begin- en eindmarkeringen van de echte opdrachtinhoud
-const endIndex = splitLines.findIndex(line =>
-  /^TRANSPORT TO BE CHARGED WITH/i.test(line) ||
-  /Forwarding Conditions.*District Court.*Rotterdam/i.test(line) ||
-  /Voorts zijn van\s+toepassing de TLN Algemene Betalingsvoorwaarden/i.test(line) ||
-  /onze offertes en werkzaamheden geschieden uitsluitend op grond van de Nederlandse Expeditievoorwaarden/i.test(line) ||
-  /All our transactions are subject to Dutch legislation/i.test(line)
-);
-
-// Alles vóór die voettekstregel is de opdracht
-if (endIndex > 5) {
-  splitLines = splitLines.slice(0, endIndex);
-} else {
-  console.warn('⚠️ Kon eindgrens niet bepalen, volledige tekst wordt gebruikt');
+if (splitLines.length < 5) {
+  console.warn('⚠️ SplitLines te leeg na filtering');
 }
 
   const ritnummerMatch = splitLines.join(' ').match(/\bSFIM\d{7}\b/i);
