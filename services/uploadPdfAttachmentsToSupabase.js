@@ -25,6 +25,8 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
       .replace(/^_+|_+$/g, '')
   }));
 
+  const emailPerRit = new Map();
+
   for (const att of sanitizedAttachments) {
     console.log(`\n📥 Verwerken gestart voor: ${att.originalFilename}`);
   if (verwerkteBestanden.has(att.filename)) {
@@ -125,13 +127,13 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
 
           verwerkteBestanden.add(att.filename);
 
-          await sendEmailWithAttachments({
-            ritnummer: payload.ritnummer,
-            attachments: [
-              { filename: easyBestandsnaam, content: easyBuffer },
-              { filename: att.filename, content: contentBuffer }
-            ]
-          });
+          if (!emailPerRit.has(payload.ritnummer)) {
+            emailPerRit.set(payload.ritnummer, []);
+          }
+          emailPerRit.get(payload.ritnummer).push(
+            { filename: easyBestandsnaam, content: easyBuffer },
+            { filename: att.filename, content: contentBuffer }
+          );
       } catch (err) {
         const msg = `⚠️ Easy-bestand fout: ${err.message}`;
         console.error(msg);
@@ -157,6 +159,10 @@ if (failures.length) {
     attachments: [],
     extraText: lines.join('\n')
   });
+}
+
+for (const [ritnummer, attachments] of emailPerRit.entries()) {
+  await sendEmailWithAttachments({ ritnummer, attachments });
 }
 
   return {
