@@ -96,6 +96,7 @@ const containersData = [];
 
   for (let i = 0; i < splitLines.length; i++) {
     const line = splitLines[i];
+      console.log('👉 Regel:', line); // <--- tijdelijk toevoegen
     const match = line.match(/([A-Z]{4}U\d{7})\s+([0-9]{2,3}ft\s?-?\s?[A-Za-z]{0,3})\s*-\s*([\d.,]+)\s*m3.*Zegel[:\s]*([A-Z0-9]+)/i);
     if (match) {
       const [_, containernummer, containertypeRaw, volumeRaw, zegelnummer] = match;
