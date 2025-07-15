@@ -248,93 +248,118 @@ const rederij = findFirst(/Rederij\s+(.+?)(\s+|$)/i, splitLines);
     if (z && z[1]) zegelnummer = z[1].trim();
   }
   console.log(`🔍 colli: '${colli}', lading: '${lading}', gewicht: '${gewicht}', zegel: '${zegelnummer}'`);
-  // 13) BUILD FULL DATA OBJECT
 
-  const data = {
-    ritnummer: ritnummer,
-    inleverBootnaam: bootnaam,
-    inleverRederij: rederij,
+const containersData = [];
 
-    containernummer: containernummer || '',
-    containertype: containertypeRaw || '',
-    containertypeCode: containertypeCode || '',
-    volume: volume || '0',
-    laadreferentie: pickupReferentie || '',
-    inleverreferentie: lossenReferentie || '',
-    datum: datum || '',
-    tijd: tijd ? `${tijd}:00` : '',       // mét :00
-    tijdTM: '',
+for (let i = 0; i < splitLines.length; i++) {
+  const line = splitLines[i];
+  const match = line.match(/([A-Z]{4}U\d{7})\s+([0-9]{2,3}ft\s?-?\s?[A-Za-z]{0,3})\s*-\s*([\d.,]+)\s*m3.*Zegel[:\s]*([A-Z0-9]+)/i);
 
-    klantnaam: klantNaam || '',
-    klantadres: klantAdres || '',
-    klantpostcode: klantPostcode || '',
-    klantplaats: klantPlaats || '',
+  if (match) {
+    const [
+      _full,
+      containernummer,
+      containertypeRaw,
+      volumeRaw,
+      zegelnummer
+    ] = match;
 
-    colli: colli || '0',
-    lading: lading || '',
-    gewicht: gewicht || '0',
-    zegelnummer: zegelnummer || '',
-    temperatuur: '0',
-    adr: 'Onwaar',
+    const volgendeRegel = splitLines[i + 1] || '';
+    const gewicht = safeMatch(/([\d.,]+)\s*kg/i, volgendeRegel).replace(',', '.') || '';
+    const colli = safeMatch(/(\d+)\s*(?:carton|colli|pcs)/i, volgendeRegel) || '';
+    const lading = findFirst(/(?:\d+\s+(?:carton|colli|pcs)\s+)?([A-Za-z0-9\-\s]+)/i, [volgendeRegel]) || '';
 
-    opdrachtgeverNaam: 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
-    opdrachtgeverAdres: 'WOLGAWEG 3',
-    opdrachtgeverPostcode: '3198 LR',
-    opdrachtgeverPlaats: 'ROTTERDAM',
-    opdrachtgeverTelefoon: '010-1234567',
-    opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
-    opdrachtgeverBTW: 'NL007129099B01',
-    opdrachtgeverKVK: '24232781',
+    const normType = containertypeRaw.toLowerCase().replace(/[^a-z0-9]/g,'');
+    const containertypeCode = await getContainerTypeCode(normType);
 
-    meldtijd: '',
-    instructies: '',
- 
-    locaties: [
-  {
-    volgorde: '0',
-    actie: 'Opzetten',
-    naam: pickupInfo.naam || pickupTerminal,
-    adres: pickupInfo.adres || pickupAdres,
-    postcode: pickupInfo.postcode || '',
-    plaats: pickupInfo.plaats || '',
-    land: pickupInfo.land || 'NL',
-    voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-    aankomst_verw: '',
-    tijslot_van: '',
-    tijslot_tm: '',
-    portbase_code: pickupInfo.portbase_code || '',
-    bicsCode: pickupInfo.bicsCode || ''
-  },
-  {
-    volgorde: '0',
-    actie: 'Lossen',
-    naam: klantNaam,
-    adres: klantAdres,
-    postcode: klantPostcode,
-    plaats: klantPlaats,
-    land: 'NL'
-  },
-  {
-    volgorde: '0',
-    actie: 'Afzetten',
-    naam: dropoffInfo.naam || dropoffTerminal,
-    adres: dropoffInfo.adres || dropoffAdres,
-    postcode: dropoffInfo.postcode || '',
-    plaats: dropoffInfo.plaats || '',
-    land: dropoffInfo.land || 'NL',
-    voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-    aankomst_verw: '',
-    tijslot_van: '',
-    tijslot_tm: '',
-    portbase_code: dropoffInfo.portbase_code || '',
-    bicsCode: dropoffInfo.bicsCode || ''
-  } ]
-  };
+  containersData.push({
+      ritnummer: ritnummer,
+      inleverBootnaam: bootnaam,
+      inleverRederij: rederij,
+
+      containernummer,
+      containertype: containertypeRaw,
+      containertypeCode: containertypeCode || '0',
+      volume: volumeRaw.replace(',', '.'),
+      laadreferentie: pickupReferentie || '',
+      inleverreferentie: lossenReferentie || '',
+      datum,
+      tijd: tijd ? `${tijd}:00` : '',
+      tijdTM: '',
+
+      klantnaam: klantNaam,
+      klantadres: klantAdres,
+      klantpostcode: klantPostcode,
+      klantplaats: klantPlaats,
+
+      colli: colli || '',
+      lading: lading,
+      gewicht: gewicht || '',
+      zegelnummer,
+      temperatuur: '0',
+      adr: /ADR|IMO|UN[ -]?NR/i.test(volgendeRegel + line) ? 'Waar' : '',
+
+      opdrachtgeverNaam: 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
+      opdrachtgeverAdres: 'WOLGAWEG 3',
+      opdrachtgeverPostcode: '3198 LR',
+      opdrachtgeverPlaats: 'ROTTERDAM',
+      opdrachtgeverTelefoon: '010-1234567',
+      opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
+      opdrachtgeverBTW: 'NL007129099B01',
+      opdrachtgeverKVK: '24232781',
+
+      meldtijd: '',
+      instructies: '',
+
+      locaties: [
+        {
+          volgorde: '0',
+          actie: 'Opzetten',
+          naam: pickupInfo.naam || pickupTerminal,
+          adres: pickupInfo.adres || pickupAdres,
+          postcode: pickupInfo.postcode || '',
+          plaats: pickupInfo.plaats || '',
+          land: pickupInfo.land || 'NL',
+          voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+          aankomst_verw: '',
+          tijslot_van: '',
+          tijslot_tm: '',
+          portbase_code: pickupInfo.portbase_code || '',
+          bicsCode: pickupInfo.bicsCode || ''
+        },
+        {
+          volgorde: '0',
+          actie: fromNL ? 'Laden' : 'Lossen',
+          naam: klantNaam,
+          adres: klantAdres,
+          postcode: klantPostcode,
+          plaats: klantPlaats,
+          land: 'NL'
+        },
+        {
+          volgorde: '0',
+          actie: 'Afzetten',
+          naam: dropoffInfo.naam || dropoffTerminal,
+          adres: dropoffInfo.adres || dropoffAdres,
+          postcode: dropoffInfo.postcode || '',
+          plaats: dropoffInfo.plaats || '',
+          land: dropoffInfo.land || 'NL',
+          voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+          aankomst_verw: '',
+          tijslot_van: '',
+          tijslot_tm: '',
+          portbase_code: dropoffInfo.portbase_code || '',
+          bicsCode: dropoffInfo.bicsCode || ''
+        }
+      ]
+    });
+  }
+}
 
   // 16) DEBUG LOGS
   console.log('📍 Locations array (orderSequence/actionName/locationName/...):\n', JSON.stringify(locations, null, 2));
   console.log('✅ Complete data object ready for XML generation:\n', JSON.stringify(data, null, 2));
 
   // 17) RETURN DATA
-  return data;
+  return containersData;
 }
