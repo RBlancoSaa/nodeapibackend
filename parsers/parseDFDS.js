@@ -51,21 +51,24 @@ export default async function parseDFDS(pdfBuffer) {
 
   let splitLines = [];
 try {
-  // Vind duidelijke begin- en eindmarkeringen van de echte opdrachtinhoud
-  const startIndex = splitLines.findIndex(line => /^Zendinggegevens$/i.test(line));
-  const endIndex = splitLines.findIndex(line =>
-    /^TRANSPORT TO BE CHARGED WITH/i.test(line) ||
-    /^All quotations and services are subject to the Dutch Forwarding Conditions/i.test(line)
-  );
+  splitLines = await extractLinesPdf2Json(pdfBuffer);
+} catch {
+  const { text } = await pdfParse(pdfBuffer);
+  splitLines = text.split('\n').map(l => l.trim()).filter(Boolean);
+}
 
-  // Snijd alles daartussen uit – dat is de echte opdrachtinhoud
-  if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
-    splitLines = splitLines.slice(startIndex + 1, endIndex);
-  } else {
-    console.warn('⚠️ Kon inhoudsgrenzen niet bepalen, volledige tekst wordt gebruikt');
-  }
-} catch (err) {
-  console.error('❌ Fout bij PDF parsing:', err.message);
+// Vind duidelijke begin- en eindmarkeringen van de echte opdrachtinhoud
+const startIndex = splitLines.findIndex(line => /^Zendinggegevens$/i.test(line));
+const endIndex = splitLines.findIndex(line =>
+  /^TRANSPORT TO BE CHARGED WITH/i.test(line) ||
+  /^All quotations and services are subject to the Dutch Forwarding Conditions/i.test(line)
+);
+
+// Snijd alles daartussen uit – dat is de echte opdrachtinhoud
+if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+  splitLines = splitLines.slice(startIndex + 1, endIndex);
+} else {
+  console.warn('⚠️ Kon inhoudsgrenzen niet bepalen, volledige tekst wordt gebruikt');
 }
 
   const ritnummerMatch = splitLines.join(' ').match(/\bSFIM\d{7}\b/i);
