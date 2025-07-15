@@ -150,7 +150,6 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
           continue;
       }
   }
-}
   }
 
   const failures = sanitizedAttachments.filter(a => !a.parsed);
@@ -186,3 +185,4 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
       reden: att.parseError || ''
     }))
   };
+}
