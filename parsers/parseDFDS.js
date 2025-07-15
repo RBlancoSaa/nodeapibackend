@@ -55,7 +55,17 @@ export default async function parseDFDS(pdfBuffer) {
   } catch {
     const { text } = await pdfParse(pdfBuffer);
     splitLines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  }
+
+   // Filter bekende kop- en voettekst regels weg
+  splitLines = splitLines.filter(line =>
+    !/^Al onze offertes en werkzaamheden geschieden uitsluitend/i.test(line) &&
+    !/^Voorts zijn van toepassing de TLN/i.test(line) &&
+    !/^Goederen liggen voor rekening/i.test(line) &&
+    !/^Opdrachtgever dient zelf voor verzekering/i.test(line) &&
+    !/^TRANSPORT TO BE CHARGED WITH/i.test(line) &&
+    !/^Datum\s+\d{2}-\d{2}-\d{4}/i.test(line)
+  );
+    }
 
   const startIndex = splitLines.findIndex(line => /Zendinggegevens/i.test(line));
   const endIndex = splitLines.findIndex(line =>
@@ -68,7 +78,8 @@ export default async function parseDFDS(pdfBuffer) {
     console.warn('⚠️ Kon inhoudsgrenzen niet bepalen, volledige tekst wordt gebruikt');
   }
 
-  const ritnummer = findFirst(/\b(SFIM\d{7})\b/i, splitLines) || '';
+  const ritnummerMatch = splitLines.join(' ').match(/\bSFIM\d{7}\b/i);
+  const ritnummer = ritnummerMatch ? ritnummerMatch[0] : '';
   const bootnaam = findFirst(/Vaartuig\s+(.+?)\s+Reis/i, splitLines);
   const rederij = findFirst(/Rederij\s+(.+?)(\s+|$)/i, splitLines);
   const pickupTerminal = findFirst(/Pickup\s+(.+)/i, splitLines);
@@ -80,6 +91,7 @@ export default async function parseDFDS(pdfBuffer) {
   const pickupInfo = await getTerminalInfoMetFallback(pickupTerminal) || {};
   const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal) || {};
 
+  
 const containersData = [];
 
   for (let i = 0; i < splitLines.length; i++) {
@@ -185,6 +197,8 @@ const containersData = [];
       });
     }
   }
-
+if (containersData.length === 0) {
+  console.warn(`⚠️ Geen containers gevonden in DFDS-opdracht (ritnummer: ${ritnummer})`);
+}
   return containersData;
 }
