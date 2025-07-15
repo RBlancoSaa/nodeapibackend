@@ -27,8 +27,7 @@ console.log('🔍 Totaal tekstobjecten:', allObjects.length);
 console.log('📌 Y-ranges voorbeeld:', allObjects.slice(0, 10).map(o => o.y));
       // 📌 FILTER: alleen regels tussen 100 en 700 op Y-coördinaat
       const inhoudsregels = allObjects
-        .filter(obj => obj.y >= 30 && obj.y <= 850)
-        .sort((a, b) => b.y - a.y || a.x - b.x)  // visuele sortering
+        .sort((a, b) => b.y - a.y || a.x - b.x)
         .map(obj => obj.text);
 
       resolve(inhoudsregels);
@@ -64,8 +63,11 @@ try {
   'Opdrachtgever dient zelf voor verzekering'
 ];
 
-splitLines = splitLines.filter(line =>
-  !bekendeVoetteksten.some(fragment => line.toLowerCase().includes(fragment.toLowerCase()))
+const laatste20 = splitLines.slice(-20);
+const isVoettekst = (line) =>
+  bekendeVoetteksten.some(fragment => line.toLowerCase().includes(fragment.toLowerCase()));
+splitLines = splitLines.filter((line, idx) =>
+  !(idx >= splitLines.length - 20 && isVoettekst(line))
 );
   console.log('📄 Eerste 10 regels PDF:', splitLines.slice(0, 10));
 } catch {
@@ -100,11 +102,11 @@ const containersData = [];
     const regel4 = splitLines[i + 3];
     const fullBlock = `${regel1} ${regel2} ${regel3} ${regel4}`;
 
-    const match = fullBlock.match(/([A-Z]{4}U\d{7})\s+([0-9]{2,3}ft(?:\s?HC)?)\s*-\s*([\d.,]+)\s*m3\s*[\/-]?\s*Zegel[:\s]*([A-Z0-9]+)/i);
+    const match = fullBlock.match(/([A-Z]{4}U\d{7})\s+([0-9]{2,3}ft(?:\s?HC)?)\s*[-–—]?\s*([\d.,]+)\s*m3\s*[/\-]?\s*(?:Zegel|Seal)[:\s]*([A-Z0-9]+)/i);
     if (match) {
       const [_, containernummer, containertypeRaw, volumeRaw, zegelnummer] = match;
-
-      const gewichtMatch = fullBlock.match(/([\d.,]+)\s*kg/i);
+      const context = splitLines.slice(i, i + 5).join(' ');
+      const gewichtMatch = context.match(/([\d.,]+)\s*(?:KG|kg)/i);
       const gewicht = gewichtMatch?.[1]?.replace(',', '.') || '';
       if (!gewicht || parseFloat(gewicht) <= 0) {
         console.warn(`❌ Gewicht ontbreekt of is 0 voor container ${containernummer}`);
@@ -117,9 +119,16 @@ const containersData = [];
       const containertypeCode = await getContainerTypeCode(normType);
       const adr = /ADR|IMO|UN[ -]?NR/i.test(fullBlock) ? 'Waar' : '';
 
-      const datumMatch = findFirst(/(\d{1,2})-(\d{1,2})-(\d{4})/, fullBlock);
+      const datumMatch = context.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/) || context.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+        let datum = '';
+        if (datumMatch) {
+          if (datumMatch[3].length === 4) {
+            datum = `${parseInt(datumMatch[1])}-${parseInt(datumMatch[2])}-${datumMatch[3]}`;
+          } else {
+            datum = `${parseInt(datumMatch[3])}-${parseInt(datumMatch[2])}-${datumMatch[1]}`;
+          }
+        }
       const tijdMatch = findFirst(/(\d{2}:\d{2})/, fullBlock);
-      const datum = datumMatch ? datumMatch.replace(/^(\d{1,2})-(\d{1,2})-(\d{4})$/, (_, d, m, y) => `${parseInt(d)}-${parseInt(m)}-${y}`) : '';
       const tijd = tijdMatch ? `${tijdMatch}:00` : '';
 
 
