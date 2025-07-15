@@ -95,20 +95,26 @@ export default async function parseDFDS(pdfBuffer) {
 const containersData = [];
 
   for (let i = 0; i < splitLines.length; i++) {
-    const line = splitLines[i];
-      console.log('👉 Regel:', line); // <--- tijdelijk toevoegen
-    const match = line.match(/([A-Z]{4}U\d{7})\s+([0-9]{2,3}ft\s?-?\s?[A-Za-z]{0,3})\s*-\s*([\d.,]+)\s*m3.*Zegel[:\s]*([A-Z0-9]+)/i);
+    const regel1 = splitLines[i];
+    const regel2 = splitLines[i + 1] || '';
+    const regel3 = splitLines[i + 2] || '';
+    const regel4 = splitLines[i + 3] || '';
+    const fullBlock = `${regel1} ${regel2} ${regel3} ${regel4}`;
+
+    const match = fullBlock.match(/([A-Z]{4}U\d{7})\s+([0-9]{2,3}ft(?:\s?HC)?)\s*-\s*([\d.,]+)\s*m3.*Zegel[:\s]*([A-Z0-9]+)/i);
     if (match) {
       const [_, containernummer, containertypeRaw, volumeRaw, zegelnummer] = match;
-      const volgendeRegel = splitLines[i + 1] || '';
-      const gewichtMatch = safeMatch(/([\d.,]+)\s*kg/i, volgendeRegel);
-      const gewicht = gewichtMatch.replace(',', '.');
+
+      const gewichtMatch = fullBlock.match(/([\d.,]+)\s*kg/i);
+      const gewicht = (gewichtMatch?.[1] || '').replace(',', '.');
       if (!gewicht || parseFloat(gewicht) <= 0) {
         console.warn(`❌ Gewicht ontbreekt of is 0 voor container ${containernummer}`);
         continue;
       }
-      const colli = safeMatch(/(\d+)\s*(?:carton|colli|pcs)/i, volgendeRegel);
-      const lading = findFirst(/(?:\d+\s+(?:carton|colli|pcs)\s+)?([A-Za-z0-9\-\s]+)/i, [volgendeRegel]) || '';
+
+      const colli = safeMatch(/(\d+)\s*(?:carton|colli|pcs)/i, fullBlock);
+      const lading = findFirst(/(?:\d+\s+(?:carton|colli|pcs)\s+)?([A-Z0-9\s\-]+)/i, [regel4]);
+
       const normType = containertypeRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
       const containertypeCode = await getContainerTypeCode(normType);
       const adr = /ADR|IMO|UN[ -]?NR/i.test(line + volgendeRegel) ? 'Waar' : '';
