@@ -26,7 +26,7 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
   }));
 
   const emailPerRit = new Map();
-
+  const foutenPerRit = new Map();
   for (const att of sanitizedAttachments) {
     console.log(`\n📥 Verwerken gestart voor: ${att.originalFilename}`);
   if (verwerkteBestanden.has(att.filename)) {
@@ -135,37 +135,47 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
             { filename: att.filename, content: contentBuffer }
           );
       } catch (err) {
-        const msg = `⚠️ Easy-bestand fout: ${err.message}`;
-        console.error(msg);
-        att.parsed = false;
-        att.parseError = msg;
-        continue;
+          const msg = `⚠️ Easy-bestand fout: ${err.message}`;
+          console.error(msg);
+          att.parsed = false;
+          att.parseError = msg;
+
+          if (!foutenPerRit.has(att.ritnummer || 'onbekend')) {
+            foutenPerRit.set(att.ritnummer || 'onbekend', []);
+          }
+          foutenPerRit.get(att.ritnummer || 'onbekend').push({
+            filename: att.filename,
+            error: msg
+          });
+          continue;
       }
     }
   }
+}
 const failures = sanitizedAttachments.filter(a => !a.parsed);
 
 if (failures.length) {
+for (const [ritnummer, fouten] of foutenPerRit.entries()) {
   const lines = [
     '⚠️ Geen bijlages konden verwerkt worden als transportopdracht.',
     '',
     '---',
     '📎Bijlages die niet verwerkt konden worden:',
-    ...failures.map(f => `- ${f.filename}: ⚠️ Easy-bestand fout: ${f.parseError || 'Parser gaf geen bruikbare data terug'}`)
+    ...fouten.map(f => `- ${f.filename}: ⚠️ ${f.error}`)
   ];
 
   await sendEmailWithAttachments({
-    ritnummer: 'onbekend',
+    ritnummer,
     attachments: [],
     extraText: lines.join('\n')
   });
+}
 }
 
 for (const [ritnummer, attachments] of emailPerRit.entries()) {
   await sendEmailWithAttachments({ ritnummer, attachments });
 }
-
-  return {
+return {
   uploadedFiles,
   verwerkingsresultaten: sanitizedAttachments.map(att => ({
     filename: att.filename,
@@ -173,4 +183,4 @@ for (const [ritnummer, attachments] of emailPerRit.entries()) {
     ritnummer: att.ritnummer || '',
     reden: att.parseError || ''
   }))
-};}
+};
