@@ -50,33 +50,23 @@ export default async function parseDFDS(pdfBuffer) {
   if (!pdfBuffer || !(Buffer.isBuffer(pdfBuffer) || pdfBuffer instanceof Uint8Array)) return [];
 
   let splitLines = [];
-  try {
-    splitLines = await extractLinesPdf2Json(pdfBuffer);
-  } catch {
-    const { text } = await pdfParse(pdfBuffer);
-    splitLines = text.split('\n').map(l => l.trim()).filter(Boolean);
-
-   // Filter bekende kop- en voettekst regels weg
-  splitLines = splitLines.filter(line =>
-    !/^Al onze offertes en werkzaamheden geschieden uitsluitend/i.test(line) &&
-    !/^Voorts zijn van toepassing de TLN/i.test(line) &&
-    !/^Goederen liggen voor rekening/i.test(line) &&
-    !/^Opdrachtgever dient zelf voor verzekering/i.test(line) &&
-    !/^TRANSPORT TO BE CHARGED WITH/i.test(line) &&
-    !/^Datum\s+\d{2}-\d{2}-\d{4}/i.test(line)
-  );
-    }
-
-  const startIndex = splitLines.findIndex(line => /Zendinggegevens/i.test(line));
+try {
+  // Vind duidelijke begin- en eindmarkeringen van de echte opdrachtinhoud
+  const startIndex = splitLines.findIndex(line => /^Zendinggegevens$/i.test(line));
   const endIndex = splitLines.findIndex(line =>
-    /TRANSPORT TO BE CHARGED WITH|^Datum\s+\d{2}-\d{2}-\d{4}/i.test(line)
+    /^TRANSPORT TO BE CHARGED WITH/i.test(line) ||
+    /^All quotations and services are subject to the Dutch Forwarding Conditions/i.test(line)
   );
 
+  // Snijd alles daartussen uit – dat is de echte opdrachtinhoud
   if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
     splitLines = splitLines.slice(startIndex + 1, endIndex);
   } else {
     console.warn('⚠️ Kon inhoudsgrenzen niet bepalen, volledige tekst wordt gebruikt');
   }
+} catch (err) {
+  console.error('❌ Fout bij PDF parsing:', err.message);
+}
 
   const ritnummerMatch = splitLines.join(' ').match(/\bSFIM\d{7}\b/i);
   const ritnummer = ritnummerMatch ? ritnummerMatch[0] : '';
