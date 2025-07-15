@@ -23,10 +23,11 @@ function extractLinesPdf2Json(buffer) {
           if (text) allObjects.push({ text, x, y });
         }
       }
-
+console.log('🔍 Totaal tekstobjecten:', allObjects.length);
+console.log('📌 Y-ranges voorbeeld:', allObjects.slice(0, 10).map(o => o.y));
       // 📌 FILTER: alleen regels tussen 100 en 700 op Y-coördinaat
       const inhoudsregels = allObjects
-        .filter(obj => obj.y >= 100 && obj.y <= 700)
+        .filter(obj => obj.y >= 30 && obj.y <= 850)
         .sort((a, b) => b.y - a.y || a.x - b.x)  // visuele sortering
         .map(obj => obj.text);
 
