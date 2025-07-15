@@ -100,7 +100,7 @@ const containersData = [];
     const regel4 = splitLines[i + 3];
     const fullBlock = `${regel1} ${regel2} ${regel3} ${regel4}`;
 
-    const match = fullBlock.match(/([A-Z]{4}U\d{7})\s+([0-9]{2,3}ft(?:\s?HC)?)\s*-\s*([\d.,]+)\s*m3.*Zegel[:\s]*([A-Z0-9]+)/i);
+    const match = fullBlock.match(/([A-Z]{4}U\d{7})\s+([0-9]{2,3}ft(?:\s?HC)?)\s*-\s*([\d.,]+)\s*m3\s*[\/-]?\s*Zegel[:\s]*([A-Z0-9]+)/i);
     if (match) {
       const [_, containernummer, containertypeRaw, volumeRaw, zegelnummer] = match;
 
