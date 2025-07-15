@@ -198,11 +198,10 @@ const containersData = [];
         ]
       });
     }
+  }  if (containersData.length === 0) {
+    console.warn(`⚠️ Geen containers gevonden in DFDS-opdracht (ritnummer: ${ritnummer})`);
+    console.warn('🔍 Alle regels:', splitLines);
   }
-if (containersData.length === 0) {
-  console.warn(`⚠️ Geen containers gevonden in DFDS-opdracht (ritnummer: ${ritnummer})`);
-  console.warn('🔍 Alle regels:', splitLines);
-}
-}
+
   return containersData;
 }
