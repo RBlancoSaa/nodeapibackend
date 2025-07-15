@@ -65,7 +65,10 @@ if (
   textLower.includes('dfds warehousing rotterdam b.v.') ||
   textLower.includes('@dfds.com')
 ) {
- return await parseDFDS(buffer);
+  console.log('🔍 DFDS PDF herkend');
+  const result = await parseDFDS(buffer);
+  if (Array.isArray(result)) return result; // ✅ meerdere containers
+  return [result]; // ✅ één container als fallback
 }
 
   if (text.includes('Easyfresh')) {
