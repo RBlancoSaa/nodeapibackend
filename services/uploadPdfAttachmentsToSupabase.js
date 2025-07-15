@@ -149,7 +149,6 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
           });
           continue;
       }
-    }
   }
 }
 const failures = sanitizedAttachments.filter(a => !a.parsed);
@@ -183,4 +182,5 @@ return {
     ritnummer: att.ritnummer || '',
     reden: att.parseError || ''
   }))
+}
 };
