@@ -61,7 +61,8 @@ try {
 // Vind duidelijke begin- en eindmarkeringen van de echte opdrachtinhoud
 const endIndex = splitLines.findIndex(line =>
   /^TRANSPORT TO BE CHARGED WITH/i.test(line) ||
-  /^All quotations and services are subject to the Dutch Forwarding Conditions/i.test(line)
+  /Forwarding Conditions.*District Court.*Rotterdam/i.test(line) ||
+  /Voorts zijn van\s+toepassing de TLN Algemene Betalingsvoorwaarden/i.test(line)
 );
 
 // Alles vóór die voettekstregel is de opdracht
