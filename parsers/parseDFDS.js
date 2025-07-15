@@ -62,7 +62,9 @@ try {
 const endIndex = splitLines.findIndex(line =>
   /^TRANSPORT TO BE CHARGED WITH/i.test(line) ||
   /Forwarding Conditions.*District Court.*Rotterdam/i.test(line) ||
-  /Voorts zijn van\s+toepassing de TLN Algemene Betalingsvoorwaarden/i.test(line)
+  /Voorts zijn van\s+toepassing de TLN Algemene Betalingsvoorwaarden/i.test(line) ||
+  /onze offertes en werkzaamheden geschieden uitsluitend op grond van de Nederlandse Expeditievoorwaarden/i.test(line) ||
+  /All our transactions are subject to Dutch legislation/i.test(line)
 );
 
 // Alles vóór die voettekstregel is de opdracht
