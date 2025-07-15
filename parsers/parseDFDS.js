@@ -153,7 +153,7 @@ const containersData = [];
         locaties: [
           {
             volgorde: '0',
-            actie,
+            actie:'Opzetten',
             naam: pickupInfo.naam || pickupTerminal,
             adres: pickupInfo.adres || '',
             postcode: pickupInfo.postcode || '',
