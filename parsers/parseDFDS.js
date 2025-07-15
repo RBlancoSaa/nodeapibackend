@@ -48,29 +48,24 @@ function findFirst(pattern, lines) {
 
 export default async function parseDFDS(pdfBuffer) {
   if (!pdfBuffer || !(Buffer.isBuffer(pdfBuffer) || pdfBuffer instanceof Uint8Array)) return [];
-    let splitLines = [];
-    try {
-      splitLines = await extractLinesPdf2Json(pdfBuffer);
-    } catch {
-      const { text } = await pdfParse(pdfBuffer);
-      splitLines = text.split('\n').map(l => l.trim()).filter(Boolean);
-    }
 
-    // Vind eerste regel waar de echte inhoud begint
-    const startIndex = splitLines.findIndex(line =>
-      /Zendinggegevens/i.test(line)
-    );
+  let splitLines = [];
+  try {
+    splitLines = await extractLinesPdf2Json(pdfBuffer);
+  } catch {
+    const { text } = await pdfParse(pdfBuffer);
+    splitLines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  }
 
-    // Vind laatste regel vóór het "Transportorder" blok
-    const endIndex = splitLines.findIndex(line =>
-      /TRANSPORT TO BE CHARGED WITH|^Datum\s+\d{2}-\d{2}-\d{4}/i.test(line)
-    );
+  const startIndex = splitLines.findIndex(line => /Zendinggegevens/i.test(line));
+  const endIndex = splitLines.findIndex(line =>
+    /TRANSPORT TO BE CHARGED WITH|^Datum\s+\d{2}-\d{2}-\d{4}/i.test(line)
+  );
 
-    // Knip alleen de kerninhoud eruit
-    if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
-      splitLines = splitLines.slice(startIndex + 1, endIndex);
-   } else {
-     console.warn('⚠️ Kon inhoudsgrenzen niet bepalen, volledige tekst wordt gebruikt');
+  if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+    splitLines = splitLines.slice(startIndex + 1, endIndex);
+  } else {
+    console.warn('⚠️ Kon inhoudsgrenzen niet bepalen, volledige tekst wordt gebruikt');
   }
 
   const ritnummer = findFirst(/\b(SFIM\d{7})\b/i, splitLines) || '';
@@ -184,7 +179,7 @@ export default async function parseDFDS(pdfBuffer) {
             tijslot_tm: '',
             portbase_code: dropoffInfo.portbase_code || '',
             bicsCode: dropoffInfo.bicsCode || ''
-          }
+   }
         ]
       });
     }
