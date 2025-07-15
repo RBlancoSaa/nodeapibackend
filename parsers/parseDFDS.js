@@ -52,6 +52,7 @@ export default async function parseDFDS(pdfBuffer) {
   let splitLines = [];
 try {
   splitLines = await extractLinesPdf2Json(pdfBuffer);
+  console.log('📄 Eerste 10 regels PDF:', splitLines.slice(0, 10));
 } catch {
   const { text } = await pdfParse(pdfBuffer);
   splitLines = text.split('\n').map(l => l.trim()).filter(Boolean);
