@@ -1,4 +1,4 @@
-// parsers/parseDFDS.js
+// 📁 parsers/parseDFDS.js
 import '../utils/fsPatch.js';
 import { Buffer } from 'buffer';
 import PDFParser from 'pdf2json';
@@ -80,7 +80,7 @@ export default async function parseDFDS(pdfBuffer) {
   const pickupInfo = await getTerminalInfoMetFallback(pickupTerminal) || {};
   const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal) || {};
 
-  const containersData = [];
+const containersData = [];
 
   for (let i = 0; i < splitLines.length; i++) {
     const line = splitLines[i];
@@ -106,6 +106,7 @@ export default async function parseDFDS(pdfBuffer) {
       const tijdMatch = findFirst(/(\d{2}:\d{2})/, line + volgendeRegel);
       const datum = datumMatch ? datumMatch.replace(/^(\d{1,2})-(\d{1,2})-(\d{4})$/, (_, d, m, y) => `${parseInt(d)}-${parseInt(m)}-${y}`) : '';
       const tijd = tijdMatch ? `${tijdMatch}:00` : '';
+
 
       containersData.push({
         ritnummer,
