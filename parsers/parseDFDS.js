@@ -62,12 +62,13 @@ try {
   'All quotations and services are subject',
   'Opdrachtgever dient zelf voor verzekering'
 ];
-
-const laatste20 = splitLines.slice(-20);
+const voettekstregels = splitLines.slice(-20).filter(isVoettekst);
+console.log('🧹 Voettekstregels verwijderd:', voettekstregels);
 const isVoettekst = (line) =>
   bekendeVoetteksten.some(fragment => line.toLowerCase().includes(fragment.toLowerCase()));
-splitLines = splitLines.filter((line, idx) =>
-  !(idx >= splitLines.length - 20 && isVoettekst(line))
+
+splitLines = splitLines.filter((line, idx, arr) =>
+  !(idx >= arr.length - 20 && isVoettekst(line))
 );
   console.log('📄 Eerste 10 regels PDF:', splitLines.slice(0, 10));
 } catch {
@@ -130,7 +131,6 @@ for (let i = 0; i < splitLines.length; i++) {
 
   const tijdMatch = context.match(/(\d{2}:\d{2})/);
   const tijd = tijdMatch ? `${tijdMatch[1]}:00` : '';
-
 
 
       containersData.push({
