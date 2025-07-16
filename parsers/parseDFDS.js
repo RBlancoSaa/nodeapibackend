@@ -102,7 +102,7 @@ for (let i = 0; i < splitLines.length; i++) {
   if (!containerMatch) continue;
 
   const containernummer = containerMatch[0];
-  const context = splitLines.slice(i, i + 6).join(' ');
+  const context = splitLines.slice(i, i + 6).join(' ').replace(/([a-zA-Z])(?=\d)/g, '$1 ');
 
   const containertypeRaw = safeMatch(/(\d{2,3}ft\s*HC?)/i, context);
   const containertypeCode = await getContainerTypeCode(containertypeRaw?.toLowerCase().replace(/[^a-z0-9]/g, '') || '');
@@ -132,7 +132,7 @@ for (let i = 0; i < splitLines.length; i++) {
   const tijdMatch = context.match(/(\d{2}:\d{2})/);
   const tijd = tijdMatch ? `${tijdMatch[1]}:00` : '';
 
-
+console.log(`✅ Container gevonden: ${containernummer} | Gewicht: ${gewichtRaw} | Volume: ${volumeRaw} | Zegel: ${zegelnummer}`);
       containersData.push({
         ritnummer,
         inleverBootnaam: bootnaam,
