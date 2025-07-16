@@ -98,29 +98,33 @@ const containersData = [];
 
 for (let i = 0; i < splitLines.length; i++) {
   const line = splitLines[i];
-  const containerMatch = line.match(/[A-Z]{4}U\d{7}/);
+  const containerMatch = line.match(/[A-Z]{4}\d{7}/);
   if (!containerMatch) continue;
 
   const containernummer = containerMatch[0];
-  const context = splitLines.slice(i, i + 6).join(' ').replace(/([a-zA-Z])(?=\d)/g, '$1 ');
+  const blok = [
+    line,
+    splitLines[i + 1] || '',
+    splitLines[i + 2] || ''
+  ].map(l => ' ' + l).join(' '); // spaties forceren tussen regels
 
-  const containertypeRaw = safeMatch(/(\d{2,3}ft\s*HC?)/i, context);
+  const containertypeRaw = safeMatch(/(\d{2,3}ft\s*HC?)/i, blok);
   const containertypeCode = await getContainerTypeCode(containertypeRaw?.toLowerCase().replace(/[^a-z0-9]/g, '') || '');
-  const volumeRaw = safeMatch(/([\d.,]+)\s*m3/i, context).replace(',', '.');
-  const zegelnummer = safeMatch(/Zegel[:\s]*([A-Z0-9]+)/i, context);
-  const gewichtRaw = safeMatch(/([\d.,]+)\s*(?:kg|KG)/i, context).replace(',', '.');
+  const volumeRaw = safeMatch(/([\d.,]+)\s*m3/i, blok).replace(',', '.');
+  const zegelnummer = safeMatch(/Zegel[:\s]*([A-Z0-9]+)/i, blok);
+  const gewichtRaw = safeMatch(/([\d.,]+)\s*(?:kg|KG)/i, blok).replace(',', '.');
+  const colli = safeMatch(/(\d+)\s*(?:carton|colli|pcs)/i, blok) || '0';
+  const lading = safeMatch(/(?:carton|colli|pcs)\s*([A-Z0-9\s\-]+)/i, blok) || '';
 
   if (!gewichtRaw || parseFloat(gewichtRaw) <= 0) {
     console.warn(`❌ Gewicht ontbreekt of is 0 voor container ${containernummer}`);
     continue;
   }
 
-  const colli = safeMatch(/(\d+)\s*(?:carton|colli|pcs)/i, context) || '0';
-  const lading = safeMatch(/Omschrijving\s+([A-Z0-9\s\-]{5,})/i, context) || '';
-  const adr = /ADR|IMO|UN[ -]?NR/i.test(context) ? 'Waar' : '';
+  const adr = /ADR|IMO|UN[ -]?NR/i.test(blok) ? 'Waar' : '';
 
   let datum = '';
-  const datumMatch = context.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/) || context.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  const datumMatch = blok.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/) || blok.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (datumMatch) {
     if (datumMatch[3].length === 4) {
       datum = `${parseInt(datumMatch[1])}-${parseInt(datumMatch[2])}-${datumMatch[3]}`;
@@ -129,11 +133,12 @@ for (let i = 0; i < splitLines.length; i++) {
     }
   }
 
-  const tijdMatch = context.match(/(\d{2}:\d{2})/);
+  const tijdMatch = blok.match(/(\d{2}:\d{2})/);
   const tijd = tijdMatch ? `${tijdMatch[1]}:00` : '';
 
-console.log(`✅ Container gevonden: ${containernummer} | Gewicht: ${gewichtRaw} | Volume: ${volumeRaw} | Zegel: ${zegelnummer}`);
-      containersData.push({
+  console.log(`✅ Container gevonden: ${containernummer} | Gewicht: ${gewichtRaw} | Volume: ${volumeRaw} | Zegel: ${zegelnummer}`);
+
+containersData.push({
         ritnummer,
         inleverBootnaam: bootnaam,
         inleverRederij: rederij,
