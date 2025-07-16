@@ -139,14 +139,17 @@ const containernummer = containerMatch[1];
   const tijd = tijdMatch ? `${tijdMatch[1]}:00` : '';
 
   console.log(`✅ Container gevonden: ${containernummer} | Gewicht: ${gewichtRaw} | Volume: ${volumeRaw} | Zegel: ${zegelnummer}`);
+  console.log(`🔍 containertypeRaw: "${containertypeRaw}"`);
+  console.log(`🔍 blok: ${blok}`);
+
+
 
 containersData.push({
         ritnummer,
         inleverBootnaam: bootnaam,
         inleverRederij: rederij,
         containernummer,
-        containertype: containertypeRaw,
-        containertypeCode: containertypeCode || '',
+        containertype: containertypeCode || '',
         volume: volumeRaw.replace(',', '.'),
         laadreferentie: '',
         inleverreferentie: '',
