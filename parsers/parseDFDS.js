@@ -230,7 +230,7 @@ containersData.push({
     console.warn(`⚠️ Geen containers gevonden in DFDS-opdracht (ritnummer: ${ritnummer})`);
     console.warn('🔍 Alle regels:', splitLines);
   }
-console.log('✅ CONTROLE: parser-output containertype:', containertypeCode);
+
 
   return containersData;
 }
