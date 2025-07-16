@@ -157,7 +157,7 @@ containersData.push({
         klantplaats: klantPlaats,
         colli: colli || '0',
         lading,
-        gewicht,
+        gewicht: gewichtRaw,
         zegelnummer,
         temperatuur: '0',
         adr,
