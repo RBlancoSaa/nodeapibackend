@@ -98,10 +98,10 @@ const containersData = [];
 
 for (let i = 0; i < splitLines.length; i++) {
   const line = splitLines[i];
-  const containerMatch = line.match(/[A-Z]{4}\d{7}/);
-  if (!containerMatch) continue;
-
+  const containerMatch = line.match(/\b[A-Z]{3}U\d{7}\b/);
+  if (!/U\d{7}$/.test(containernummer)) continue;
   const containernummer = containerMatch[0];
+
   const blok = [
     line,
     splitLines[i + 1] || '',
