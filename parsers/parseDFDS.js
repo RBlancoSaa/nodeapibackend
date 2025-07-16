@@ -113,11 +113,11 @@ const containernummer = containerMatch[1];
   const containertypeRaw = safeMatch(/(\d{2,3}ft\s*HC?)/i, blok);
   const normType = containertypeRaw?.toLowerCase().replace(/[^a-z0-9]/g, '');
   const containertypeCode = await getContainerTypeCode(normType || '');
-  const volumeRaw = safeMatch(/([\d.,]+)\s*m3/i, blok).replace(',', '.');
-  const zegelnummer = safeMatch(/Zegel[:\s]*([A-Z0-9]+)/i, blok);
-  const gewichtRaw = safeMatch(/([\d.,]+)\s*(?:kg|KG)/i, blok).replace(',', '.');
-  const colli = safeMatch(/(\d+)\s*(?:carton|colli|pcs)/i, blok) || '0';
-  const lading = safeMatch(/(?:carton|colli|pcs)\s*([A-Z0-9\s\-]+)/i, blok) || '';
+  const volumeRaw = (safeMatch(/([\d.,]+)\s*m3/i, blok) || '').replace(',', '.');
+  const gewichtRaw = (safeMatch(/([\d.,]+)\s*(?:kg|KG)/i, blok) || '').replace(',', '.');
+  const zegelnummer = (safeMatch(/Zegel[:\s]*([A-Z0-9]+)/i, blok) || '');
+  const colli = (safeMatch(/(\d+)\s*(?:carton|colli|pcs)/i, blok) || '0');
+  const lading = (safeMatch(/(?:carton|colli|pcs)\s*([A-Z0-9\s\-]+)/i, blok) || '');
 
   if (!gewichtRaw || parseFloat(gewichtRaw) <= 0) {
     console.warn(`❌ Gewicht ontbreekt of is 0 voor container ${containernummer}`);
@@ -139,7 +139,10 @@ const containernummer = containerMatch[1];
   const tijdMatch = blok.match(/(\d{2}:\d{2})/);
   const tijd = tijdMatch ? `${tijdMatch[1]}:00` : '';
 
-
+if (!containertypeCode || containertypeCode === '0') {
+  console.warn(`❌ Containertype ontbreekt of wordt niet herkend voor container ${containernummer}`);
+  continue;
+}
 
   console.log(`✅ Container gevonden: ${containernummer} | Gewicht: ${gewichtRaw} | Volume: ${volumeRaw} | Zegel: ${zegelnummer}`);
   console.log(`🔍 blok: ${blok}`);
@@ -153,7 +156,7 @@ containersData.push({
         inleverBootnaam: bootnaam,
         inleverRederij: rederij,
         containernummer,
-        containertype: containertypeCode,
+        containertype: containertypeCode || '',
         volume: volumeRaw.replace(',', '.'),
         laadreferentie: '',
         inleverreferentie: '',
@@ -227,6 +230,7 @@ containersData.push({
     console.warn(`⚠️ Geen containers gevonden in DFDS-opdracht (ritnummer: ${ritnummer})`);
     console.warn('🔍 Alle regels:', splitLines);
   }
+console.log('✅ CONTROLE: parser-output containertype:', containertypeCode);
 
   return containersData;
 }
