@@ -95,41 +95,42 @@ if (splitLines.length < 5) {
   
 const containersData = [];
 
-  for (let i = 0; i < splitLines.length - 3; i++) {
-    const regel1 = splitLines[i];
-    const regel2 = splitLines[i + 1];
-    const regel3 = splitLines[i + 2];
-    const regel4 = splitLines[i + 3];
-    const fullBlock = `${regel1} ${regel2} ${regel3} ${regel4}`;
+for (let i = 0; i < splitLines.length; i++) {
+  const line = splitLines[i];
+  const containerMatch = line.match(/[A-Z]{4}U\d{7}/);
+  if (!containerMatch) continue;
 
-    const match = fullBlock.match(/([A-Z]{4}U\d{7})\s+([0-9]{2,3}ft(?:\s?HC)?)\s*[-–—]?\s*([\d.,]+)\s*m3\s*[/\-]?\s*(?:Zegel|Seal)[:\s]*([A-Z0-9]+)/i);
-    if (match) {
-      const [_, containernummer, containertypeRaw, volumeRaw, zegelnummer] = match;
-      const context = splitLines.slice(i, i + 5).join(' ');
-      const gewichtMatch = context.match(/([\d.,]+)\s*(?:KG|kg)/i);
-      const gewicht = gewichtMatch?.[1]?.replace(',', '.') || '';
-      if (!gewicht || parseFloat(gewicht) <= 0) {
-        console.warn(`❌ Gewicht ontbreekt of is 0 voor container ${containernummer}`);
-        continue;
-      }
+  const containernummer = containerMatch[0];
+  const context = splitLines.slice(i, i + 6).join(' ');
 
-      const colli = safeMatch(/(\d+)\s*(?:carton|colli|pcs)/i, fullBlock);
-      const lading = findFirst(/(?:\d+\s+(?:carton|colli|pcs)\s+)?([A-Z0-9\s\-]+)/i, [regel4]);
-      const normType = containertypeRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const containertypeCode = await getContainerTypeCode(normType);
-      const adr = /ADR|IMO|UN[ -]?NR/i.test(fullBlock) ? 'Waar' : '';
+  const containertypeRaw = safeMatch(/(\d{2,3}ft\s*HC?)/i, context);
+  const containertypeCode = await getContainerTypeCode(containertypeRaw?.toLowerCase().replace(/[^a-z0-9]/g, '') || '');
+  const volumeRaw = safeMatch(/([\d.,]+)\s*m3/i, context).replace(',', '.');
+  const zegelnummer = safeMatch(/Zegel[:\s]*([A-Z0-9]+)/i, context);
+  const gewichtRaw = safeMatch(/([\d.,]+)\s*(?:kg|KG)/i, context).replace(',', '.');
 
-      const datumMatch = context.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/) || context.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-        let datum = '';
-        if (datumMatch) {
-          if (datumMatch[3].length === 4) {
-            datum = `${parseInt(datumMatch[1])}-${parseInt(datumMatch[2])}-${datumMatch[3]}`;
-          } else {
-            datum = `${parseInt(datumMatch[3])}-${parseInt(datumMatch[2])}-${datumMatch[1]}`;
-          }
-        }
-      const tijdMatch = findFirst(/(\d{2}:\d{2})/, fullBlock);
-      const tijd = tijdMatch ? `${tijdMatch}:00` : '';
+  if (!gewichtRaw || parseFloat(gewichtRaw) <= 0) {
+    console.warn(`❌ Gewicht ontbreekt of is 0 voor container ${containernummer}`);
+    continue;
+  }
+
+  const colli = safeMatch(/(\d+)\s*(?:carton|colli|pcs)/i, context) || '0';
+  const lading = safeMatch(/Omschrijving\s+([A-Z0-9\s\-]{5,})/i, context) || '';
+  const adr = /ADR|IMO|UN[ -]?NR/i.test(context) ? 'Waar' : '';
+
+  let datum = '';
+  const datumMatch = context.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/) || context.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (datumMatch) {
+    if (datumMatch[3].length === 4) {
+      datum = `${parseInt(datumMatch[1])}-${parseInt(datumMatch[2])}-${datumMatch[3]}`;
+    } else {
+      datum = `${parseInt(datumMatch[3])}-${parseInt(datumMatch[2])}-${datumMatch[1]}`;
+    }
+  }
+
+  const tijdMatch = context.match(/(\d{2}:\d{2})/);
+  const tijd = tijdMatch ? `${tijdMatch[1]}:00` : '';
+
 
 
       containersData.push({
@@ -204,11 +205,11 @@ const containersData = [];
             tijslot_tm: '',
             portbase_code: dropoffInfo.portbase_code || '',
             bicsCode: dropoffInfo.bicsCode || ''
-   }
-        ]
-      });
-    }
-  }  if (containersData.length === 0) {
+      }
+    ]
+  });
+}
+ if (containersData.length === 0) {
     console.warn(`⚠️ Geen containers gevonden in DFDS-opdracht (ritnummer: ${ritnummer})`);
     console.warn('🔍 Alle regels:', splitLines);
   }
