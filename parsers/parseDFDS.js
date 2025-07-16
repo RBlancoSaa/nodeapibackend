@@ -111,7 +111,8 @@ const containernummer = containerMatch[1];
   ].map(l => ' ' + l).join(' '); // spaties forceren tussen regels
 
   const containertypeRaw = safeMatch(/(\d{2,3}ft\s*HC?)/i, blok);
-  const containertypeCode = await getContainerTypeCode(containertypeRaw?.toLowerCase().replace(/[^a-z0-9]/g, '') || '');
+  const normType = containertypeRaw?.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const containertypeCode = await getContainerTypeCode(normType || '');
   const volumeRaw = safeMatch(/([\d.,]+)\s*m3/i, blok).replace(',', '.');
   const zegelnummer = safeMatch(/Zegel[:\s]*([A-Z0-9]+)/i, blok);
   const gewichtRaw = safeMatch(/([\d.,]+)\s*(?:kg|KG)/i, blok).replace(',', '.');
@@ -138,11 +139,14 @@ const containernummer = containerMatch[1];
   const tijdMatch = blok.match(/(\d{2}:\d{2})/);
   const tijd = tijdMatch ? `${tijdMatch[1]}:00` : '';
 
+
+
   console.log(`✅ Container gevonden: ${containernummer} | Gewicht: ${gewichtRaw} | Volume: ${volumeRaw} | Zegel: ${zegelnummer}`);
-  console.log(`🔍 containertypeRaw: "${containertypeRaw}"`);
   console.log(`🔍 blok: ${blok}`);
-
-
+  console.log('🔍 containertypeRaw:', containertypeRaw);
+  console.log('🔍 normType:', normType); // alleen als je 'normType' gebruikt
+  console.log('🔍 containertypeCode:', containertypeCode);
+  console.log('🔄 getContainerTypeCode:', `'${normType}'`, '→', `'${containertypeCode}'`);
 
 containersData.push({
         ritnummer,
