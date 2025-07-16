@@ -110,8 +110,8 @@ const containernummer = containerMatch[1];
     splitLines[i + 2] || ''
   ].map(l => ' ' + l).join(' '); // spaties forceren tussen regels
 
-  const containertypeRaw = safeMatch(/(\d{2,3}ft\s*HC?)/i, blok);
-  const normType = containertypeRaw?.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const containertypeRaw = safeMatch(/(\d{2,3}ft\s*HC?)/i, blok); // bijv. '40ft HC'
+  const normType = containertypeRaw?.toLowerCase().replace(/[^a-z0-9]/g, ''); // bijv. '40fthc'
   const containertypeCode = await getContainerTypeCode(normType || '');
   const volumeRaw = (safeMatch(/([\d.,]+)\s*m3/i, blok) || '').replace(',', '.');
   const gewichtRaw = (safeMatch(/([\d.,]+)\s*(?:kg|KG)/i, blok) || '').replace(',', '.');
@@ -154,13 +154,20 @@ if (!containertypeCode || containertypeCode === '0') {
   console.log('🔍 normType:', normType); // alleen als je 'normType' gebruikt
   console.log('🔍 containertypeCode:', containertypeCode);
   console.log('🔄 getContainerTypeCode:', `'${normType}'`, '→', `'${containertypeCode}'`);
-
-containersData.push({
+  console.warn(`⚠️ ContainertypeCode is leeg! normType: ${normType} | Raw: ${containertypeRaw}`);
+  console.log('📤 Toevoegen aan containerData:', {
+      containernummer,
+      containertypeCode,
+      containertypeRaw,
+      normType
+    });
+    
+  containersData.push({
         ritnummer,
         inleverBootnaam: bootnaam,
         inleverRederij: rederij,
         containernummer,
-        containertype: containertypeRaw  || '',
+        containertype: containertypeCode || '',
         volume: volumeRaw.replace(',', '.'),
         laadreferentie: '',
         inleverreferentie: '',
