@@ -156,7 +156,7 @@ containersData.push({
         inleverBootnaam: bootnaam,
         inleverRederij: rederij,
         containernummer,
-        containertype: containertypeCode || '',
+        containertype: containertypeRaw  || '',
         volume: volumeRaw.replace(',', '.'),
         laadreferentie: '',
         inleverreferentie: '',
