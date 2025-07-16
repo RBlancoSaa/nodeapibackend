@@ -132,6 +132,10 @@ const containernummer = containerMatch[1];
     if (datumMatch[3].length === 4) {
       datum = `${parseInt(datumMatch[1])}-${parseInt(datumMatch[2])}-${datumMatch[3]}`;
     } else {
+      if (containersData.length === 0) {
+        console.warn(`⚠️ Geen containers gevonden in DFDS-opdracht (ritnummer: ${ritnummer})`);
+        console.warn('🔍 Alle regels:', splitLines);
+      }
       datum = `${parseInt(datumMatch[3])}-${parseInt(datumMatch[2])}-${datumMatch[1]}`;
     }
   }
