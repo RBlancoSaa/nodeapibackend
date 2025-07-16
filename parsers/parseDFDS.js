@@ -147,6 +147,11 @@ if (!containertypeCode || containertypeCode === '0') {
   console.warn(`❌ Containertype ontbreekt of wordt niet herkend voor container ${containernummer}`);
   continue;
 }
+
+  console.log('✅ CONTAINER:', containernummer);
+  console.log('🔍 containertypeRaw:', containertypeRaw);
+  console.log('🔍 normType:', normType);
+  console.log('🔍 containertypeCode:', containertypeCode);
   console.log('✅ DEBUG DFDS containertype:', containertypeRaw, '→', containertypeCode);
   console.log(`✅ Container gevonden: ${containernummer} | Gewicht: ${gewichtRaw} | Volume: ${volumeRaw} | Zegel: ${zegelnummer}`);
   console.log(`🔍 blok: ${blok}`);
@@ -167,7 +172,8 @@ if (!containertypeCode || containertypeCode === '0') {
         inleverBootnaam: bootnaam,
         inleverRederij: rederij,
         containernummer,
-        containertype: containertypeCode || '',
+        containertype: containertypeRaw || '',
+        containertypeCode: containertypeCode || '',
         volume: volumeRaw.replace(',', '.'),
         laadreferentie: '',
         inleverreferentie: '',
