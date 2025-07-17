@@ -106,7 +106,6 @@ if (!containerMatch || !containerMatch[1]) continue;
 
 const containernummer = containerMatch[1];
 
-
   const blok = [
     line,
     splitLines[i + 1] || '',
@@ -143,6 +142,7 @@ const containernummer = containerMatch[1];
   const tijdMatch = blok.match(/(\d{2}:\d{2})/);
   const tijd = tijdMatch ? `${tijdMatch[1]}:00` : '';
 
+  const cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
   const containertypeRaw = cargoLine.match(/1\s*x\s*(.+)/i)?.[1]?.trim() || '';
   logResult('containertype', containertypeRaw);
 
