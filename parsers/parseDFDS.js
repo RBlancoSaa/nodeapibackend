@@ -112,7 +112,17 @@ const containernummer = containerMatch[1];
     splitLines[i + 2] || ''
   ].map(l => ' ' + l).join(' '); // spaties forceren tussen regels
 
-  const volumeRaw = (safeMatch(/([\d.,]+)\s*m3/i, blok) || '').replace(',', '.');
+    // 📦 Containerregel-extractie
+  const containerRegel = line;
+  const containertypeMatch = containerRegel.match(/^[A-Z0-9]+\s+(.+?)\s+-/i);
+  const volumeMatch = containerRegel.match(/-\s+([\d.,]+)\s*m3/i);
+
+  const containertypeRaw = containertypeMatch ? containertypeMatch[1].trim() : '';
+  const volumeRaw = volumeMatch ? volumeMatch[1].replace(',', '.').trim() : '';
+
+  logResult('containertype', containertypeRaw);
+  logResult('volume', volumeRaw);
+
   const gewichtRaw = (safeMatch(/([\d.,]+)\s*(?:kg|KG)/i, blok) || '').replace(',', '.');
   const zegelnummer = (safeMatch(/Zegel[:\s]*([A-Z0-9]+)/i, blok) || '');
   const colli = (safeMatch(/(\d+)\s*(?:carton|colli|pcs)/i, blok) || '0');
@@ -142,99 +152,81 @@ const containernummer = containerMatch[1];
   const tijdMatch = blok.match(/(\d{2}:\d{2})/);
   const tijd = tijdMatch ? `${tijdMatch[1]}:00` : '';
 
-  const cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
-  const containertypeRaw = cargoLine.match(/1\s*x\s*(.+)/i)?.[1]?.trim() || '';
-  logResult('containertype', containertypeRaw);
+  console.log(`✅ Container gevonden: ${containernummer} | Gewicht: ${gewichtRaw} | Volume: ${volumeRaw} | Zegel: ${zegelnummer}`);
+  console.log(`🔍 blok: ${blok}`);
 
-  const containertypeCode = await getContainerTypeCode(containertypeRaw);
-  logResult('containertypeCode', containertypeCode);
-
-  if (!containertypeRaw || !containertypeCode) {
-    console.warn(`❌ Containertype ontbreekt of wordt niet herkend voor container ${containernummer}`);
-    continue;
-  }
-
-console.log(`✅ Container gevonden: ${containernummer} | Gewicht: ${gewichtRaw} | Volume: ${volumeRaw} | Zegel: ${zegelnummer}`);
-console.log(`🔍 blok: ${blok}`);
-console.log(`🔍 containertypeRaw:`, containertypeRaw);
-console.log(`🔍 normType:`, normType);
-console.log(`🔄 getContainerTypeCode: '${normType}' → '${containertype}'`);
-
-data.terminal = await getTerminalInfo(data.dropoffTerminal) || 
-                await getTerminalInfoMetFallback(data.dropoffTerminal) || '0';
-logResult('terminal', data.terminal);
 
 containersData.push({
-  ritnummer,
-  inleverBootnaam: bootnaam,
-  inleverRederij: rederij,
-  containernummer,
-  containertype,    
-        volume: volumeRaw.replace(',', '.'),
-        laadreferentie: '',
-        inleverreferentie: '',
-        datum,
-        tijd,
-        tijdTM: '',
-        klantnaam: klantNaam,
-        klantadres: klantAdres,
-        klantpostcode: klantPostcode,
-        klantplaats: klantPlaats,
-        colli: colli || '0',
-        lading,
-        gewicht: gewichtRaw,
-        zegelnummer,
-        temperatuur: '0',
-        adr,
-        opdrachtgeverNaam: 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
-        opdrachtgeverAdres: 'WOLGAWEG 3',
-        opdrachtgeverPostcode: '3198 LR',
-        opdrachtgeverPlaats: 'ROTTERDAM',
-        opdrachtgeverTelefoon: '010-1234567',
-        opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
-        opdrachtgeverBTW: 'NL007129099B01',
-        opdrachtgeverKVK: '24232781',
-        meldtijd: '',
-        instructies: '',
-        locaties: [
-          {
-            volgorde: '0',
-            actie:'Opzetten',
-            naam: pickupInfo.naam || pickupTerminal,
-            adres: pickupInfo.adres || '',
-            postcode: pickupInfo.postcode || '',
-            plaats: pickupInfo.plaats || '',
-            land: pickupInfo.land || 'NL',
-            voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-            aankomst_verw: '',
-            tijslot_van: '',
-            tijslot_tm: '',
-            portbase_code: pickupInfo.portbase_code || '',
-            bicsCode: pickupInfo.bicsCode || ''
-          },
-          {
-            volgorde: '0',
-            actie: 'Lossen',
-            naam: klantNaam,
-            adres: klantAdres,
-            postcode: klantPostcode,
-            plaats: klantPlaats,
-            land: 'NL'
-          },
-          {
-            volgorde: '0',
-            actie: 'Afzetten',
-            naam: dropoffInfo.naam || dropoffTerminal,
-            adres: dropoffInfo.adres || '',
-            postcode: dropoffInfo.postcode || '',
-            plaats: dropoffInfo.plaats || '',
-            land: dropoffInfo.land || 'NL',
-            voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-            aankomst_verw: '',
-            tijslot_van: '',
-            tijslot_tm: '',
-            portbase_code: dropoffInfo.portbase_code || '',
-            bicsCode: dropoffInfo.bicsCode || ''
+    ritnummer,
+    inleverBootnaam: bootnaam,
+    inleverRederij: rederij,
+    containernummer,
+    containertype: containertypeRaw,
+    volume: volumeRaw,
+    laadreferentie: '',
+    inleverreferentie: '',
+    datum,
+    tijd,
+    tijdTM: '',
+    klantnaam: klantNaam,
+    klantadres: klantAdres,
+    klantpostcode: klantPostcode,
+    klantplaats: klantPlaats,
+    colli: colli || '0',
+    lading,
+    gewicht: gewichtRaw,
+    zegelnummer,
+    temperatuur: '0',
+    adr,
+    opdrachtgeverNaam: 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
+    opdrachtgeverAdres: 'WOLGAWEG 3',
+    opdrachtgeverPostcode: '3198 LR',
+    opdrachtgeverPlaats: 'ROTTERDAM',
+    opdrachtgeverTelefoon: '010-1234567',
+    opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
+    opdrachtgeverBTW: 'NL007129099B01',
+    opdrachtgeverKVK: '24232781',
+    meldtijd: '',
+    instructies: '',
+    locaties: [
+      {
+        volgorde: '0',
+        actie:'Opzetten',
+        naam: pickupInfo.naam || pickupTerminal,
+        adres: pickupInfo.adres || '',
+        postcode: pickupInfo.postcode || '',
+        plaats: pickupInfo.plaats || '',
+        land: pickupInfo.land || 'NL',
+        voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+        aankomst_verw: '',
+        tijslot_van: '',
+        tijslot_tm: '',
+        portbase_code: pickupInfo.portbase_code || '',
+        bicsCode: pickupInfo.bicsCode || ''
+      },
+      {
+        volgorde: '0',
+        actie: 'Lossen',
+        naam: klantNaam,
+        adres: klantAdres,
+        postcode: klantPostcode,
+        plaats: klantPlaats,
+        land: 'NL'
+      },
+      {
+        volgorde: '0',
+        actie: 'Afzetten',
+        naam: dropoffInfo.naam || dropoffTerminal,
+        adres: dropoffInfo.adres || '',
+        postcode: dropoffInfo.postcode || '',
+        plaats: dropoffInfo.plaats || '',
+        land: dropoffInfo.land || 'NL',
+        voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+        aankomst_verw: '',
+        tijslot_van: '',
+        tijslot_tm: '',
+        portbase_code: dropoffInfo.portbase_code || '',
+        bicsCode: dropoffInfo.bicsCode || ''
       }
     ]
   });
