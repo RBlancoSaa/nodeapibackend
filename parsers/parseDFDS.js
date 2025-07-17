@@ -92,7 +92,18 @@ data.zegel = log('zegel', containerMatch?.[4] || '');
   // Pickup info
   const pickupBlok = regels.find(r => r.startsWith('Pickup'));
   data.laadreferentie = log('laadreferentie', pickupBlok?.match(/Reference:?\s*(\S+)/i)?.[1] || '');
-  data.datum = log('datum', pickupBlok?.match(/(\d{2}-\d{2}-\d{4})/)?.[1] || '');
+  const pickupLine = regels.find(r => r.match(/\d{2}-\d{2}-\d{4}/));
+data.datum = log('datum', pickupLine?.match(/(\d{2}-\d{2}-\d{4})/)?.[1] || '');
+
+if (!data.datum) {
+  const uploadDate = new Date();
+  const dd = String(uploadDate.getDate()).padStart(2, '0');
+  const mm = String(uploadDate.getMonth() + 1).padStart(2, '0');
+  const yyyy = uploadDate.getFullYear();
+  data.datum = `${dd}-${mm}-${yyyy}`;
+  data.instructies = 'DATUM STAAT VERKEERD';
+  console.warn('⚠️ Geen datum gevonden in PDF, uploaddatum gebruikt.');
+}
   data.tijd = log('tijd', formatTijd(regels.find(r => r.includes('Lossen')) || ''));
 
   // Lossen + Dropoff referentie
