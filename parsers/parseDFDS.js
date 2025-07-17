@@ -66,15 +66,18 @@ export default async function parseDFDS(buffer) {
   data.inleverBootnaam = data.bootnaam;
   data.inleverRederij = data.rederij;
 
-  // Containerregel en zegel
-  const containerLine = regels.find(r => r.match(/\b[A-Z]{4}\d{7}\b.*Zegel/i));
-  const containerMatch = containerLine?.match(/([A-Z]{4}\d{7})\s+(.+?)\s*-\s*([\d.]+)\s*m3.*Zegel:\s*(\S+)/i);
-  data.containernummer = log('containernummer', containerMatch?.[1] || '');
-  data.containertype = await getContainerTypeCode(containertypeRaw);   // ← '45G1'
-  data.containertypeOmschrijving = containertypeRaw;                   // ← '40ft HC'
+// Containerregel en zegel
+const containerLine = regels.find(r => r.match(/\b[A-Z]{4}\d{7}\b.*Zegel/i));
+const containerMatch = containerLine?.match(/([A-Z]{4}\d{7})\s+(.+?)\s*-\s*([\d.]+)\s*m3.*Zegel:\s*(\S+)/i);
 
-  data.cbm = log('cbm', containerMatch?.[3] || '0');
-  data.zegel = log('zegel', containerMatch?.[4] || '');
+data.containernummer = log('containernummer', containerMatch?.[1] || '');
+
+const containertypeRaw = containerMatch?.[2]?.trim() || ''; // ✅ voeg dit toe
+data.containertype = await getContainerTypeCode(containertypeRaw);    // → '45G1'
+data.containertypeOmschrijving = containertypeRaw;                    // → '40ft HC'
+
+data.cbm = log('cbm', containerMatch?.[3] || '0');
+data.zegel = log('zegel', containerMatch?.[4] || '');
 
   // Lading, gewicht, colli
   const goodsLine = regels.find(r => r.match(/\d+\s+\w+\s+RECHARGEABLE/i));
