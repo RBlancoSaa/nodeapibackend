@@ -1,33 +1,47 @@
-// 📁 handlers/handleDFDS.js
+// handlers/handleDFDS.js
 import parseDFDS from '../parsers/parseDFDS.js';
 import generateXmlFromJson from '../services/generateXmlFromJson.js';
-import uploadToSupabase from '../services/uploadPdfAttachmentsToSupabase.js'; // ✅ correct
-import path from 'path';
-import { fileTypeFromBuffer } from 'file-type';
+import uploadPdfAttachmentsToSupabase from '../services/uploadPdfAttachmentsToSupabase.js';
+import { logResult } from '../utils/log.js';
 
-export default async function handleDFDS(pdfBuffer, originalFilename) {
-  const containers = await parseDFDS(pdfBuffer);
-  const results = [];
+export default async function handleDFDS(pdfBuffer, filename) {
+  try {
+    console.log(`📥 Verwerken gestart voor: ${filename}`);
 
-  for (const containerData of containers) {
-    const xml = await generateXmlFromJson(containerData);
+    const { containers, algemeneData } = await parseDFDS(pdfBuffer);
+    if (!containers || containers.length === 0) {
+      throw new Error('❌ Geen containers gevonden in DFDS-opdracht.');
+    }
 
-    const bestandsnaam = `Order_${containerData.referentie}_${containerData.locaties[0].plaats}.easy`;
-    const bestandBuffer = Buffer.from(xml, 'utf-8');
+    const resultaten = [];
 
-    const uploadResult = await uploadToSupabase({
-      bestandBuffer,
-      bestandNaam: bestandsnaam,
-      contentType: 'text/plain',
-      subfolder: 'easytrip'
-    });
+    for (const containerData of containers) {
+      const data = { ...algemeneData, ...containerData };
 
-    results.push({
-      bestandNaam: bestandsnaam,
-      xmlVoorbeeld: xml.slice(0, 300),
-      uploadResult
-    });
+      // Logging per veld
+      Object.entries(data).forEach(([key, val]) => logResult(key, val));
+
+      // .easy-bestandsnaam
+      const safeLaadplaats = (data.locaties?.[0]?.plaats || 'Onbekend').replace(/\s+/g, '');
+      const bestandsnaam = `Order_${data.referentie || 'GEENREF'}_${safeLaadplaats}.easy`;
+
+      // Genereer XML
+      const xml = generateXmlFromJson(data);
+
+      // Upload naar Supabase
+      await uploadPdfAttachmentsToSupabase({
+        filename: bestandsnaam,
+        fileContent: xml,
+        originalPdfName: filename,
+      });
+
+      resultaten.push({ bestandsnaam, referentie: data.referentie, containernummer: data.containernummer });
+      console.log(`✅ Verwerkt: ${bestandsnaam}`);
+    }
+
+    return resultaten;
+  } catch (error) {
+    console.error(`❌ Fout bij verwerken DFDS-opdracht ${filename}:`, error.message);
+    throw error;
   }
-
-  return results;
 }
