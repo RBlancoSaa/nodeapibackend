@@ -1,7 +1,7 @@
 // 📁 handlers/handleDFDS.js
 import parseDFDS from '../parsers/parseDFDS.js';
 import generateXmlFromJson from '../services/generateXmlFromJson.js';
-import uploadToSupabase from '../services/uploadToSupabase.js';
+import uploadToSupabase from '../services/uploadPdfAttachmentsToSupabase.js'; // ✅ correct
 import path from 'path';
 import { fileTypeFromBuffer } from 'file-type';
 
