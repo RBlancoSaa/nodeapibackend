@@ -152,11 +152,21 @@ console.log('🧾 Rederij in data:', data.rederij);
   });
 
 // 📌 Match containertype-omschrijving → code uit containerslijst
-// ALLEEN als data.containertype nog leeg is, probeer te mappen op omschrijving
-const omschrijving = data.containertypeOmschrijving || data.containertype;
-const code = getContainerCodeFromOmschrijving(omschrijving, containers);
-if (!code) {
-  throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
+let omschrijving = data.containertypeOmschrijving || data.containertype;
+
+// Als containertype al een geldige code is, niet opnieuw mappen
+const isCode = containers.some(c => c.code === data.containertype);
+if (isCode) {
+  // containertype is al een code, dus niet opnieuw mappen
+  omschrijving = null;
+}
+
+let code = data.containertype;
+if (!isCode) {
+  code = getContainerCodeFromOmschrijving(omschrijving, containers);
+  if (!code) {
+    throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
+  }
 }
 data.containertype = code;
 
