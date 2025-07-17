@@ -71,7 +71,7 @@ export default async function parseDFDS(buffer) {
   const containerMatch = containerLine?.match(/([A-Z]{4}\d{7})\s+(.+?)\s*-\s*([\d.]+)\s*m3.*Zegel:\s*(\S+)/i);
   data.containernummer = log('containernummer', containerMatch?.[1] || '');
   const containertypeRaw = containerMatch?.[2]?.trim() || '';
-  data.containerType = log('containerType', await getContainerTypeCode(containertypeRaw));
+  data.containertype = log('containertype', await getContainerTypeCode(containertypeRaw));
   data.cbm = log('cbm', containerMatch?.[3] || '0');
   data.zegel = log('zegel', containerMatch?.[4] || '');
 
@@ -155,5 +155,5 @@ export default async function parseDFDS(buffer) {
     }
   ];
 
-  return [data];
+  return data;
 }
