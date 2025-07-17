@@ -4,8 +4,11 @@ import { Buffer } from 'buffer';
 import PDFParser from 'pdf2json';
 import pdfParse from 'pdf-parse';
 import {
-  getTerminalInfoMetFallback,
-  getContainerTypeCode
+  getTerminalInfo,
+  getRederijNaam,
+  getContainerTypeCode,
+  getTerminalInfoFallback,
+  getTerminalInfoMetFallback
 } from '../utils/lookups/terminalLookup.js';
 
 function extractLinesPdf2Json(buffer) {
@@ -140,11 +143,13 @@ const containernummer = containerMatch[1];
   const tijdMatch = blok.match(/(\d{2}:\d{2})/);
   const tijd = tijdMatch ? `${tijdMatch[1]}:00` : '';
 
-  const containertypeRaw = safeMatch(/(\d{2,3}ft\s*HC?)/i, blok); // bijv. '40ft HC'
-  const normType = containertypeRaw?.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const containertype = await getContainerTypeCode(normType || '');
+  const containertypeRaw = cargoLine.match(/1\s*x\s*(.+)/i)?.[1]?.trim() || '';
+  logResult('containertype', containertypeRaw);
 
-  if (!containertype || containertype === '0') {
+  const containertypeCode = await getContainerTypeCode(containertypeRaw);
+  logResult('containertypeCode', containertypeCode);
+
+  if (!containertypeRaw || !containertypeCode) {
     console.warn(`❌ Containertype ontbreekt of wordt niet herkend voor container ${containernummer}`);
     continue;
   }
@@ -154,6 +159,10 @@ console.log(`🔍 blok: ${blok}`);
 console.log(`🔍 containertypeRaw:`, containertypeRaw);
 console.log(`🔍 normType:`, normType);
 console.log(`🔄 getContainerTypeCode: '${normType}' → '${containertype}'`);
+
+data.terminal = await getTerminalInfo(data.dropoffTerminal) || 
+                await getTerminalInfoMetFallback(data.dropoffTerminal) || '0';
+logResult('terminal', data.terminal);
 
 containersData.push({
   ritnummer,
