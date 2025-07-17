@@ -74,7 +74,7 @@ data.containernummer = log('containernummer', containerMatch?.[1] || '');
 
 const containertypeRaw = containerMatch?.[2]?.trim() || ''; // ✅ eerst definiëren
 data.containertypeOmschrijving = containertypeRaw;           // ❗️omschrijving bewaren
-data.containertype = log('containertype', await getContainerTypeCode(containertypeRaw)); // dan gebruiken
+data.containertype = log('containertype', containertypeRaw);
 
 data.cbm = log('cbm', containerMatch?.[3] || '0');
 data.zegel = log('zegel', containerMatch?.[4] || '');
