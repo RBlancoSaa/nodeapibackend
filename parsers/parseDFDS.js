@@ -70,10 +70,8 @@ export default async function parseDFDS(buffer) {
   const containerLine = regels.find(r => r.match(/\b[A-Z]{4}\d{7}\b.*Zegel/i));
   const containerMatch = containerLine?.match(/([A-Z]{4}\d{7})\s+(.+?)\s*-\s*([\d.]+)\s*m3.*Zegel:\s*(\S+)/i);
   data.containernummer = log('containernummer', containerMatch?.[1] || '');
-  const containertypeRaw = containerMatch?.[2]?.trim() || '';
-  const mappedType = await getContainerTypeCode(containertypeRaw);
-    if (!mappedType) console.error('❌ GEEN MAPPING GEVONDEN voor:', containertypeRaw);
-    data.containertype = log('containertype', mappedType || '');
+  data.containertype = await getContainerTypeCode(containertypeRaw);   // ← '45G1'
+  data.containertypeOmschrijving = containertypeRaw;                   // ← '40ft HC'
 
   data.cbm = log('cbm', containerMatch?.[3] || '0');
   data.zegel = log('zegel', containerMatch?.[4] || '');
@@ -157,6 +155,8 @@ export default async function parseDFDS(buffer) {
       bicsCode: locatie3.bicsCode || ''
     }
   ];
+
+console.log('➡️ Naar XML-generator:', JSON.stringify(data, null, 2));
 
   return data;
 }
