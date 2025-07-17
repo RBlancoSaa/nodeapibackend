@@ -72,7 +72,7 @@ export default async function parseDFDS(buffer) {
   data.containernummer = log('containernummer', containerMatch?.[1] || '');
   const containertypeRaw = containerMatch?.[2]?.trim() || '';
   data.containertype = log('containertype', containertypeRaw);
-  data.containertypeCode = log('containertypeCode', await getContainerTypeCode(containertypeRaw));
+  await getContainerTypeCode(containertypeRaw); // enkel voor validatie/matching
   data.cbm = log('cbm', containerMatch?.[3] || '0');
   data.zegel = log('zegel', containerMatch?.[4] || '');
 
