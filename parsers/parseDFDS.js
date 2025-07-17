@@ -72,9 +72,9 @@ const containerMatch = containerLine?.match(/([A-Z]{4}\d{7})\s+(.+?)\s*-\s*([\d.
 
 data.containernummer = log('containernummer', containerMatch?.[1] || '');
 
-const containertypeRaw = containerMatch?.[2]?.trim() || ''; // ✅ voeg dit toe
-data.containertype = await getContainerTypeCode(containertypeRaw);    // → '45G1'
-data.containertypeOmschrijving = containertypeRaw;                    // → '40ft HC'
+const containertypeRaw = containerMatch?.[2]?.trim() || ''; // ✅ eerst definiëren
+data.containertypeOmschrijving = containertypeRaw;           // ❗️omschrijving bewaren
+data.containertype = log('containertype', await getContainerTypeCode(containertypeRaw)); // dan gebruiken
 
 data.cbm = log('cbm', containerMatch?.[3] || '0');
 data.zegel = log('zegel', containerMatch?.[4] || '');
