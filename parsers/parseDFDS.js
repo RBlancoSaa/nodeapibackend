@@ -110,9 +110,6 @@ const containernummer = containerMatch[1];
     splitLines[i + 2] || ''
   ].map(l => ' ' + l).join(' '); // spaties forceren tussen regels
 
-  const containertypeRaw = safeMatch(/(\d{2,3}ft\s*HC?)/i, blok); // bijv. '40ft HC'
-  const normType = containertypeRaw?.toLowerCase().replace(/[^a-z0-9]/g, ''); // bijv. '40fthc'
-  const containertypeCode = await getContainerTypeCode(normType || '');
   const volumeRaw = (safeMatch(/([\d.,]+)\s*m3/i, blok) || '').replace(',', '.');
   const gewichtRaw = (safeMatch(/([\d.,]+)\s*(?:kg|KG)/i, blok) || '').replace(',', '.');
   const zegelnummer = (safeMatch(/Zegel[:\s]*([A-Z0-9]+)/i, blok) || '');
@@ -143,31 +140,27 @@ const containernummer = containerMatch[1];
   const tijdMatch = blok.match(/(\d{2}:\d{2})/);
   const tijd = tijdMatch ? `${tijdMatch[1]}:00` : '';
 
-if (!containertypeCode || containertypeCode === '0') {
-  console.warn(`❌ Containertype ontbreekt of wordt niet herkend voor container ${containernummer}`);
-  continue;
-}
+  const containertypeRaw = safeMatch(/(\d{2,3}ft\s*HC?)/i, blok); // bijv. '40ft HC'
+  const normType = containertypeRaw?.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const containertype = await getContainerTypeCode(normType || '');
 
-  console.log(`✅ Container gevonden: ${containernummer} | Gewicht: ${gewichtRaw} | Volume: ${volumeRaw} | Zegel: ${zegelnummer}`);
-  console.log(`🔍 blok: ${blok}`);
-  console.log('🔍 containertypeRaw:', containertypeRaw);
-  console.log('🔍 normType:', normType); // alleen als je 'normType' gebruikt
-  console.log('🔍 containertypeCode:', containertypeCode);
-  console.log('🔄 getContainerTypeCode:', `'${normType}'`, '→', `'${containertypeCode}'`);
-  console.warn(`⚠️ ContainertypeCode is leeg! normType: ${normType} | Raw: ${containertypeRaw}`);
-  console.log('📤 Toevoegen aan containerData:', {
-      containernummer,
-      containertypeCode,
-      containertypeRaw,
-      normType
-    });
-    
-  containersData.push({
-        ritnummer,
-        inleverBootnaam: bootnaam,
-        inleverRederij: rederij,
-        containernummer,
-        containertype: containertypeCode || '',
+  if (!containertype || containertype === '0') {
+    console.warn(`❌ Containertype ontbreekt of wordt niet herkend voor container ${containernummer}`);
+    continue;
+  }
+
+console.log(`✅ Container gevonden: ${containernummer} | Gewicht: ${gewichtRaw} | Volume: ${volumeRaw} | Zegel: ${zegelnummer}`);
+console.log(`🔍 blok: ${blok}`);
+console.log(`🔍 containertypeRaw:`, containertypeRaw);
+console.log(`🔍 normType:`, normType);
+console.log(`🔄 getContainerTypeCode: '${normType}' → '${containertype}'`);
+
+containersData.push({
+  ritnummer,
+  inleverBootnaam: bootnaam,
+  inleverRederij: rederij,
+  containernummer,
+  containertype,    
         volume: volumeRaw.replace(',', '.'),
         laadreferentie: '',
         inleverreferentie: '',

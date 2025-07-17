@@ -45,6 +45,10 @@ export default async function parseDFDS(pdfBuffer) {
     const containerTypeCode = await getContainerTypeCode(type);
     const pickupInfo = await getTerminalInfoMetFallback(pickupTerminal);
     const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal);
+    if (!containerTypeCode) {
+      console.warn(`❌ FOUT: Geen containertypeCode gevonden voor "${type}" (container ${containerNummer})`);
+      continue; // of skip alleen container
+    }
 
     containers.push({
       ritnummer,
