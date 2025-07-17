@@ -153,14 +153,12 @@ console.log('🧾 Rederij in data:', data.rederij);
 
 // 📌 Match containertype-omschrijving → code uit containerslijst
 // ALLEEN als data.containertype nog leeg is, probeer te mappen op omschrijving
-if (!data.containertype && data.containertypeOmschrijving) {
-  const code = getContainerCodeFromOmschrijving(data.containertypeOmschrijving, containers);
-  if (!code) {
-    console.warn('⚠️ Geen mapping gevonden voor omschrijving:', data.containertypeOmschrijving);
-  } else {
-    data.containertype = code;
-  }
+const omschrijving = data.containertypeOmschrijving || data.containertype;
+const code = getContainerCodeFromOmschrijving(omschrijving, containers);
+if (!code) {
+  throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
 }
+data.containertype = code;
 
 // ✅ Minimale vereisten check – verplaatst naar ná code-matching
 if (!data.containertype || data.containertype === '0') {
