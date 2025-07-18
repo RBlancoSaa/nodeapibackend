@@ -8,7 +8,7 @@ export default async function handleDFDS(pdfBuffer, filename) {
   try {
     console.log(`📥 Verwerken gestart voor: ${filename}`);
 
-    const { containers, algemeneData } = await parseDFDS(pdfBuffer);
+    const containers = await parseDFDS(pdfBuffer);
     if (!containers || containers.length === 0) {
       throw new Error('❌ Geen containers gevonden in DFDS-opdracht.');
     }
@@ -16,7 +16,12 @@ export default async function handleDFDS(pdfBuffer, filename) {
     const resultaten = [];
 
     for (const containerData of containers) {
-      const data = { ...algemeneData, ...containerData };
+      const data = { ...containerData };
+
+      // Gebruik alleen containertypeCode als geldig
+      if (!data.containertype && data.containertypeCode && data.containertypeCode !== '0') {
+        data.containertype = data.containertypeCode;
+      }
 
       // Logging per veld
       Object.entries(data).forEach(([key, val]) => logResult(key, val));
@@ -26,7 +31,6 @@ export default async function handleDFDS(pdfBuffer, filename) {
       const bestandsnaam = `Order_${data.referentie || 'GEENREF'}_${safeLaadplaats}.easy`;
 
       // Genereer XML
-      if (!data.containertype && data.containertypeCode) data.containertype = data.containertypeCode;
       const xml = generateXmlFromJson(data);
       console.log(typeof xml);
       console.log(xml);
@@ -38,7 +42,12 @@ export default async function handleDFDS(pdfBuffer, filename) {
         originalPdfName: filename,
       });
 
-      resultaten.push({ bestandsnaam, referentie: data.referentie, containernummer: data.containernummer });
+      resultaten.push({
+        bestandsnaam,
+        referentie: data.referentie,
+        containernummer: data.containernummer,
+      });
+
       console.log(`✅ Verwerkt: ${bestandsnaam}`);
     }
 
