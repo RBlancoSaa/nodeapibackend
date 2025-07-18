@@ -94,27 +94,29 @@ export default async function parseDFDS(pdfBuffer) {
 
     const lading = logResult('lading', regels.find(r => r.match(/\d+\s*CARTON|BAG|PALLET|BARREL/i)) || '');
     const referentie = logResult('referentie', regels.find(r => r.startsWith('Lossen'))?.split(' ')[1]);
+    
+    // Tijd en datum
     const tijdMatch = regels.find(r => r.match(/\d{2}:\d{2}/))?.match(/(\d{2}):(\d{2})/);
     const tijd = tijdMatch ? `${tijdMatch[1]}:${tijdMatch[2]}:00` : '';
+    const dateMatch = text.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/);
     logResult('tijd', tijd);
 
     if (dateMatch) {
-    const dag = parseInt(dateMatch[1]).toString().padStart(2, '0');
-    const maandStr = dateMatch[2].toLowerCase().slice(0, 3);
-    const jaar = dateMatch[3];
-    const tijd = dateMatch[4];
-
-    const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-    const maand = (maanden[maandStr] || 0).toString().padStart(2, '0');
-
-    laadDatum = `${dag}-${maand}-${jaar}`;
-    laadTijd = tijd ? `${tijd}:00` : '';
-  } else {
-    const nu = new Date();
-    laadDatum = `${nu.getDate().toString().padStart(2, '0')}-${(nu.getMonth() + 1).toString().padStart(2, '0')}-${nu.getFullYear()}`;
-    laadTijd = '';
-    bijzonderheid = 'DATUM STAAT VERKEERD';
-  }
+      const dag = parseInt(dateMatch[1]).toString().padStart(2, '0');
+      const maandStr = dateMatch[2].toLowerCase().slice(0, 3);
+      const jaar = dateMatch[3];
+      const tijdUitDateMatch = dateMatch[4];
+      const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+      const maand = (maanden[maandStr] || 0).toString().padStart(2, '0');
+      
+      laadDatum = `${dag}-${maand}-${jaar}`;
+      laadTijd = tijdUitDateMatch ? `${tijdUitDateMatch}:00` : '';
+    } else {
+      const nu = new Date();
+      laadDatum = `${nu.getDate().toString().padStart(2, '0')}-${(nu.getMonth() + 1).toString().padStart(2, '0')}-${nu.getFullYear()}`;
+      laadTijd = '';
+      bijzonderheid = 'DATUM STAAT VERKEERD';
+    }
     
       let adr = 'Onwaar';
       for (const regel of regels) {
