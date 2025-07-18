@@ -90,10 +90,10 @@ function getContainerCodeFromOmschrijving(omschrijving, containerList) {
 
 export async function generateXmlFromJson(data) {
   if (!data.containertype || data.containertype === '0') {
-    throw new Error('Containertype ontbreekt. Bestand wordt niet gegenereerd.');
-  }
+  console.warn('⚠️ Containertype ontbreekt – veld blijft leeg, bestand wordt toch gegenereerd.');
+}
   if (!data.datum) {
-    throw new Error('Datum ontbreekt. Bestand wordt niet gegenereerd.');
+    console.warn('⚠️Datum ontbreekt. Bestand wordt toch gegenereerd.');
   }
  if (!data.klantnaam) {
   console.warn('⚠️ Klantnaam ontbreekt – bestand wordt wel gegenereerd');
