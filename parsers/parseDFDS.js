@@ -80,6 +80,10 @@ export default async function parseDFDS(pdfBuffer) {
     ]
   };
 
+    let laadDatum = '';
+    let laadTijd = '';
+    let bijzonderheid = '';
+
   // 📦 Containers
   const containers = [];
 
@@ -169,8 +173,9 @@ export default async function parseDFDS(pdfBuffer) {
       brutogewicht: gewicht,
       zegel,
       referentie,
-      tijd,
-      datum,
+      datum: laadDatum,
+      tijd: laadTijd,
+      instructies: bijzonderheid,
       laadreferentie: '',
       lading,
       adr,
@@ -182,7 +187,7 @@ export default async function parseDFDS(pdfBuffer) {
       inleverreferentie: referentie,
       inleverBestemming: '',
       instructies,
-      ladenOfLossen: 'Lossen'
+      ladenOfLossen: ''
     };
 
     containers.push(containerData);
