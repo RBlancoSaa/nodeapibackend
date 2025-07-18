@@ -9,8 +9,9 @@ import {
 } from '../utils/lookups/terminalLookup.js';
 
 function logResult(label, value) {
-  console.log(`🔍 ${label}:`, value || '[LEEG]');
-  return value;
+  const result = value ?? '';
+  console.log(`🔍 ${label}:`, result || '[LEEG]');
+  return result;
 }
 
 export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
