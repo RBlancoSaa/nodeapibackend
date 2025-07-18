@@ -1,7 +1,7 @@
 // handlers/handleDFDS.js
 import parseDFDS from '../parsers/parseDFDS.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import uploadPdfAttachmentsToSupabase from '../services/uploadPdfAttachmentsToSupabase.js';
+import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
 import { logResult } from '../utils/log.js';
 
 export default async function handleDFDS(pdfBuffer, filename) {
