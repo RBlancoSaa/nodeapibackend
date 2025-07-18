@@ -68,12 +68,26 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   const temperatuur = text.match(/-?(\d{1,2})\s*°?C/)?.[1] || '0';
 
   // 📦 Klantgegevens
-  const klantregel = regels.find(r => r.toLowerCase().includes('lossen') || r.toLowerCase().includes('dropoff')) || '';
-  const klantMatch = klantregel.match(/Lossen\s+(.+)/i);
-  const klantNaam = klantMatch?.[1] || '';
-  const klantAdres = klantregel.match(/Adres[:\s]+(.+)/i)?.[1] || '';
-  const klantPostcode = klantregel.match(/Postcode[:\s]+(.+)/i)?.[1] || '';
-  const klantPlaats = klantregel.match(/Plaats[:\s]+(.+)/i)?.[1] || '';
+  const indexLossen = regels.findIndex(r => r.toLowerCase().includes('lossen') || r.toLowerCase().includes('dropoff'));
+  let klantNaam = '', klantAdres = '', klantPostcode = '', klantPlaats = '';
+
+  if (indexLossen !== -1) {
+    for (let i = indexLossen; i < indexLossen + 5; i++) {
+      const regel = regels[i]?.trim() || '';
+      if (regel.toLowerCase().startsWith('lossen')) {
+        klantNaam = regel.replace(/^Lossen\s*/i, '').trim();
+      }
+      if (regel.toLowerCase().startsWith('adres')) {
+        klantAdres = regel.replace(/^Adres[:\s]*/i, '').trim();
+      }
+      if (regel.toLowerCase().startsWith('postcode')) {
+        klantPostcode = regel.replace(/^Postcode[:\s]*/i, '').trim();
+      }
+      if (regel.toLowerCase().startsWith('plaats')) {
+        klantPlaats = regel.replace(/^Plaats[:\s]*/i, '').trim();
+      }
+    }
+  }
 
   // 🧠 Terminalinfo ophalen
   const pickupInfo = await getTerminalInfoMetFallback(pickupTerminal);
@@ -139,13 +153,13 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
         bicsCode: pickupInfo.bicsCode || ''
       },
       {
-        volgorde: '0',
-        actie: pickupTerminal.toLowerCase().includes('rotterdam') ? 'Laden' : 'Lossen',
-        naam: klant.naam,
-        adres: klant.adres,
-        postcode: klant.postcode,
-        plaats: klant.plaats,
-        land: klant.land
+      volgorde: '0',
+      actie: ladenOfLossen,
+      naam: klantNaam,
+      adres: klantAdres,
+      postcode: klantPostcode,
+      plaats: klantPlaats,
+      land: 'NL'
       },
       {
         volgorde: '0',
