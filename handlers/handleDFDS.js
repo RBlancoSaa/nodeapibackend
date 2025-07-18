@@ -26,10 +26,10 @@ export default async function handleDFDS(pdfBuffer, filename) {
       const bestandsnaam = `Order_${data.referentie || 'GEENREF'}_${safeLaadplaats}.easy`;
 
       // Genereer XML
-      // Genereer XML
+      if (!data.containertype && data.containertypeCode) data.containertype = data.containertypeCode;
       const xml = generateXmlFromJson(data);
-      console.log(typeof xml); // ➜ dit moet 'string' loggen
-      console.log(xml);        // ➜ toont het echte XML-resultaat
+      console.log(typeof xml);
+      console.log(xml);
 
       // Upload naar Supabase
       await uploadEasyFileToSupabase({
