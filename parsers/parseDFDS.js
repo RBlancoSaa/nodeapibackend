@@ -180,5 +180,22 @@ export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
   };
 
   console.log('📤 PARSED DFDS DATA:', JSON.stringify(data, null, 2));
-  return data;
+   return {
+    containers,
+    algemeneData: {
+      ritnummer,
+      bootnaam,
+      rederij,
+      inleverBootnaam: bootnaam,
+      inleverRederij: rederij,
+      opdrachtgeverNaam: 'DFDS Warehousing Rotterdam BV',
+      opdrachtgeverAdres: 'Wolgaweg 5, 3198 LR Rotterdam - Europoort, THE NETHERLANDS',
+      opdrachtgeverPostcode: '3198 LR',
+      opdrachtgeverPlaats: 'ROTTERDAM',
+      opdrachtgeverTelefoon: '010-1234567',
+      opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
+      opdrachtgeverBTW: 'NL007129099B01',
+      opdrachtgeverKVK: '24232781',
+    }
+  };
 }
