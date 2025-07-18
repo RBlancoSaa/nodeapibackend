@@ -82,7 +82,7 @@ export default async function parseDFDS(pdfBuffer) {
 
     let laadDatum = '';
     let laadTijd = '';
-    let bijzonderheid = '';
+    let instructies = '';
 
   // 📦 Containers
   const containers = [];
@@ -119,7 +119,7 @@ export default async function parseDFDS(pdfBuffer) {
       const nu = new Date();
       laadDatum = `${nu.getDate().toString().padStart(2, '0')}-${(nu.getMonth() + 1).toString().padStart(2, '0')}-${nu.getFullYear()}`;
       laadTijd = '';
-      bijzonderheid = 'DATUM STAAT VERKEERD';
+      instructies = 'DATUM STAAT VERKEERD';
     }
     
       let adr = 'Onwaar';
@@ -175,7 +175,7 @@ export default async function parseDFDS(pdfBuffer) {
       referentie,
       datum: laadDatum,
       tijd: laadTijd,
-      instructies: bijzonderheid,
+      instructies,
       laadreferentie: '',
       lading,
       adr,
