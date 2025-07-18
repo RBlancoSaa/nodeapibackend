@@ -1,7 +1,7 @@
 // handlers/handleDFDS.js
 import parseDFDS from '../parsers/parseDFDS.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
+import { uploadEasyFileToSupabase } from '../services/uploadEasyFileToSupabase.js';
 import { logResult } from '../utils/log.js';
 
 export default async function handleDFDS(pdfBuffer, filename) {
@@ -26,10 +26,13 @@ export default async function handleDFDS(pdfBuffer, filename) {
       const bestandsnaam = `Order_${data.referentie || 'GEENREF'}_${safeLaadplaats}.easy`;
 
       // Genereer XML
+      // Genereer XML
       const xml = generateXmlFromJson(data);
+      console.log(typeof xml); // ➜ dit moet 'string' loggen
+      console.log(xml);        // ➜ toont het echte XML-resultaat
 
       // Upload naar Supabase
-      await uploadPdfAttachmentsToSupabase({
+      await uploadEasyFileToSupabase({
         filename: bestandsnaam,
         fileContent: xml,
         originalPdfName: filename,
