@@ -89,35 +89,90 @@ export default async function parseDFDS(pdfBuffer) {
 
     const containernummer = logResult('containernummer', match[1]);
     const containertypeRaw = logResult('containertype', match[2]);
-    const volume = logResult('volume', match[3].replace(',', '.'));
     const zegel = logResult('zegel', match[4]);
     const containertypeCode = await getContainerTypeCode(containertypeRaw);
 
-    const gewicht = logResult('gewicht', regels.find(r => r.includes('kg'))?.match(/([\d.,]+)\s*kg/i)?.[1]?.replace(',', '.') || '0');
     const lading = logResult('lading', regels.find(r => r.match(/\d+\s*CARTON|BAG|PALLET|BARREL/i)) || '');
     const referentie = logResult('referentie', regels.find(r => r.startsWith('Lossen'))?.split(' ')[1]);
-    const tijd = logResult('tijd', regels.find(r => r.match(/\d{2}:\d{2}/))?.match(/(\d{2}:\d{2})/)?.[1] + ':00' || '');
+    const tijdMatch = regels.find(r => r.match(/\d{2}:\d{2}/))?.match(/(\d{2}):(\d{2})/);
+    const tijd = tijdMatch ? `${tijdMatch[1]}:${tijdMatch[2]}:00` : '';
+    logResult('tijd', tijd);
 
-    const datumRaw = regels.find(r => r.match(/\d{2}-\d{2}-\d{4}/))?.match(/(\d{2})-(\d{2})-(\d{4})/);
-    const datum = datumRaw ? `${parseInt(datumRaw[1])}-${parseInt(datumRaw[2])}-${datumRaw[3]}` : '';
-    const instructies = datum ? '' : 'DATUM STAAT VERKEERD';
+    if (dateMatch) {
+    const dag = parseInt(dateMatch[1]).toString().padStart(2, '0');
+    const maandStr = dateMatch[2].toLowerCase().slice(0, 3);
+    const jaar = dateMatch[3];
+    const tijd = dateMatch[4];
+
+    const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+    const maand = (maanden[maandStr] || 0).toString().padStart(2, '0');
+
+    laadDatum = `${dag}-${maand}-${jaar}`;
+    laadTijd = tijd ? `${tijd}:00` : '';
+  } else {
+    const nu = new Date();
+    laadDatum = `${nu.getDate().toString().padStart(2, '0')}-${(nu.getMonth() + 1).toString().padStart(2, '0')}-${nu.getFullYear()}`;
+    laadTijd = '';
+    bijzonderheid = 'DATUM STAAT VERKEERD';
+  }
+    
+      let adr = 'Onwaar';
+      for (const regel of regels) {
+        if (/ADR|UN\d{4}|IMO|Lithium|Hazardous/i.test(regel)) {
+          adr = 'Waar';
+          break;
+        }
+      }
+          // 📦 Robuuste containerwaarden uit regels
+      let colli = '0', volume = '0', gewicht = '0';
+
+      for (let regel of regels) {
+        const lower = regel.toLowerCase();
+
+        if (lower.includes('kg') && gewicht === '0') {
+          const match = regel.match(/([\d.,]+)\s*kg/i);
+          if (match) {
+            gewicht = match[1].replace(',', '.');
+            if (gewicht.includes('.')) {
+              gewicht = Math.round(parseFloat(gewicht)).toString();
+            }
+          }
+        }
+
+        if (lower.includes('m³') && volume === '0') {
+          const match = regel.match(/([\d.,]+)\s*m³/i);
+          if (match) {
+            volume = match[1].replace(',', '.');
+          }
+        }
+
+        const colliMatch = regel.match(/^\d{2,5}$/);
+        if (colliMatch && colli === '0') {
+          colli = colliMatch[0];
+        }
+      }
+
+      // 🧪 Logging
+      logResult('colli', colli);
+      logResult('volume', volume);
+      logResult('gewicht', gewicht);
 
     const containerData = {
       containernummer,
-      containertype: containertypeCode,
-      containertypeOmschrijving: containertypeRaw,
+      containertype: containertypeRaw,
+      containertypeCode,
       volume,
+      colli,
+      geladenGewicht: gewicht,
+      brutogewicht: gewicht,
       zegel,
       referentie,
       tijd,
       datum,
       laadreferentie: '',
       lading,
-      adr: gewicht !== '0' ? 'Waar' : 'Onwaar',
+      adr,
       tarra: '0',
-      geladenGewicht: gewicht,
-      brutogewicht: gewicht,
-      colli: '0',
       temperatuur: logResult('temperatuur', regels.find(r => r.includes('°C'))?.match(/(\d{1,2})/)?.[1] || ''),
       brix: '0',
       documentatie: '',
