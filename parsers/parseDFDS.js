@@ -1,144 +1,170 @@
-// 📁 parsers/parseDFDS.js
+// parsers/parseDFDS.js
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
-import { getTerminalInfoMetFallback, getContainerTypeCode } from '../utils/lookups/terminalLookup.js';
+import {
+  getTerminalInfo,
+  getRederijNaam,
+  getContainerTypeCode,
+  getTerminalInfoMetFallback
+} from '../utils/lookups/terminalLookup.js';
 
-function log(label, value) {
+function logResult(label, value) {
   console.log(`🔍 ${label}:`, value || '[LEEG]');
-  return value || '';
+  return value;
 }
 
-export default async function parseDFDS(pdfBuffer) {
+export default async function parseDFDS(pdfBuffer, klantAlias = 'dfds') {
+  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
+    console.warn('❌ Ongeldige of ontbrekende PDF buffer');
+    return {};
+  }
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
-  const regels = text.split('\n').map(r => r.trim()).filter(Boolean);
+  const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-  const ritnummer = log('ritnummer', text.match(/\bSFIM\d{7}\b/i)?.[0] || '');
-  const bootnaam = log('bootnaam', text.match(/Vaartuig\s+(.+?)\s+Reis/i)?.[1] || '');
-  const rederij = log('rederij', text.match(/Rederij\s+(.+)/i)?.[1]?.trim() || '');
-  const containernummers = regels.filter(r => r.match(/\b[A-Z]{4}\d{7}\b/));
+  // 🔢 Ritnummer = SFIMxxxxxxx
+  const ritnummer = text.match(/\b(SFIM\d{7})\b/)?.[1] || '0';
 
-  const containers = [];
+  // 🚢 Boot & rederij
+  const bootnaam = text.match(/Vaartuig\s+(.+?)\s+Reis/i)?.[1]?.trim() || '';
+  const rederij = text.match(/Rederij\s+(.+)/i)?.[1]?.trim() || '';
 
-  for (const regel of containernummers) {
-    const match = regel.match(/([A-Z]{4}\d{7})\s+(.+?)\s+-\s+([\d.]+)\s*m3.*Zegel:\s*(\S+)/i);
-    if (!match) continue;
+  // 📦 Containernummer, type en volume
+  const containerLine = regels.find(l => /^[A-Z]{4}\d{7}\s/.test(l)) || '';
+  const containernummer = containerLine.match(/^([A-Z]{4}\d{7})/)?.[1] || '';
+  const containertype = containerLine.match(/^\S+\s+(.+?)\s+-/)?.[1]?.trim() || '';
+  const volume = containerLine.match(/-\s*([\d.,]+)\s*m3/i)?.[1]?.replace(',', '.') || '0';
 
-    const containernummer = match[1];
-    const containertypeOmschrijving = match[2].trim();
-    const cbm = match[3].replace(',', '.');
-    const zegel = match[4];
-    const containertypeCode = await getContainerTypeCode(containertypeOmschrijving);
+  const containertypeCode = await getContainerTypeCode(containertype);
 
-    // Referentie en tijdregels
-    const lossenregel = regels.find(r => r.startsWith('Lossen'));
-    const referentie = log('referentie', lossenregel?.split(' ')[1] || '');
-    const tijdMatch = lossenregel?.match(/(\d{2}:\d{2})/);
-    const tijd = log('tijd', tijdMatch ? `${tijdMatch[1]}:00` : '');
+  // 🔐 Zegelnummer
+  const zegelregel = regels.find(r => /Zegel/i.test(r)) || '';
+  const zegel = zegelregel.match(/Zegel[:\s]*([A-Z0-9]+)/i)?.[1] || '';
 
-    const laadreferentie = log('laadreferentie', regels.find(r => r.startsWith('Pickup'))?.match(/Reference:?\s*(\S+)/i)?.[1] || '');
-    const pickupDatumMatch = regels.find(r => r.match(/\d{2}-\d{2}-\d{4}/))?.match(/(\d{2})-(\d{2})-(\d{4})/);
-    let datum = '';
-    if (pickupDatumMatch) {
-      datum = `${parseInt(pickupDatumMatch[1])}-${parseInt(pickupDatumMatch[2])}-${pickupDatumMatch[3]}`;
-    } else {
-      const today = new Date();
-      datum = `${today.getDate()}-${today.getMonth() + 1}-${today.getFullYear()}`;
-      console.warn('⚠️ Geen datum gevonden, fallback gebruikt:', datum);
-    }
+  // 🔁 Referentie & tijd
+  const referentieLine = regels.find(r => /^\d{8}\s+\d{2}-\d{2}-\d{4}/.test(r)) || '';
+  const referentie = referentieLine.split(' ')[0] || '';
+  const datumMatch = referentieLine.match(/(\d{2})-(\d{2})-(\d{4})/);
+  const tijdMatch = referentieLine.match(/(\d{2}:\d{2})/);
 
-    const klant = {
-      naam: 'DFDS Warehousing Rotterdam BV',
-      adres: 'Wolgaweg 5',
-      postcode: '3198 LR',
-      plaats: 'ROTTERDAM',
-      land: 'NL'
-    };
+  const datum = datumMatch ? `${parseInt(datumMatch[1])}-${parseInt(datumMatch[2])}-${datumMatch[3]}` : '';
+  const tijd = tijdMatch ? `${tijdMatch[1]}:00` : '';
 
-    const locatie1 = await getTerminalInfoMetFallback('DFDS Warehousing Rotterdam BV Europoort');
-    const locatie3 = await getTerminalInfoMetFallback('DFDS Warehousing Rotterdam BV Europoort');
+  // 🗃️ Lading & gewicht
+  const ladingRegel = regels.find(r => /\d+\,?\d*\s*kg/i.test(r)) || '';
+  const gewicht = ladingRegel.match(/([\d.,]+)\s*kg/i)?.[1]?.replace(',', '.') || '0';
+  const lading = ladingRegel.replace(/[\d.,]+\s*kg.*$/, '').trim();
 
-    const data = {
-      ritnummer,
-      bootnaam,
-      rederij,
-      inleverBootnaam: bootnaam,
-      inleverRederij: rederij,
-      containernummer,
-      containertype: containertypeCode,
-      containertypeOmschrijving,
-      cbm,
-      zegel,
-      referentie,
-      tijd,
-      datum,
-      laadreferentie,
-      lading: '',
-      adr: '',
-      tarra: '0',
-      geladenGewicht: '0',
-      brutogewicht: '0',
-      colli: '0',
-      temperatuur: '',
-      brix: '0',
-      documentatie: '',
-      tar: '',
-      inleverreferentie: referentie,
-      inleverBestemming: '',
-      instructies: pickupDatumMatch ? '' : 'DATUM STAAT VERKEERD',
+  // 📍 Locaties
+  const pickupLine = regels.find(r => /^Pickup\s+/i.test(r)) || '';
+  const pickupTerminal = pickupLine.replace(/^Pickup\s+/, '').trim();
 
-      opdrachtgeverNaam: 'DFDS Warehousing Rotterdam BV',
-      opdrachtgeverAdres: 'Wolgaweg 5, 3198 LR Rotterdam - Europoort, THE NETHERLANDS',
-      opdrachtgeverPostcode: '3198 LR',
-      opdrachtgeverPlaats: 'ROTTERDAM',
-      opdrachtgeverTelefoon: '010-1234567',
-      opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
-      opdrachtgeverBTW: 'NL007129099B01',
-      opdrachtgeverKVK: '24232781',
+  const dropoffLine = regels.find(r => /^Dropoff\s+/i.test(r)) || '';
+  const dropoffTerminal = dropoffLine.replace(/^Dropoff\s+/, '').trim();
 
-      locaties: [
-        {
-          volgorde: '0',
-          actie: 'Opzetten',
-          naam: locatie1.naam,
-          adres: locatie1.adres,
-          postcode: locatie1.postcode,
-          plaats: locatie1.plaats,
-          land: locatie1.land,
-          portbase_code: locatie1.portbase_code,
-          bicsCode: locatie1.bicsCode
-        },
-        {
-          volgorde: '0',
-          actie: 'Lossen',
-          naam: klant.naam,
-          adres: klant.adres,
-          postcode: klant.postcode,
-          plaats: klant.plaats,
-          land: klant.land
-        },
-        {
-          volgorde: '0',
-          actie: 'Afzetten',
-          naam: locatie3.naam,
-          adres: locatie3.adres,
-          postcode: locatie3.postcode,
-          plaats: locatie3.plaats,
-          land: locatie3.land,
-          portbase_code: locatie3.portbase_code,
-          bicsCode: locatie3.bicsCode
-        }
-      ],
+  const dropoffRef = dropoffLine.match(/Reference[:\s]+([A-Z0-9\-]+)/i)?.[1] || '';
 
-      ladenOfLossen: containernummer ? 'Lossen' : 'Laden'
-    };
+  // 🌡️ Temperatuur
+  const temperatuur = text.match(/-?(\d{1,2})\s*°?C/)?.[1] || '0';
 
-    containers.push(data);
-  }
+  // 📦 Klantgegevens
+  const klantregel = regels.find(r => r.toLowerCase().includes('lossen') || r.toLowerCase().includes('dropoff')) || '';
+  const klantMatch = klantregel.match(/Lossen\s+(.+)/i);
+  const klantNaam = klantMatch?.[1] || '';
+  const klantAdres = klantregel.match(/Adres[:\s]+(.+)/i)?.[1] || '';
+  const klantPostcode = klantregel.match(/Postcode[:\s]+(.+)/i)?.[1] || '';
+  const klantPlaats = klantregel.match(/Plaats[:\s]+(.+)/i)?.[1] || '';
 
-  if (containers.length === 0) {
-    console.warn('⚠️ Geen containers gevonden in DFDS-opdracht.');
-  }
+  // 🧠 Terminalinfo ophalen
+  const pickupInfo = await getTerminalInfoMetFallback(pickupTerminal);
+  const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal);
 
-  return containers;
+  // 📤 Einddata
+  const data = {
+    ritnummer: logResult('ritnummer', ritnummer),
+    containernummer: logResult('containernummer', containernummer),
+    containertype: logResult('containertype', containertype),
+    containertypeCode: logResult('containertypeCode', containertypeCode),
+    volume: logResult('volume', volume),
+    zegel: logResult('zegel', zegel),
+    referentie: logResult('referentie', referentie),
+    datum: logResult('datum', datum),
+    tijd: logResult('tijd', tijd),
+    gewicht: logResult('gewicht', gewicht),
+    lading: logResult('lading', lading),
+    temperatuur: logResult('temperatuur', temperatuur),
+    laadreferentie: logResult('laadreferentie', referentie),
+    inleverreferentie: logResult('inleverreferentie', dropoffRef),
+    bootnaam: logResult('bootnaam', bootnaam),
+    rederij: logResult('rederij', rederij),
+    inleverBootnaam: logResult('inleverBootnaam', bootnaam),
+    inleverRederij: logResult('inleverRederij', rederij),
+
+    opdrachtgeverNaam: 'DFDS Warehousing Rotterdam BV',
+    opdrachtgeverAdres: 'Wolgaweg 5',
+    opdrachtgeverPostcode: '3198 LR',
+    opdrachtgeverPlaats: 'ROTTERDAM',
+    opdrachtgeverTelefoon: '010-1234567',
+    opdrachtgeverEmail: 'nl-rtm-operations@dfds.com',
+    opdrachtgeverBTW: 'NL007129099B01',
+    opdrachtgeverKVK: '24232781',
+
+    klantnaam: klantNaam,
+    klantadres: klantAdres,
+    klantpostcode: klantPostcode,
+    klantplaats: klantPlaats,
+
+    adr: lading.toLowerCase().includes('adr') || lading.toLowerCase().includes('un') ? 'Waar' : 'Onwaar',
+    colli: '',
+    tarra: '',
+    geladenGewicht: '',
+    brutogewicht: '',
+    brix: '',
+    documentatie: '',
+    instructies: datum ? '' : 'DATUM STAAT VERKEERD',
+    locaties: [
+      {
+        volgorde: '0',
+        actie: 'Opzetten',
+        naam: pickupInfo.naam || pickupTerminal,
+        adres: pickupInfo.adres || '',
+        postcode: pickupInfo.postcode || '',
+        plaats: pickupInfo.plaats || '',
+        land: pickupInfo.land || 'NL',
+        voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+        aankomst_verw: '',
+        tijslot_van: '',
+        tijslot_tm: '',
+        portbase_code: pickupInfo.portbase_code || '',
+        bicsCode: pickupInfo.bicsCode || ''
+      },
+      {
+        volgorde: '0',
+        actie: pickupTerminal.toLowerCase().includes('rotterdam') ? 'Laden' : 'Lossen',
+        naam: klant.naam,
+        adres: klant.adres,
+        postcode: klant.postcode,
+        plaats: klant.plaats,
+        land: klant.land
+      },
+      {
+        volgorde: '0',
+        actie: 'Afzetten',
+        naam: dropoffInfo.naam || dropoffTerminal,
+        adres: dropoffInfo.adres || '',
+        postcode: dropoffInfo.postcode || '',
+        plaats: dropoffInfo.plaats || '',
+        land: dropoffInfo.land || 'NL',
+        voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+        aankomst_verw: '',
+        tijslot_van: '',
+        tijslot_tm: '',
+        portbase_code: dropoffInfo.portbase_code || '',
+        bicsCode: dropoffInfo.bicsCode || ''
+      }
+    ]
+  };
+
+  console.log('📤 PARSED DFDS DATA:', JSON.stringify(data, null, 2));
+  return data;
 }
