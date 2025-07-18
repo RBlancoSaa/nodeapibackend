@@ -32,6 +32,7 @@ export default async function parseDFDS(pdfBuffer) {
   const locatie3 = await getTerminalInfoMetFallback('DFDS Warehousing Rotterdam BV Europoort');
 
   const algemeneData = {
+
     ritnummer,
     bootnaam,
     rederij,
@@ -116,12 +117,13 @@ export default async function parseDFDS(pdfBuffer) {
       laadDatum = `${dag}-${maand}-${jaar}`;
       laadTijd = tijdUitDateMatch ? `${tijdUitDateMatch}:00` : '';
     } else {
-      const nu = new Date();
-      laadDatum = `${nu.getDate().toString().padStart(2, '0')}-${(nu.getMonth() + 1).toString().padStart(2, '0')}-${nu.getFullYear()}`;
-      laadTijd = '';
-      instructies = 'DATUM STAAT VERKEERD';
-    }
-    
+        const nu = new Date();
+        laadDatum = `${nu.getDate().toString().padStart(2, '0')}-${(nu.getMonth() + 1).toString().padStart(2, '0')}-${nu.getFullYear()}`;
+        laadTijd = '';
+      }
+    logResult('datum', laadDatum);
+    logResult('tijd', laadTijd);
+
       let adr = 'Onwaar';
       for (const regel of regels) {
         if (/ADR|UN\d{4}|IMO|Lithium|Hazardous/i.test(regel)) {
@@ -175,7 +177,6 @@ export default async function parseDFDS(pdfBuffer) {
       referentie,
       datum: laadDatum,
       tijd: laadTijd,
-      instructies,
       laadreferentie: '',
       lading,
       adr,
