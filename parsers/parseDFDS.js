@@ -31,15 +31,16 @@ export default async function parseDFDS(pdfBuffer) {
   const pickupInfo = await getTerminalInfoMetFallback('DFDS Warehousing Rotterdam BV Europoort');
   const dropoffInfo = await getTerminalInfoMetFallback('DFDS Warehousing Rotterdam BV Europoort');
 
+    let laadDatum = '';
+    let laadTijd = '';
+    let instructies = '';
+
   const instructieRegel = regels.find(r => r.toLowerCase().includes('opmerking') || r.toLowerCase().includes('remark'));
     if (instructieRegel) {
       instructies = instructieRegel.split(':')[1]?.trim() || '';
     }
     logResult('instructies', instructies);
 
-    let laadDatum = '';
-    let laadTijd = '';
-    let instructies = '';
 
     let isLossenOpdracht = false;
     if (fromLocatie && fromLocatie.toLowerCase().includes('be')) {
@@ -49,7 +50,16 @@ export default async function parseDFDS(pdfBuffer) {
     } else if (toLocatie && toLocatie.toLowerCase().includes('rotterdam')) {
       isLossenOpdracht = true;
     }
+    
+  const instructieRegel = regels.find(r =>
+      r.toLowerCase().includes('opmerking') || r.toLowerCase().includes('remark')
+    );
+    if (instructieRegel) {
+      instructies = instructieRegel.split(':')[1]?.trim() || '';
+    }
+    logResult('instructies', instructies);
 
+    
   // 📦 Containers
   const containers = [];
 
