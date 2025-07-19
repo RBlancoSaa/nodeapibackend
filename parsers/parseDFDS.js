@@ -21,7 +21,9 @@ export default async function parseDFDS(pdfBuffer) {
   const ritnummer = logResult('ritnummer', text.match(/\bSFIM\d{7}\b/)?.[0]);
   const bootnaam = logResult('bootnaam', text.match(/Vaartuig\s+(.+?)\s+Reis/i)?.[1]);
   const rederij = logResult('rederij', text.match(/Rederij\s+(.+)/i)?.[1]);
-
+  const loshaven = logResult('loshaven', text.match(/Loshaven\s+([A-Z]{5})\s*-\s*(.+)/i)?.[2]?.trim());
+  const fromLocatie = logResult('from', text.match(/From:\s*(.+)/i)?.[1]?.trim() || '');
+  const toLocatie = logResult('to', text.match(/To:\s*(.+)/i)?.[1]?.trim() || '');
   const klantNaam = logResult('klant.naam', regels.find(r => r.toLowerCase().includes('dropoff'))?.match(/Dropoff\s+(.+)/i)?.[1]);
   const klantAdres = logResult('klant.adres', regels.find(r => r.toLowerCase().includes('adres'))?.split('Adres:')[1]?.trim() || '');
   const klantPostcode = logResult('klant.postcode', regels.find(r => r.toLowerCase().includes('postcode'))?.split('Postcode:')[1]?.trim() || '');
@@ -32,6 +34,15 @@ export default async function parseDFDS(pdfBuffer) {
     let laadDatum = '';
     let laadTijd = '';
     let instructies = '';
+
+    let isLossenOpdracht = false;
+    if (fromLocatie && fromLocatie.toLowerCase().includes('be')) {
+      isLossenOpdracht = true;
+    } else if (loshaven && loshaven.toLowerCase().includes('rotterdam')) {
+      isLossenOpdracht = true;
+    } else if (toLocatie && toLocatie.toLowerCase().includes('rotterdam')) {
+      isLossenOpdracht = true;
+    }
 
   // 📦 Containers
   const containers = [];
@@ -168,7 +179,7 @@ export default async function parseDFDS(pdfBuffer) {
         },
         {
           volgorde: '0',
-          actie: 'Laden',
+          actie: isLossenOpdracht ? 'Lossen' : 'Laden',
           naam: klantNaam || '',
           adres: klantAdres || '',
           postcode: klantPostcode || '',
