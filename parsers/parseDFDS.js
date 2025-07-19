@@ -5,16 +5,21 @@ import {
   getRederijNaam,
   getContainerTypeCode
 } from '../utils/lookups/terminalLookup.js';
+import { logResult, printLogs } from '../utils/log.js';
 
-function logResult(label, value) {
-  console.log(`🔍 ${label}:`, value || '[LEEG]');
-  return value;
+
+console.log(`📦 Aantal containers gevonden: ${containerRegels.length}`);
+if (containerRegels.length === 0) {
+  logResult('FOUT', 'Geen containers gevonden');
+  printLogs('geen containers');
+  return [];
 }
 
 export default async function parseDFDS(pdfBuffer) {
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const regels = text.split('\n').map(r => r.trim()).filter(Boolean);
+
 
   const containers = [];
 
@@ -171,6 +176,8 @@ export default async function parseDFDS(pdfBuffer) {
       }
       ]
     });
+       printLogs(data.containernummer || 'onbekend');
+    containers.push(data);
   }
 
   return containers;
