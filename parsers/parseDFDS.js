@@ -16,6 +16,18 @@ export default async function parseDFDS(pdfBuffer) {
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const regels = text.split('\n').map(r => r.trim()).filter(Boolean);
+    // ❌ Kop- en voettekstregels verwijderen
+  const filteredRegels = regels.filter(r => {
+    const lower = r.toLowerCase();
+    return !(
+      lower.includes('fenex') ||
+      lower.includes('tln algemene betalingsvoorwaarden') ||
+      lower.includes('op al onze werkzaamheden is nederlands recht') ||
+      lower.includes('voor rekening en risico van de opdrachtgever') ||
+      lower.includes('dekking voor opruimingskosten') ||
+      lower.includes('kosteloos toegezonden')
+    );
+  });
 
   // 📌 Algemene info
   const ritnummer = logResult('ritnummer', text.match(/\bSFIM\d{7}\b/)?.[0]);
@@ -37,7 +49,7 @@ export default async function parseDFDS(pdfBuffer) {
       isLossenOpdracht = true;
     }
     
-  const instructieRegel = regels.find(r =>
+  const instructieRegel = filteredRegels .find(r =>
       r.toLowerCase().includes('opmerking') || r.toLowerCase().includes('remark')
     );
     if (instructieRegel) {
@@ -49,7 +61,7 @@ export default async function parseDFDS(pdfBuffer) {
   // 📦 Containers
   const containers = [];
 
-  for (const regel of regels) {
+  for (const regel of filteredRegels ) {
     const match = regel.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3.*Zegel:\s*(\S+)/i);
     if (!match) continue;
 
@@ -62,9 +74,9 @@ export default async function parseDFDS(pdfBuffer) {
     const referentie = logResult('referentie', text.match(/Dropoff\s+(\d{7,})/)?.[1] || '');
 
     // Tijd en datum
-    const tijdMatch = regels.find(r => r.match(/\d{2}:\d{2}/))?.match(/(\d{2}):(\d{2})/);
+    const tijdMatch = filteredRegels .find(r => r.match(/\d{2}:\d{2}/))?.match(/(\d{2}):(\d{2})/);
     const tijd = tijdMatch ? `${tijdMatch[1]}:${tijdMatch[2]}:00` : '';
-    const dateMatch = regels.find(r => r.toLowerCase().includes('pickup'))?.match(/(\d{2})-(\d{2})-(\d{4})/);
+    const dateMatch = filteredRegels .find(r => r.toLowerCase().includes('pickup'))?.match(/(\d{2})-(\d{2})-(\d{4})/);
     logResult('tijd', tijd);
 
     if (dateMatch) {
@@ -78,7 +90,7 @@ export default async function parseDFDS(pdfBuffer) {
     logResult('tijd', tijd);
 
       let adr = 'Onwaar';
-      for (const regel of regels) {
+      for (const regel of filteredRegels ) {
         if (/ADR|UN\d{4}|IMO|Lithium|Hazardous/i.test(regel)) {
           adr = 'Waar';
           break;
@@ -87,7 +99,7 @@ export default async function parseDFDS(pdfBuffer) {
           // 📦 Robuuste containerwaarden uit regels
       let colli = '0', volume = '0', gewicht = '0';
 
-      for (let regel of regels) {
+      for (let regel of filteredRegels ) {
         const lower = regel.toLowerCase();
 
         if (lower.includes('kg') && gewicht === '0') {
@@ -133,9 +145,8 @@ export default async function parseDFDS(pdfBuffer) {
       const dropoffInfo = await getTerminalInfoMetFallback(doKey);
 
       // 🧾 Klantgegevens uit Pick-up blok halen (na "Pick-up terminal")
-      const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
-      const klantregels = regels
-        .slice(puIndex + 1, puIndex + 8)
+      const puIndex = filteredRegels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
+      const klantregels = filteredRegels.slice(puIndex + 1,  puIndex + 8)
         .filter(l => l && !/^Cargo:|^Reference/i.test(l))
         .slice(0, 4);
 
