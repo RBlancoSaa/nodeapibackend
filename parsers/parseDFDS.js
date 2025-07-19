@@ -7,14 +7,6 @@ import {
 } from '../utils/lookups/terminalLookup.js';
 import { logResult, printLogs } from '../utils/log.js';
 
-
-console.log(`📦 Aantal containers gevonden: ${containerRegels.length}`);
-if (containerRegels.length === 0) {
-  logResult('FOUT', 'Geen containers gevonden');
-  printLogs('geen containers');
-  return [];
-}
-
 export default async function parseDFDS(pdfBuffer) {
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
@@ -52,26 +44,30 @@ export default async function parseDFDS(pdfBuffer) {
   const pickupInfo = await getTerminalInfoMetFallback(pickupTerminal);
   const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal);
 
+
+  console.log(`📦 Aantal containers gevonden: ${containerRegels.length}`);
+if (containerRegels.length === 0) {
+  logResult('FOUT', 'Geen containers gevonden');
+  printLogs('geen containers');
+  return [];
+}
   const containerRegels = regels.filter(r => r.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3/i));
 
-  for (const regel of containerRegels) {
-    const match = regel.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3/i);
-    if (!match) continue;
+for (const regel of containerRegels) {
+  const match = regel.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3/i);
+  if (!match) continue;
 
-    const containernummer = logResult('containernummer', match[1]);
-    const containertypeRaw = logResult('containertype', match[2]);
-    const volume = logResult('volume', match[3]);
-    const containertypeCode = logResult('containertypeCode', await getContainerTypeCode(containertypeRaw));
-    const zegel = logResult('zegel', (regels.find(r => r.includes(containernummer) && r.includes('Zegel'))?.match(/Zegel:\s*([A-Z0-9]+)/i)?.[1]) || '');
+  const containernummer = logResult('containernummer', match[1]);
+  const containertypeRaw = logResult('containertype', match[2]);
+  const volume = logResult('volume', match[3]);
+  const containertypeCode = logResult('containertypeCode', await getContainerTypeCode(containertypeRaw));
+  const zegel = logResult('zegel', (regels.find(r => r.includes(containernummer) && r.includes('Zegel'))?.match(/Zegel:\s*([A-Z0-9]+)/i)?.[1]) || '');
 
-    const gewicht = logResult('gewicht', (regels.find(r => r.includes('kg'))?.match(/([\d.,]+)\s*kg/i)?.[1] || '0').replace(',', '.'));
-    const colli = logResult('colli', regels.find(r => /^\d{2,5}$/.test(r)) || '0');
-    const lading = logResult('lading', regels.find(r => /\d+\s*CARTON|BAG|PALLET|BARREL/i.test(r)) || '');
+  const gewicht = logResult('gewicht', (regels.find(r => r.includes('kg'))?.match(/([\d.,]+)\s*kg/i)?.[1] || '0').replace(',', '.'));
+  const colli = logResult('colli', regels.find(r => /^\d{2,5}$/.test(r)) || '0');
+  const lading = logResult('lading', regels.find(r => /\d+\s*CARTON|BAG|PALLET|BARREL/i.test(r)) || '');
 
- containers.push({
-  // Algemeen
-  ritnummer: logResult('ritnummer', ritnummer),
-  referentie: logResult('referentie', referentie),
+  const data = {
   laadreferentie: logResult('laadreferentie', laadreferentie),
   inleverreferentie: logResult('inleverreferentie', inleverreferentie),
 
@@ -174,11 +170,12 @@ export default async function parseDFDS(pdfBuffer) {
       portbase_code: dropoffInfo.portbase_code || '',
       bicsCode: dropoffInfo.bicsCode || ''
       }
-      ]
-    });
-       printLogs(data.containernummer || 'onbekend');
-    containers.push(data);
-  }
+    ]
+  };
+
+  printLogs(data.containernummer || 'onbekend');
+  containers.push(data);
+}
 
   return containers;
 }
