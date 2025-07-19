@@ -35,13 +35,6 @@ export default async function parseDFDS(pdfBuffer) {
     let laadTijd = '';
     let instructies = '';
 
-  const instructieRegel = regels.find(r => r.toLowerCase().includes('opmerking') || r.toLowerCase().includes('remark'));
-    if (instructieRegel) {
-      instructies = instructieRegel.split(':')[1]?.trim() || '';
-    }
-    logResult('instructies', instructies);
-
-
     let isLossenOpdracht = false;
     if (fromLocatie && fromLocatie.toLowerCase().includes('be')) {
       isLossenOpdracht = true;
@@ -59,7 +52,7 @@ export default async function parseDFDS(pdfBuffer) {
     }
     logResult('instructies', instructies);
 
-    
+
   // 📦 Containers
   const containers = [];
 
