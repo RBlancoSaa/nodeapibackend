@@ -209,7 +209,13 @@ const multiExtract = (patterns) => {
       const match = block.match(/I\d{8}/i);
       return match?.[0] || '';
     })();
-    
+
+          // const data = drop off informatie
+      const inleverreferentie = (() => {
+        const dropoffBlock = text.match(/Drop[-\s]?off[\s\S]+?(?=Extra Information|Goederen informatie|\*|$)/i)?.[0] || '';
+        const match = dropoffBlock.match(/Reference[:\t ]+([A-Z0-9\-]+)/i);
+        return match?.[1]?.trim() || '';
+      })();
 
       // 💡 Veldextractie per regel (ruwe benadering)
       const klantnaam = klantregels[0] || '';
@@ -245,15 +251,10 @@ const multiExtract = (patterns) => {
       adr: logResult('adr', adr || ''),
       laadreferentie: logResult('laadreferentie', laadreferentie),
 
-      // const data = drop off informatie
-      const inleverreferentie = (() => {
-        const dropoffBlock = text.match(/Drop[-\s]?off[\s\S]+?(?=Extra Information|Goederen informatie|\*|$)/i)?.[0] || '';
-        const match = dropoffBlock.match(/Reference[:\t ]+([A-Z0-9\-]+)/i);
-        return match?.[1]?.trim() || '';
-      })();
+
       inleverBootnaam: logResult('inleverBootnaam', bootnaam || ''),
       inleverRederij: logResult('inleverRederij', rederij || ''),
-
+      inleverreferentie: logResult('inleverreferentie', inleverreferentie),
       
       // const data = container box info
       tarra: logResult('tarra', '0'),
