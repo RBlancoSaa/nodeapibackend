@@ -234,7 +234,7 @@ const multiExtract = (patterns) => {
       zegel: logResult('zegel', zegel),
       datum: logResult('datum', laadDatum),
       tijd: logResult('tijd', tijd),
-      adr: logResult('adr', adr),
+      adr: logResult('adr', adr || ''),
       laadreferentie: logResult('laadreferentie', laadreferentie),
 
       // const data = drop off informatie
@@ -245,9 +245,7 @@ const multiExtract = (patterns) => {
       })()),
       inleverBootnaam: logResult('inleverBootnaam', bootnaam || ''),
       inleverRederij: logResult('inleverRederij', rederij || ''),
-      inlever_bootnaam: logResult('inlever_bootnaam', bootnaam),
-      inlever_rederij: logResult('inlever_rederij', rederij),
-      inlever_bestemming: logResult('inlever_bestemming', ''),
+
       
       // const data = container box info
       tarra: logResult('tarra', '0'),
@@ -255,16 +253,15 @@ const multiExtract = (patterns) => {
       brutogewicht: logResult('brutogewicht', gewicht || '0'),
       cbm: logResult('cbm', volume || '0'),
       brix: logResult('brix', '0'),
-      adr: logResult('adr', adr || ''),
       colli: logResult('colli', colli),
       volume: logResult('volume', volume),
       gewicht: logResult('gewicht', gewicht),
       lading: logResult('lading', lading),
 
       // const data = doc tar type
-      documentatie: logResult('documentatie', '' || ''),
-      tar: logResult('tar', '' || ''),
-      type: logResult('type', '' || ''),
+      documentatie: logResult('documentatie', ''),
+      tar: logResult('tar', ''),
+      type: logResult('type', ''),
       
       // const data = opdrachtgever
       opdrachtgever_naam: logResult('opdrachtgever_naam', 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM BV'),
