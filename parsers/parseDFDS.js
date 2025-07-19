@@ -170,46 +170,47 @@ export default async function parseDFDS(pdfBuffer) {
       klantadres: klantAdres,
       klantpostcode: klantPostcode,
       klantplaats: klantPlaats,
-      locaties: [
-        {
-          volgorde: '0',
-          actie: 'Opzetten',
-          naam: pickupInfo.naam || 'PU',
-          adres: pickupInfo.adres || '',
-          postcode: pickupInfo.postcode || '',
-          plaats: pickupInfo.plaats || '',
-          land: pickupInfo.land || 'NL',
-          voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-          aankomst_verw: '',
-          tijslot_van: '',
-          tijslot_tm: '',
-          portbase_code: pickupInfo.portbase_code || '',
-          bicsCode: pickupInfo.bicsCode || ''
-        },
-        {
-          volgorde: '0',
-          actie: isLossenOpdracht ? 'Lossen' : 'Laden',
-          naam: klantNaam || '',
-          adres: klantAdres || '',
-          postcode: klantPostcode || '',
-          plaats: klantPlaats || '',
-          land: 'NL'
-        },
-        {
-          volgorde: '0',
-          actie: 'Afzetten',
-          naam: dropoffInfo.naam || 'DO',
-          adres: dropoffInfo.adres || '',
-          postcode: dropoffInfo.postcode || '',
-          plaats: dropoffInfo.plaats || '',
-          land: dropoffInfo.land || 'NL',
-          voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-          aankomst_verw: '',
-          tijslot_van: '',
-          tijslot_tm: '',
-          portbase_code: dropoffInfo.portbase_code || '',
-          bicsCode: dropoffInfo.bicsCode || ''
-          }
+        locaties: [
+            {
+        volgorde: '0',    
+        actie: 'Opzetten',
+        naam: pickupInfo.naam   || puKey,
+        adres: pickupInfo.adres    || '',
+        postcode: pickupInfo.postcode || '',
+        plaats: pickupInfo.plaats  || '',
+        land: pickupInfo.land || 'NL',
+        voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+        aankomst_verw: '',
+        tijslot_van: '',
+        tijslot_tm: '',
+        portbase_code: pickupInfo.portbase_code || '',
+        bicsCode: pickupInfo.bicsCode || ''
+      },
+      {
+        volgorde: '0',
+        actie: data.isLossenOpdracht ? 'Lossen' : 'Laden',
+        naam: data.klantnaam || '',
+        adres: data.klantadres || '',
+        postcode: data.klantpostcode || '',
+        plaats: data.klantplaats || '',
+        land: 'NL'
+        // geen andere velden hier
+      },
+      {
+        volgorde: '0',
+        actie: 'Afzetten',
+        naam: dropoffInfo.naam || doKey,
+        adres: dropoffInfo.adres     || '',
+        postcode: dropoffInfo.postcode  || '',
+        plaats: dropoffInfo.plaats   || '',
+        land: dropoffInfo.land || 'NL',
+        voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+        aankomst_verw: '',
+        tijslot_van: '',
+        tijslot_tm: '',
+        portbase_code: dropoffInfo.portbase_code || '',
+        bicsCode: dropoffInfo.bicsCode || ''
+      }
       ]
     };
     // Fallback voor referentie
