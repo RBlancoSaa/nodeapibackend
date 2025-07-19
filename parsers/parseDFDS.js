@@ -55,11 +55,154 @@ export default async function parseDFDS(pdfBuffer) {
   const ritnummer = ritnummerMatch?.[0] || '';
   logResult('ritnummer', ritnummer);
 
- 
+
+  // ...boven je container-extractie...
+const containerRegels = [];
+
+// Vul containerRegels met alle containers uit de PDF
+for (let i = 0; i < filteredRegelsIntro.length; i++) {
+  const regel = filteredRegelsIntro[i];
+  const match = regel.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3/i);
+  if (match) {
+    const containernummer = match[1];
+    const containertypeRaw = match[2];
+    const volumeRaw = match[3];
+    const volgendeRegels = filteredRegelsIntro.slice(i + 1, i + 5).join(' ');
+    const zegelMatch = volgendeRegels.match(/Zegel:\s*([A-Z0-9]+)/i);
+    const zegel = zegelMatch?.[1] || '';
+    containerRegels.push({
+      regelIndex: i,
+      containernummer,
+      containertypeRaw,
+      volumeRaw,
+      zegel
+    });
+  }
+}
+for (const container of containerRegels) {
 // 📦 Containers
 const containers = [];
-const containerRegels = []; // ✅ <— deze ontbrak
-  
+for (const container of containerRegels) {
+  // Unieke containerdata
+  const containernummer = container.containernummer;
+  const containertypeRaw = container.containertypeRaw;
+  const volume = container.volumeRaw;
+  const zegel = container.zegel;
+  const containertypeCode = await getContainerTypeCode(containertypeRaw);
+
+  const data = {
+  // Algemeen
+  ritnummer: logResult('ritnummer', ritnummer),
+  referentie: logResult('referentie', referentie),
+  laadreferentie: logResult('laadreferentie', laadreferentie),
+  inleverreferentie: logResult('inleverreferentie', inleverreferentie),
+
+  // Container info
+  containernummer: logResult('containernummer', containernummer),
+  containertype: logResult('containertype', containertypeRaw),
+  containertypeCode: logResult('containertypeCode', containertypeCode || ''),
+  zegel: logResult('zegel', zegel),
+  tarra: logResult('tarra', tarra),
+  brutogewicht: logResult('brutogewicht', gewicht),
+  geladenGewicht: logResult('geladenGewicht', geladenGewicht),
+  cbm: logResult('cbm', volume),
+  brix: logResult('brix', brix),
+  colli: logResult('colli', colli),
+  volume: logResult('volume', volume),
+  gewicht: logResult('gewicht', gewicht),
+  lading: logResult('lading', lading),
+  adr: logResult('adr', adr),
+  temperatuur: logResult('temperatuur', temperatuur),
+  documentatie: logResult('documentatie', documentatie),
+  tar: logResult('tar', tar),
+  type: logResult('type', type),
+
+  // Laad- en losinformatie
+  datum: logResult('datum', laadDatum),
+  tijd: logResult('tijd', tijd),
+  instructies: logResult('instructies', instructies),
+
+  // Boot/rederij
+  bootnaam: logResult('bootnaam', bootnaam),
+  rederij: logResult('rederij', rederij),
+  inleverBootnaam: logResult('inleverBootnaam', inleverBootnaam),
+  inleverRederij: logResult('inleverRederij', inleverRederij),
+  loshaven: logResult('loshaven', loshaven),
+  from: logResult('from', fromLocatie),
+  to: logResult('to', toLocatie),
+
+  // Opdrachtgever (underscore + camelCase)
+  opdrachtgever_naam: logResult('opdrachtgever_naam', opdrachtgeverNaam),
+  opdrachtgever_adres: logResult('opdrachtgever_adres', opdrachtgeverAdres),
+  opdrachtgever_postcode: logResult('opdrachtgever_postcode', opdrachtgeverPostcode),
+  opdrachtgever_plaats: logResult('opdrachtgever_plaats', opdrachtgeverPlaats),
+  opdrachtgever_telefoon: logResult('opdrachtgever_telefoon', opdrachtgeverTelefoon),
+  opdrachtgever_email: logResult('opdrachtgever_email', opdrachtgeverEmail),
+  opdrachtgever_btw: logResult('opdrachtgever_btw', opdrachtgeverBTW),
+  opdrachtgever_kvk: logResult('opdrachtgever_kvk', opdrachtgeverKVK),
+  opdrachtgeverNaam: logResult('opdrachtgeverNaam', opdrachtgeverNaam),
+  opdrachtgeverAdres: logResult('opdrachtgeverAdres', opdrachtgeverAdres),
+  opdrachtgeverPostcode: logResult('opdrachtgeverPostcode', opdrachtgeverPostcode),
+  opdrachtgeverPlaats: logResult('opdrachtgeverPlaats', opdrachtgeverPlaats),
+  opdrachtgeverTelefoon: logResult('opdrachtgeverTelefoon', opdrachtgeverTelefoon),
+  opdrachtgeverEmail: logResult('opdrachtgeverEmail', opdrachtgeverEmail),
+  opdrachtgeverBTW: logResult('opdrachtgeverBTW', opdrachtgeverBTW),
+  opdrachtgeverKVK: logResult('opdrachtgeverKVK', opdrachtgeverKVK),
+
+  // Klant
+  klantnaam: logResult('klantnaam', klantnaam),
+  klantadres: logResult('klantadres', klantadres),
+  klantpostcode: logResult('klantpostcode', klantpostcode),
+  klantplaats: logResult('klantplaats', klantplaats),
+
+  // Locaties (pickup, laden/lossen, dropoff)
+  locaties: [
+    {
+      volgorde: '0',
+      actie: 'Opzetten',
+      naam: pickupInfo.naam || puKey,
+      adres: pickupInfo.adres || '',
+      postcode: pickupInfo.postcode || '',
+      plaats: pickupInfo.plaats || '',
+      land: pickupInfo.land || 'NL',
+      voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+      aankomst_verw: pickupInfo.aankomst_verw || '',
+      tijslot_van: pickupInfo.tijslot_van || '',
+      tijslot_tm: pickupInfo.tijslot_tm || '',
+      portbase_code: pickupInfo.portbase_code || '',
+      bicsCode: pickupInfo.bicsCode || ''
+    },
+    {
+      volgorde: '0',
+      actie: isLossenOpdracht ? 'Lossen' : 'Laden',
+      naam: klantnaam,
+      adres: klantadres,
+      postcode: klantpostcode,
+      plaats: klantplaats,
+      land: 'NL'
+    },
+    {
+      volgorde: '0',
+      actie: 'Afzetten',
+      naam: dropoffInfo.naam || doKey,
+      adres: dropoffInfo.adres || '',
+      postcode: dropoffInfo.postcode || '',
+      plaats: dropoffInfo.plaats || '',
+      land: dropoffInfo.land || 'NL',
+      voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+      aankomst_verw: dropoffInfo.aankomst_verw || '',
+      tijslot_van: dropoffInfo.tijslot_van || '',
+      tijslot_tm: dropoffInfo.tijslot_tm || '',
+      portbase_code: dropoffInfo.portbase_code || '',
+      bicsCode: dropoffInfo.bicsCode || ''
+    }
+  ],
+
+  // Terminal info
+  terminal: logResult('terminal', terminal)
+};
+
+
 for (const container of containerRegels) {
   const containernummer = container.containernummer;
   const containertypeRaw = container.containertypeRaw;
@@ -427,4 +570,6 @@ console.log(`📦 Aantal containers gevonden: ${containerRegels.length}`);
 }
 
 return containers;
+}
+}
 }
