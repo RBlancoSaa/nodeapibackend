@@ -218,7 +218,13 @@ export default async function parseDFDS(pdfBuffer) {
 
     const data = {
       ritnummer: logResult('ritnummer', ritnummer),
-      referentie: logResult('referentie', referentie),
+      
+      referentie: logResult('referentie', (() => {
+        const blok = text.match(/Lossen[\s\S]+?(?=Drop[-\s]?off|Extra Information|\*|$)/i)?.[0] || '';
+        const match = blok.match(/I\d{8}/i); // of ander patroon
+        return match?.[0] || '0';
+      })()),
+
       colli: logResult('colli', colli),
       volume: logResult('volume', volume),
       gewicht: logResult('gewicht', gewicht),
@@ -234,7 +240,13 @@ export default async function parseDFDS(pdfBuffer) {
       tijd: logResult('tijd', tijd),
       adr: logResult('adr', adr),
       laadreferentie: logResult('laadreferentie', laadreferentie),
-      inleverreferentie: logResult('inleverreferentie', inleverreferentie),
+
+      inleverreferentie: logResult('inleverreferentie', (() => {
+        const blok = text.match(/Drop[-\s]?off[\s\S]+?(?=Extra Information|Goederen informatie|\*|$)/i)?.[0] || '';
+        const match = blok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
+        return match?.[1]?.trim() || '0';
+      })()),
+
       inleverBootnaam: logResult('inleverBootnaam', bootnaam),
       inleverRederij: logResult('inleverRederij', rederij),
       inlever_bootnaam: bootnaam,
