@@ -189,30 +189,16 @@ const multiExtract = (patterns) => {
       const pickupInfo = await getTerminalInfoMetFallback(puKey);
       const dropoffInfo = await getTerminalInfoMetFallback(doKey);
 
+      // 🔧 Opschonen: verwijder voetteksten/disclaimers die voor 'Transport informatie' staan
+      const startIndex = regels.findIndex(r => /Transport informatie/i.test(r));
+      const filteredRegels = regels.slice(startIndex);
+
       // 🧾 Klantgegevens uit Pick-up blok halen (na "Pick-up terminal")
       const puIndex = filteredRegels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
       const klantregels = filteredRegels.slice(puIndex + 1,  puIndex + 8)
         .filter(l => l && !/^Cargo:|^Reference/i.test(l))
         .slice(0, 4);
 
-          try {
-        data.terminal = await getTerminalInfo(data.dropoffTerminal) || '0';
-        data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
-
-        const baseRederij = data.rederij.includes(' - ')
-          ? data.rederij.split(' - ')[1].trim()
-          : data.rederij.trim();
-
-        const officiëleRederij = await getRederijNaam(baseRederij);
-        console.log('🎯 MATCH uit rederijenlijst:', officiëleRederij);
-
-        if (officiëleRederij && officiëleRederij !== '0') {
-          data.rederij = officiëleRederij;
-          data.inleverRederij = officiëleRederij;
-        }
-      } catch (e) {
-        console.warn('⚠️ Fout in terminal of rederij lookup:', e);
-      }
       
 
       // 💡 Veldextractie per regel (ruwe benadering)
@@ -251,7 +237,7 @@ const multiExtract = (patterns) => {
       containertype: logResult('containertype', containertypeRaw),
       containernummer: logResult('containernummer', containernummer),
       zegel: logResult('zegel', zegel),
-      datum: logResult('datum', datum),
+      datum: logResult('datum', laadDatum),
       tijd: logResult('tijd', tijd),
       adr: logResult('adr', adr),
       laadreferentie: logResult('laadreferentie', laadreferentie),
@@ -363,6 +349,26 @@ const multiExtract = (patterns) => {
         data.ritnummer = match[0];
       }
     }
+
+      try {
+    data.terminal = await getTerminalInfo(data.dropoffTerminal) || '0';
+    data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
+
+    const baseRederij = data.rederij.includes(' - ')
+      ? data.rederij.split(' - ')[1].trim()
+      : data.rederij.trim();
+
+    const officiëleRederij = await getRederijNaam(baseRederij);
+    console.log('🎯 MATCH uit rederijenlijst:', officiëleRederij);
+
+    if (officiëleRederij && officiëleRederij !== '0') {
+      data.rederij = officiëleRederij;
+      data.inleverRederij = officiëleRederij;
+    }
+  } catch (e) {
+    console.warn('⚠️ Fout in terminal of rederij lookup:', e);
+  }
+
 
     // Log per container
     console.log('📤 DFDS CONTAINERDATA:', JSON.stringify(data, null, 2));
