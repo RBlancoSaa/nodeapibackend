@@ -107,7 +107,14 @@ const multiExtract = (patterns) => {
     const containertypeRaw = logResult('containertype', match[2]);
     const zegel = logResult('zegel', match[4]);
     const containertypeCode = await getContainerTypeCode(containertypeRaw);
+          const blacklist = [
+        'FENEX', 'TLN', 'registry clerk', 'insurance cover', 'Dutch legislation',
+        'www.dfds.com', 'KvK', 'Rabobank', 'BIC', 'BTW', 'Operations', 'Accounts', 'NL-RTM-accounts'
+      ];
 
+      const regelsGefilterd = filteredRegelsIntro.filter(r =>
+        !blacklist.some(term => r.toLowerCase().includes(term.toLowerCase()))
+      );
     const lading = logResult('lading', regels.find(r => r.match(/\d+\s*CARTON|BAG|PALLET|BARREL/i)) || '');
     const referentie = logResult('referentie', text.match(/Dropoff\s+(\d{7,})/)?.[1] || '');
 
@@ -168,10 +175,6 @@ const multiExtract = (patterns) => {
       logResult('volume', volume);
       logResult('gewicht', gewicht);
 
-      const blacklist = [
-        'FENEX', 'TLN', 'registry clerk', 'insurance cover', 'Dutch legislation',
-        'www.dfds.com', 'KvK', 'Rabobank', 'BIC', 'BTW', 'Operations', 'Accounts', 'NL-RTM-accounts'
-      ];
 
             
       // 🎯 Terminalnaam (pickup) ophalen voor lookup key
@@ -234,6 +237,7 @@ const multiExtract = (patterns) => {
       klantpostcode: logResult('klantpostcode', klantpostcode),
       klantplaats: logResult('klantplaats', klantplaats),
       containertype: logResult('containertype', containertypeRaw),
+      containertypeCode: logResult('containertypeCode', containertypeCode || ''),
       containernummer: logResult('containernummer', containernummer),
       zegel: logResult('zegel', zegel),
       datum: logResult('datum', datum),
