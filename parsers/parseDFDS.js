@@ -197,7 +197,7 @@ const multiExtract = (patterns) => {
       const startIndex = regels.findIndex(r => /Transport informatie/i.test(r));
       const filteredRegels = regels.slice(startIndex);
 
-      // 🧾 Klantgegevens uit Pick-up blok halen (na "Pick-up terminal")
+      // 🔍 Klantgegevens (Lossen-blok)
       const lossenIndex = filteredRegels.findIndex(line => /^Lossen$/i.test(line));
       const klantregels = filteredRegels.slice(lossenIndex + 1, lossenIndex + 5).filter(Boolean);
 
@@ -205,6 +205,7 @@ const multiExtract = (patterns) => {
       const klantadres = klantregels[1] || '';
       const klantpostcode = klantregels[2]?.match(/\d{4}\s?[A-Z]{2}/)?.[0] || '';
       const klantplaats = klantregels[2]?.replace(klantpostcode, '').trim() || '';
+
       
         // Laadreferentie ophalen uit Lossen blok
       const laadreferentie = (() => {
