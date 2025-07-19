@@ -44,21 +44,21 @@ export default async function parseDFDS(pdfBuffer) {
   const pickupInfo = await getTerminalInfoMetFallback(pickupTerminal);
   const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal);
 
-
-if (containerRegels.length === 0) {
-  logResult('FOUT', 'Geen containers gevonden');
-  printLogs('geen containers');
-  return [];
-}
-  const containerRegels = regels.filter(r => r.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3/i));
-
-for (const regel of containerRegels) {
-  const match = regel.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3/i);
-  if (!match) continue;
-
-  
+  // Laad- en losinformatie
+  const containerRegels = regels.filter(r =>
+    r.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3/i)
+  );
   console.log(`📦 Aantal containers gevonden: ${containerRegels.length}`);
-  
+  if (containerRegels.length === 0) {
+    logResult('FOUT', 'Geen containers gevonden');
+    printLogs('geen containers');
+    return [];
+  }
+  for (const regel of containerRegels) {
+    const match = regel.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3/i);
+    if (!match) continue;
+
+    //
   const containernummer = logResult('containernummer', match[1]);
   const containertypeRaw = logResult('containertype', match[2]);
   const volume = logResult('volume', match[3]);
