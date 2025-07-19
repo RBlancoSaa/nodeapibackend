@@ -21,7 +21,7 @@ export default async function parseDFDS(pdfBuffer) {
   const text = parsed.text;
   const regels = text.split('\n').map(r => r.trim()).filter(Boolean);
     // ❌ Kop- en voettekstregels verwijderen
-  const filteredRegels = regels.filter(r => {
+  const filteredRegelsIntro = regels.filter(r => {
     const lower = r.toLowerCase();
     return !(
       lower.includes('fenex') ||
@@ -85,7 +85,7 @@ const multiExtract = (patterns) => {
       isLossenOpdracht = true;
     }
     
-  const instructieRegel = filteredRegels .find(r =>
+  const instructieRegel = filteredRegelsIntro.find(r =>
       r.toLowerCase().includes('opmerking') || r.toLowerCase().includes('remark')
     );
     if (instructieRegel) {
@@ -97,7 +97,7 @@ const multiExtract = (patterns) => {
   // 📦 Containers
   const containers = [];
 
-  for (const regel of filteredRegels ) {
+  for (const regel of filteredRegelsIntro) {
     const match = regel.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3.*Zegel:\s*(\S+)/i);
     if (!match) continue;
 
@@ -110,9 +110,9 @@ const multiExtract = (patterns) => {
     const referentie = logResult('referentie', text.match(/Dropoff\s+(\d{7,})/)?.[1] || '');
 
     // Tijd en datum
-    const tijdMatch = filteredRegels .find(r => r.match(/\d{2}:\d{2}/))?.match(/(\d{2}):(\d{2})/);
+    const tijdMatch = filteredRegelsIntro .find(r => r.match(/\d{2}:\d{2}/))?.match(/(\d{2}):(\d{2})/);
     const tijd = tijdMatch ? `${tijdMatch[1]}:${tijdMatch[2]}:00` : '';
-    const dateMatch = filteredRegels .find(r => r.toLowerCase().includes('pickup'))?.match(/(\d{2})-(\d{2})-(\d{4})/);
+    const dateMatch = filteredRegelsIntro .find(r => r.toLowerCase().includes('pickup'))?.match(/(\d{2})-(\d{2})-(\d{4})/);
     logResult('tijd', tijd);
 
     if (dateMatch) {
@@ -126,7 +126,7 @@ const multiExtract = (patterns) => {
     logResult('tijd', tijd);
 
       let adr = 'Onwaar';
-      for (const regel of filteredRegels ) {
+      for (const regel of filteredRegelsIntro ) {
         if (/ADR|UN\d{4}|IMO|Lithium|Hazardous/i.test(regel)) {
           adr = 'Waar';
           break;
@@ -225,7 +225,7 @@ const multiExtract = (patterns) => {
         const match = blok.match(/I\d{8}/i); // of ander patroon
         return match?.[0] || '0';
       })()),
-
+      
       colli: logResult('colli', colli),
       volume: logResult('volume', volume),
       gewicht: logResult('gewicht', gewicht),
@@ -237,7 +237,7 @@ const multiExtract = (patterns) => {
       containertype: logResult('containertype', containertypeRaw),
       containernummer: logResult('containernummer', containernummer),
       zegel: logResult('zegel', zegel),
-      datum: logResult('datum', laadDatum),
+      datum: logResult('datum', datum),
       tijd: logResult('tijd', tijd),
       adr: logResult('adr', adr),
       laadreferentie: logResult('laadreferentie', laadreferentie),
