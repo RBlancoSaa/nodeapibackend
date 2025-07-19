@@ -1,59 +1,61 @@
-// handlers/handleDFDS.js
+// 📁 handlers/handleDFDS.js
 import parseDFDS from '../parsers/parseDFDS.js';
-import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { uploadEasyFileToSupabase } from '../services/uploadEasyFileToSupabase.js';
-import { logResult } from '../utils/log.js';
+import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 
-export default async function handleDFDS(pdfBuffer, filename) {
+export default async function handleDFDS({ buffer, base64, filename }) {
+  console.log(`📦 Verwerken van DFDS-bestand: ${filename}`);
+
+  const containers = await parseDFDS(buffer);
+  const easyFiles = [];
+
+  if (!containers || containers.length === 0) {
+    throw new Error('❌ Geen containers gevonden voor DFDS');
+  }
+
+  for (const containerData of containers) {
+    try {
+      const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reference: containerData.referentie || '0',
+          laadplaats: containerData.locaties?.[0]?.plaats || 'Onbekend',
+          pdfBestandsnaam: filename,
+          skipReprocessing: false,
+          originalPdfBase64: base64,
+          ...containerData
+        })
+      });
+
+      const result = await response.json();
+      console.log('📤 DFDS .easy-bestand gegenereerd:', result);
+
+      easyFiles.push({
+        filename: result.bestandsnaam,
+        xmlBase64: result.xmlBase64
+      });
+
+    } catch (err) {
+      console.error('⚠️ Fout bij DFDS .easy-generatie:', err.message);
+    }
+  }
+
   try {
-    console.log(`📥 Verwerken gestart voor: ${filename}`);
-
-    const containers = await parseDFDS(pdfBuffer);
-    if (!containers || containers.length === 0) {
-      throw new Error('❌ Geen containers gevonden in DFDS-opdracht.');
-    }
-
-    const resultaten = [];
-
-    for (const containerData of containers) {
-      const data = { ...containerData };
-
-      // Gebruik alleen containertypeCode als geldig
-      if (!data.containertype && data.containertypeCode && data.containertypeCode !== '0') {
-        data.containertype = data.containertypeCode;
-      }
-
-      // Logging per veld
-      Object.entries(data).forEach(([key, val]) => logResult(key, val));
-
-      // .easy-bestandsnaam
-      const safeLaadplaats = (data.locaties?.[0]?.plaats || 'Onbekend').replace(/\s+/g, '');
-      const bestandsnaam = `Order_${data.referentie || 'GEENREF'}_${safeLaadplaats}.easy`;
-
-      // Genereer XML
-      const xml = generateXmlFromJson(data);
-      console.log(typeof xml);
-      console.log(xml);
-
-      // Upload naar Supabase
-      await uploadEasyFileToSupabase({
-        filename: bestandsnaam,
-        fileContent: xml,
-        originalPdfName: filename,
-      });
-
-      resultaten.push({
-        bestandsnaam,
-        referentie: data.referentie,
-        containernummer: data.containernummer,
-      });
-
-      console.log(`✅ Verwerkt: ${bestandsnaam}`);
-    }
-
-    return resultaten;
-  } catch (error) {
-    console.error(`❌ Fout bij verwerken DFDS-opdracht ${filename}:`, error.message);
-    throw error;
+    await sendEmailWithAttachments({
+      ritnummer: containers[0].ritnummer || '0',
+      attachments: [
+        ...easyFiles.map(file => ({
+          filename: file.filename,
+          content: Buffer.from(file.xmlBase64, 'base64')
+        })),
+        {
+          filename,
+          content: Buffer.from(base64, 'base64')
+        }
+      ]
+    });
+    console.log(`✅ Mail verstuurd voor DFDS rit ${containers[0].ritnummer}`);
+  } catch (err) {
+    console.error('📧 Fout bij e-mailverzending DFDS:', err.message);
   }
 }

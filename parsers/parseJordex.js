@@ -9,8 +9,6 @@ import {
   getTerminalInfoMetFallback
 } from '../utils/lookups/terminalLookup.js';
 
-
-
 function logResult(label, value) {
   console.log(`🔍 ${label}:`, value || '[LEEG]');
   return value;

@@ -9,11 +9,9 @@ import {
   getTerminalInfoMetFallback
 } from '../utils/lookups/terminalLookup.js';
 
-
 function logResult(label, value) {
-  const val = value || '';
-  console.log(`🔍 ${label}:`, val);
-  return val;
+  console.log(`🔍 ${label}:`, value || '[LEEG]');
+  return value;
 }
 
 export default async function parseDFDS(pdfBuffer) {
@@ -21,7 +19,9 @@ export default async function parseDFDS(pdfBuffer) {
   const text = parsed.text;
   const regels = text.split('\n').map(r => r.trim()).filter(Boolean);
 
-    // ❌ Kop- en voettekstregels verwijderen
+  const ritnummerMatch = text.match(/\bSFIM\d{7}\b/i);
+
+  // ❌ Kop- en voettekstregels verwijderen
   const filteredRegelsIntro = regels.filter(r => {
     const lower = r.toLowerCase();
     return !(
@@ -35,39 +35,75 @@ export default async function parseDFDS(pdfBuffer) {
   });
 
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
-const multiExtract = (patterns) => {
-  for (const pattern of patterns) {
-    const found = regels.find(line => pattern.test(line));
-    if (found) {
-      const match = found.match(pattern);
-      if (match?.[1]) {
-        const result = match[1].trim();
-        console.log(`🔎 Pattern match: ${pattern} ➜ ${result}`);
-        return result;
+  const multiExtract = (patterns) => {
+    for (const pattern of patterns) {
+      const found = filteredRegelsIntro.find(line => pattern.test(line));
+      if (found) {
+        const match = found.match(pattern);
+        if (match?.[1]) {
+          const result = match[1].trim();
+          console.log(`🔎 Pattern match: ${pattern} ➜ ${result}`);
+          return result;
+        }
       }
     }
+    return '';
+  };
+
+
+  // 📌 Algemene info
+  const ritnummer = ritnummerMatch?.[0] || '';
+  logResult('ritnummer', ritnummer);
+
+  // 📦 Containers
+const containers = [];
+  
+for (const container of containerRegels) {
+  const containernummer = container.containernummer;
+  const containertypeRaw = container.containertypeRaw;
+  const containertypeCode = await getContainerTypeCode(containertypeRaw);
+  const volume = container.volumeRaw;
+  const zegel = container.zegel;
+
+for (let i = 0; i < filteredRegelsIntro.length; i++) {
+  const regel = filteredRegelsIntro[i];
+  const match = regel.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3/i); // bijv: EITU9306970 40ft HC - 76.3 m3
+  if (match) {
+    const containernummer = logResult('containernummer', match[1]);
+    const containertypeRaw = logResult('containertype', match[2]);
+    const volumeRaw = logResult('volume', match[3]);
+
+    const volgendeRegels = filteredRegelsIntro.slice(i + 1, i + 5).join(' ');
+    const zegelMatch = volgendeRegels.match(/Zegel:\s*([A-Z0-9]+)/i);
+    const zegel = logResult('zegel', zegelMatch?.[1] || '');
+
+    containerRegels.push({
+      regelIndex: i,
+      containernummer,
+      containertypeRaw,
+      volumeRaw,
+      zegel
+    });
   }
-  return '';
-};
+}
 
-    // 📌 Algemene info
-    let ritnummer = '';
+console.log(`📦 Aantal containers gevonden: ${containerRegels.length}`);
 
-    // Probeer eerst met volledige zin ("Onze referentie SFIMxxxxxxx")
-    const referentieRegel = regels.find(r =>
-      r.toLowerCase().includes('onze referentie') && r.match(/SFIM\d{7}/i)
-    );
+  // ✅ Klantgegevens vanuit "Lossen"-blok
+  const lossenBlokMatch = text.match(/Lossen\s*\n([\s\S]+?)(?=\n(?:Drop[-\s]?off|Pickup|Extra Information|$))/i);
+  const lossenBlok = lossenBlokMatch?.[1] || '';
+  const lossenRegels = lossenBlok.split('\n').map(r => r.trim()).filter(Boolean);
 
-    // Als gevonden in specifieke regel → gebruiken
-    if (referentieRegel) {
-      ritnummer = referentieRegel.match(/SFIM\d{7}/i)?.[0] || '';
-    } else {
-      // Anders: fallback naar eerste SFIM-code in volledige tekst (kan foute zijn)
-      ritnummer = text.match(/\bSFIM\d{7}\b/i)?.[0] || '';
-    }
+  const klantNaam = lossenRegels[0] || '';
+  const klantAdres = lossenRegels[1] || '';
+  const klantPostcode = klantAdres.match(/\d{4}\s?[A-Z]{2}/)?.[0] || '';
+  const klantPlaats = klantAdres.replace(klantPostcode, '').replace(',', '').trim();
 
-    logResult('ritnummer', ritnummer);
-    
+  logResult('klantNaam', klantNaam);
+  logResult('klantAdres', klantAdres);
+  logResult('klantPostcode', klantPostcode);
+  logResult('klantPlaats', klantPlaats);
+
   const bootnaam = logResult('bootnaam', text.match(/Vaartuig\s+(.+?)\s+Reis/i)?.[1]);
   const rederij = logResult('rederij', multiExtract([/Rederij[:\t ]+(.+)/i]));
   const inleverRederij = logResult('inleverRederij', rederij);
@@ -96,8 +132,7 @@ const multiExtract = (patterns) => {
     logResult('instructies', instructies);
 
 
-  // 📦 Containers
-  const containers = [];
+
 
   for (const regel of filteredRegelsIntro) {
     const match = regel.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3.*Zegel:\s*(\S+)/i);
@@ -220,8 +255,6 @@ const multiExtract = (patterns) => {
       const match = dropoffBlock.match(/Reference[:\t ]+([A-Z0-9\-]+)/i);
         return match?.[1]?.trim() || '';
       })();
-
-
 
       console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
       console.log('👉 naam:', klantnaam);
@@ -397,4 +430,4 @@ const multiExtract = (patterns) => {
     }
 
   return containers;
-}
+}}
