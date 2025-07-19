@@ -20,6 +20,7 @@ export default async function parseDFDS(pdfBuffer) {
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const regels = text.split('\n').map(r => r.trim()).filter(Boolean);
+
     // ❌ Kop- en voettekstregels verwijderen
   const filteredRegelsIntro = regels.filter(r => {
     const lower = r.toLowerCase();
@@ -32,6 +33,7 @@ export default async function parseDFDS(pdfBuffer) {
       lower.includes('kosteloos toegezonden')
     );
   });
+
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
 const multiExtract = (patterns) => {
   for (const pattern of patterns) {
@@ -135,7 +137,7 @@ const multiExtract = (patterns) => {
           // 📦 Robuuste containerwaarden uit regels
       let colli = '0', volume = '0', gewicht = '0';
 
-      for (let regel of filteredRegels ) {
+      for (let regel of regelsGefilterd) {
         const lower = regel.toLowerCase();
 
         if (lower.includes('kg') && gewicht === '0') {
@@ -170,11 +172,8 @@ const multiExtract = (patterns) => {
         'FENEX', 'TLN', 'registry clerk', 'insurance cover', 'Dutch legislation',
         'www.dfds.com', 'KvK', 'Rabobank', 'BIC', 'BTW', 'Operations', 'Accounts', 'NL-RTM-accounts'
       ];
-      const regelsGefilterd = regels.filter(r =>
-        !blacklist.some(term => r.toLowerCase().includes(term.toLowerCase()))
-      );
-      
-      
+
+            
       // 🎯 Terminalnaam (pickup) ophalen voor lookup key
       const pickupTerminalMatch = text.match(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
       const puKey = pickupTerminalMatch?.[1]?.trim() || '';
