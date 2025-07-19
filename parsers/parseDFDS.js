@@ -221,62 +221,67 @@ const multiExtract = (patterns) => {
 
     const data = {
       ritnummer: logResult('ritnummer', ritnummer),
-
       referentie: logResult('referentie', (() => {
         const blok = text.match(/Lossen[\s\S]+?(?=Drop[-\s]?off|Extra Information|\*|$)/i)?.[0] || '';
         const match = blok.match(/I\d{8}/i); // of ander patroon
         return match?.[0] || '0';
       })()),
       
-      colli: logResult('colli', colli),
-      volume: logResult('volume', volume),
-      gewicht: logResult('gewicht', gewicht),
-      lading: logResult('lading', lading),
-      klantnaam: logResult('klantnaam', klantnaam),
-      klantadres: logResult('klantadres', klantadres),
-      klantpostcode: logResult('klantpostcode', klantpostcode),
-      klantplaats: logResult('klantplaats', klantplaats),
+      // const data = geladen container informatie
       containertype: logResult('containertype', containertypeRaw),
       containertypeCode: logResult('containertypeCode', containertypeCode || ''),
       containernummer: logResult('containernummer', containernummer),
       zegel: logResult('zegel', zegel),
-      datum: logResult('datum', datum),
+      datum: logResult('datum', laadDatum),
       tijd: logResult('tijd', tijd),
       adr: logResult('adr', adr),
       laadreferentie: logResult('laadreferentie', laadreferentie),
 
+      // const data = drop off informatie
       inleverreferentie: logResult('inleverreferentie', (() => {
         const blok = text.match(/Drop[-\s]?off[\s\S]+?(?=Extra Information|Goederen informatie|\*|$)/i)?.[0] || '';
         const match = blok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
         return match?.[1]?.trim() || '0';
       })()),
+      inleverBootnaam: logResult('inleverBootnaam', bootnaam || ''),
+      inleverRederij: logResult('inleverRederij', rederij || ''),
+      inlever_bootnaam: logResult('inlever_bootnaam', bootnaam),
+      inlever_rederij: logResult('inlever_rederij', rederij),
+      inlever_bestemming: logResult('inlever_bestemming', ''),
+      
+      // const data = container box info
+      tarra: logResult('tarra', '0'),
+      geladenGewicht: logResult('geladenGewicht', '0'),
+      brutogewicht: logResult('brutogewicht', gewicht || '0'),
+      cbm: logResult('cbm', volume || '0'),
+      brix: logResult('brix', '0'),
+      adr: logResult('adr', adr || ''),
+      colli: logResult('colli', colli),
+      volume: logResult('volume', volume),
+      gewicht: logResult('gewicht', gewicht),
+      lading: logResult('lading', lading),
 
-      inleverBootnaam: logResult('inleverBootnaam', bootnaam),
-      inleverRederij: logResult('inleverRederij', rederij),
-      inlever_bootnaam: bootnaam,
-      inlever_rederij: rederij,
-      inlever_bestemming: '',
-      tarra: '0',
-      brutogewicht: gewicht,
-      geladen_gewicht: gewicht,
-      cbm: volume,
-      brix: '0',
-      adr,
-      documentatie: '',
-      tar: '',
-      type: '',
-      opdrachtgever_naam: 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
-      opdrachtgever_adres: 'WOLGAWEG 3',
-      opdrachtgever_postcode: '3198 LR',
-      opdrachtgever_plaats: 'ROTTERDAM',
-      opdrachtgever_telefoon: '010-1234567',
-      opdrachtgever_email: 'nl-rtm-operations@dfds.com',
-      opdrachtgever_btw: 'NL007129099B01',
-      opdrachtgever_kvk: '24232781',
-      klantnaam,
-      klantadres,
-      klantpostcode,
-      klantplaats,
+      // const data = doc tar type
+      documentatie: logResult('documentatie', '' || ''),
+      tar: logResult('tar', '' || ''),
+      type: logResult('type', '' || ''),
+      
+      // const data = opdrachtgever
+      opdrachtgever_naam: logResult('opdrachtgever_naam', 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM BV'),
+      opdrachtgever_adres: logResult('opdrachtgever_adres', 'WOLGAWEG 3'),
+      opdrachtgever_postcode: logResult('opdrachtgever_postcode', '3198 LR'),
+      opdrachtgever_plaats: logResult('opdrachtgever_plaats', 'ROTTERDAM'),
+      opdrachtgever_telefoon: logResult('opdrachtgever_telefoon', '010-1234567'),
+      opdrachtgever_email: logResult('opdrachtgever_email', 'nl-rtm-operations@dfds.com'),
+      opdrachtgever_btw: logResult('opdrachtgever_btw', 'NL007129099B01'),
+      opdrachtgever_kvk: logResult('opdrachtgever_kvk', '24232781'),
+
+      // const data = klant
+      klantnaam: logResult('klantnaam', klantnaam || ''),
+      klantadres: logResult('klantadres', klantadres || ''),
+      klantpostcode: logResult('klantpostcode', klantpostcode || ''),
+      klantplaats: logResult('klantplaats', klantplaats || ''),
+
         locaties: [
             {
         volgorde: '0',    
