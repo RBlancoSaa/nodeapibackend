@@ -116,8 +116,12 @@ const multiExtract = (patterns) => {
         !blacklist.some(term => r.toLowerCase().includes(term.toLowerCase()))
       );
     const lading = logResult('lading', regels.find(r => r.match(/\d+\s*CARTON|BAG|PALLET|BARREL/i)) || '');
-    const referentie = logResult('referentie', text.match(/Dropoff\s+(\d{7,})/)?.[1] || '');
-
+    const referentie = (() => {
+    const pickupBlock = text.match(/Pickup[\s\S]+?(?=Lossen|Drop[-\s]?off|Extra Information|\*|$)/i)?.[0] || '';
+    const match = pickupBlock.match(/([A-Z0-9]{9})\s+\d{2}-\d{2}-\d{4}/); // zoals EIRU123456 11-07-2025
+    return match?.[1]?.trim() || '';
+  })();
+  
     // Tijd en datum
     const tijdMatch = filteredRegelsIntro .find(r => r.match(/\d{2}:\d{2}/))?.match(/(\d{2}):(\d{2})/);
     const tijd = tijdMatch ? `${tijdMatch[1]}:${tijdMatch[2]}:00` : '';
@@ -175,8 +179,6 @@ const multiExtract = (patterns) => {
       logResult('volume', volume);
       logResult('gewicht', gewicht);
 
-
-            
       // 🎯 Terminalnaam (pickup) ophalen voor lookup key
       const pickupTerminalMatch = text.match(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
       const puKey = pickupTerminalMatch?.[1]?.trim() || '';
@@ -200,8 +202,14 @@ const multiExtract = (patterns) => {
       const klantregels = filteredRegels.slice(puIndex + 1,  puIndex + 8)
         .filter(l => l && !/^Cargo:|^Reference/i.test(l))
         .slice(0, 4);
-
       
+        // Laadreferentie ophalen uit Lossen blok
+      const laadreferentie = (() => {
+      const block = text.match(/Lossen[\s\S]+?(?=Drop[-\s]?off|Extra Information|\*|$)/i)?.[0] || '';
+      const match = block.match(/I\d{8}/i);
+      return match?.[0] || '';
+    })();
+    
 
       // 💡 Veldextractie per regel (ruwe benadering)
       const klantnaam = klantregels[0] || '';
@@ -238,11 +246,11 @@ const multiExtract = (patterns) => {
       laadreferentie: logResult('laadreferentie', laadreferentie),
 
       // const data = drop off informatie
-      inleverreferentie: logResult('inleverreferentie', (() => {
-        const blok = text.match(/Drop[-\s]?off[\s\S]+?(?=Extra Information|Goederen informatie|\*|$)/i)?.[0] || '';
-        const match = blok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
-        return match?.[1]?.trim() || '0';
-      })()),
+      const inleverreferentie = (() => {
+        const dropoffBlock = text.match(/Drop[-\s]?off[\s\S]+?(?=Extra Information|Goederen informatie|\*|$)/i)?.[0] || '';
+        const match = dropoffBlock.match(/Reference[:\t ]+([A-Z0-9\-]+)/i);
+        return match?.[1]?.trim() || '';
+      })();
       inleverBootnaam: logResult('inleverBootnaam', bootnaam || ''),
       inleverRederij: logResult('inleverRederij', rederij || ''),
 
