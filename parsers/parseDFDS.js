@@ -198,10 +198,13 @@ const multiExtract = (patterns) => {
       const filteredRegels = regels.slice(startIndex);
 
       // 🧾 Klantgegevens uit Pick-up blok halen (na "Pick-up terminal")
-      const puIndex = filteredRegels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
-      const klantregels = filteredRegels.slice(puIndex + 1,  puIndex + 8)
-        .filter(l => l && !/^Cargo:|^Reference/i.test(l))
-        .slice(0, 4);
+      const lossenIndex = filteredRegels.findIndex(line => /^Lossen$/i.test(line));
+      const klantregels = filteredRegels.slice(lossenIndex + 1, lossenIndex + 5).filter(Boolean);
+
+      const klantnaam = klantregels[0] || '';
+      const klantadres = klantregels[1] || '';
+      const klantpostcode = klantregels[2]?.match(/\d{4}\s?[A-Z]{2}/)?.[0] || '';
+      const klantplaats = klantregels[2]?.replace(klantpostcode, '').trim() || '';
       
         // Laadreferentie ophalen uit Lossen blok
       const laadreferentie = (() => {
@@ -212,16 +215,12 @@ const multiExtract = (patterns) => {
 
           // const data = drop off informatie
       const inleverreferentie = (() => {
-        const dropoffBlock = text.match(/Drop[-\s]?off[\s\S]+?(?=Extra Information|Goederen informatie|\*|$)/i)?.[0] || '';
-        const match = dropoffBlock.match(/Reference[:\t ]+([A-Z0-9\-]+)/i);
+      const dropoffBlock = text.match(/Drop[-\s]?off[\s\S]+?(?=Extra Information|Goederen informatie|\*|$)/i)?.[0] || '';
+      const match = dropoffBlock.match(/Reference[:\t ]+([A-Z0-9\-]+)/i);
         return match?.[1]?.trim() || '';
       })();
 
-      // 💡 Veldextractie per regel (ruwe benadering)
-      const klantnaam = klantregels[0] || '';
-      const klantadres = klantregels[1] || '';
-      const klantpostcode = klantregels[2]?.match(/\d{4}\s?[A-Z]{2}/)?.[0] || '';
-      const klantplaats = klantregels[2]?.replace(klantpostcode, '').trim() || '';
+
 
       console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
       console.log('👉 naam:', klantnaam);
