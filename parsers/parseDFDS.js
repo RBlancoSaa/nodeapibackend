@@ -130,6 +130,14 @@ export default async function parseDFDS(pdfBuffer) {
       logResult('volume', volume);
       logResult('gewicht', gewicht);
 
+      const blacklist = [
+        'FENEX', 'TLN', 'registry clerk', 'insurance cover', 'Dutch legislation',
+        'www.dfds.com', 'KvK', 'Rabobank', 'BIC', 'BTW', 'Operations', 'Accounts', 'NL-RTM-accounts'
+      ];
+      const regelsGefilterd = regels.filter(r =>
+        !blacklist.some(term => r.toLowerCase().includes(term.toLowerCase()))
+      );
+      
       // 🎯 Terminalnaam (pickup) ophalen voor lookup key
       const pickupTerminalMatch = text.match(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
       const puKey = pickupTerminalMatch?.[1]?.trim() || '';
