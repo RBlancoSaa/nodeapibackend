@@ -273,14 +273,13 @@ const multiExtract = (patterns) => {
       type: logResult('type', ''),
       
       // const data = opdrachtgever
-      opdrachtgever_Naam: logResult('opdrachtgever_naam', 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM BV'),
-      opdrachtgever_Adres: logResult('opdrachtgever_adres', 'WOLGAWEG 3'),
-      opdrachtgever_Postcode: logResult('opdrachtgever_postcode', '3198 LR'),
-      opdrachtgever_Plaats: logResult('opdrachtgever_plaats', 'ROTTERDAM'),
-      opdrachtgever_Telefoon: logResult('opdrachtgever_telefoon', '010-1234567'),
-      opdrachtgever_Email: logResult('opdrachtgever_email', 'nl-rtm-operations@dfds.com'),
-      opdrachtgever_BTW: logResult('opdrachtgever_btw', 'NL007129099B01'),
-      opdrachtgever_KVK: logResult('opdrachtgever_kvk', '24232781'),
+      opdrachtgeverNaam: logResult('opdrachtgeverNaam', 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM BV'),
+      opdrachtgeverAdres: logResult('opdrachtgeverAdres', 'WOLGAWEG 3'),
+      opdrachtgeverPostcode: logResult('opdrachtgeverPostcode', '3198 LR'),
+      opdrachtgeverPlaats: logResult('opdrachtgeverPlaats', 'ROTTERDAM'),
+      opdrachtgeverEmail: logResult('opdrachtgeverEmail', 'nl-rtm-operations@dfds.com'),
+      opdrachtgeverBTW: logResult('opdrachtgeverBTW', 'NL007129099B01'),
+      opdrachtgeverKVK: logResult('opdrachtgeverKVK', '24232781'),
 
       // const data = klant
       klantnaam: logResult('klantnaam', klantnaam || ''),
