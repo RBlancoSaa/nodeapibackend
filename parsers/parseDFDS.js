@@ -161,6 +161,10 @@ export default async function parseDFDS(pdfBuffer) {
       console.log('👉 adres:', klantadres);
       console.log('👉 postcode:', klantpostcode);
       console.log('👉 plaats:', klantplaats);
+      logResult('klantnaam', klantnaam);
+      logResult('klantadres', klantadres);
+      logResult('klantpostcode', klantpostcode);
+      logResult('klantplaats', klantplaats);
 
     const data = {
       ritnummer,
@@ -224,12 +228,11 @@ export default async function parseDFDS(pdfBuffer) {
       {
         volgorde: '0',
         actie: isLossenOpdracht ? 'Lossen' : 'Laden',
-        naam: data.klantnaam || '',
-        adres: data.klantadres || '',
-        postcode: data.klantpostcode || '',
-        plaats: data.klantplaats || '',
+        naam: klantnaam,
+        adres: klantadres,
+        postcode: klantpostcode,
+        plaats: klantplaats,
         land: 'NL'
-        // geen andere velden hier
       },
       {
         volgorde: '0',
