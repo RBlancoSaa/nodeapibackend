@@ -45,7 +45,6 @@ export default async function parseDFDS(pdfBuffer) {
   const dropoffInfo = await getTerminalInfoMetFallback(dropoffTerminal);
 
 
-  console.log(`📦 Aantal containers gevonden: ${containerRegels.length}`);
 if (containerRegels.length === 0) {
   logResult('FOUT', 'Geen containers gevonden');
   printLogs('geen containers');
@@ -57,6 +56,9 @@ for (const regel of containerRegels) {
   const match = regel.match(/\b([A-Z]{4}\d{7})\b\s+(.+?)\s+-\s+([\d.]+)\s*m3/i);
   if (!match) continue;
 
+  
+  console.log(`📦 Aantal containers gevonden: ${containerRegels.length}`);
+  
   const containernummer = logResult('containernummer', match[1]);
   const containertypeRaw = logResult('containertype', match[2]);
   const volume = logResult('volume', match[3]);
