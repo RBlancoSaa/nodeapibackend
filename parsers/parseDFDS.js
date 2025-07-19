@@ -237,5 +237,5 @@ export default async function parseDFDS(pdfBuffer) {
     console.log('🧪 Terminalinfo (dropoff):', dropoffInfo);
     }
 
-  return containers;
+  return data;
 }
