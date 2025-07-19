@@ -22,11 +22,10 @@ export default async function parseDFDS(pdfBuffer) {
   const bootnaam = logResult('bootnaam', text.match(/Vaartuig\s+(.+?)\s+Reis/i)?.[1]);
   const rederij = logResult('rederij', text.match(/Rederij\s+(.+)/i)?.[1]);
 
-  const klantregel = regels.find(r => r.toLowerCase().includes('lossen') || r.toLowerCase().includes('dropoff')) || '';
-  const klantNaam = logResult('klant.naam', klantregel.match(/Lossen\s+(.+)/i)?.[1]);
-  const klantAdres = logResult('klant.adres', klantregel.match(/Adres[:\s]+(.+)/i)?.[1]);
-  const klantPostcode = logResult('klant.postcode', klantregel.match(/Postcode[:\s]+(.+)/i)?.[1]);
-  const klantPlaats = logResult('klant.plaats', klantregel.match(/Plaats[:\s]+(.+)/i)?.[1]);
+  const klantNaam = logResult('klant.naam', regels.find(r => r.toLowerCase().includes('dropoff'))?.match(/Dropoff\s+(.+)/i)?.[1]);
+  const klantAdres = logResult('klant.adres', regels.find(r => r.toLowerCase().includes('adres'))?.split('Adres:')[1]?.trim() || '');
+  const klantPostcode = logResult('klant.postcode', regels.find(r => r.toLowerCase().includes('postcode'))?.split('Postcode:')[1]?.trim() || '');
+  const klantPlaats = logResult('klant.plaats', regels.find(r => r.toLowerCase().includes('plaats'))?.split('Plaats:')[1]?.trim() || '');
 
   const locatie1 = await getTerminalInfoMetFallback('DFDS Warehousing Rotterdam BV Europoort');
   const locatie3 = await getTerminalInfoMetFallback('DFDS Warehousing Rotterdam BV Europoort');
@@ -98,29 +97,22 @@ export default async function parseDFDS(pdfBuffer) {
     const containertypeCode = await getContainerTypeCode(containertypeRaw);
 
     const lading = logResult('lading', regels.find(r => r.match(/\d+\s*CARTON|BAG|PALLET|BARREL/i)) || '');
-    const referentie = logResult('referentie', regels.find(r => r.startsWith('Lossen'))?.split(' ')[1]);
-    
+    const referentie = logResult('referentie', text.match(/Dropoff\s+(\d{7,})/)?.[1] || '');
+
     // Tijd en datum
     const tijdMatch = regels.find(r => r.match(/\d{2}:\d{2}/))?.match(/(\d{2}):(\d{2})/);
     const tijd = tijdMatch ? `${tijdMatch[1]}:${tijdMatch[2]}:00` : '';
-    const dateMatch = text.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/);
+    const dateMatch = regels.find(r => r.toLowerCase().includes('pickup'))?.match(/(\d{2})-(\d{2})-(\d{4})/);
     logResult('tijd', tijd);
 
     if (dateMatch) {
-      const dag = parseInt(dateMatch[1]).toString().padStart(2, '0');
-      const maandStr = dateMatch[2].toLowerCase().slice(0, 3);
-      const jaar = dateMatch[3];
-      const tijdUitDateMatch = dateMatch[4];
-      const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-      const maand = (maanden[maandStr] || 0).toString().padStart(2, '0');
-      
+      const [_, dag, maand, jaar] = dateMatch;
       laadDatum = `${dag}-${maand}-${jaar}`;
-      laadTijd = tijdUitDateMatch ? `${tijdUitDateMatch}:00` : '';
     } else {
-        const nu = new Date();
-        laadDatum = `${nu.getDate().toString().padStart(2, '0')}-${(nu.getMonth() + 1).toString().padStart(2, '0')}-${nu.getFullYear()}`;
-        laadTijd = '';
-      }
+      const nu = new Date();
+      laadDatum = `${nu.getDate().toString().padStart(2, '0')}-${(nu.getMonth() + 1).toString().padStart(2, '0')}-${nu.getFullYear()}`;
+      laadTijd = '';
+    }
     logResult('datum', laadDatum);
     logResult('tijd', laadTijd);
 
