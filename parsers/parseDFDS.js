@@ -32,6 +32,21 @@ export default async function parseDFDS(pdfBuffer) {
       lower.includes('kosteloos toegezonden')
     );
   });
+  // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
+const multiExtract = (patterns) => {
+  for (const pattern of patterns) {
+    const found = regels.find(line => pattern.test(line));
+    if (found) {
+      const match = found.match(pattern);
+      if (match?.[1]) {
+        const result = match[1].trim();
+        console.log(`🔎 Pattern match: ${pattern} ➜ ${result}`);
+        return result;
+      }
+    }
+  }
+  return '';
+};
 
     // 📌 Algemene info
     let ritnummer = '';
@@ -218,7 +233,7 @@ export default async function parseDFDS(pdfBuffer) {
 
     const data = {
       ritnummer: logResult('ritnummer', ritnummer),
-      
+
       referentie: logResult('referentie', (() => {
         const blok = text.match(/Lossen[\s\S]+?(?=Drop[-\s]?off|Extra Information|\*|$)/i)?.[0] || '';
         const match = blok.match(/I\d{8}/i); // of ander patroon

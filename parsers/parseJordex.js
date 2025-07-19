@@ -61,6 +61,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     }
     return '';
   };
+  
   // ✅ 100% correcte extractie uit alleen het "Pick-up" blok (klant)
     const pickupBlokMatch = text.match(/Pick-up\s*\n([\s\S]+?)(?=\n(?:Drop-off terminal|Pick-up terminal|Extra Information|$))/i);
     const pickupBlok = pickupBlokMatch?.[1] || '';
