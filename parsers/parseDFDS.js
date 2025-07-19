@@ -31,6 +31,12 @@ export default async function parseDFDS(pdfBuffer) {
   const pickupInfo = await getTerminalInfoMetFallback('DFDS Warehousing Rotterdam BV Europoort');
   const dropoffInfo = await getTerminalInfoMetFallback('DFDS Warehousing Rotterdam BV Europoort');
 
+  const instructieRegel = regels.find(r => r.toLowerCase().includes('opmerking') || r.toLowerCase().includes('remark'));
+    if (instructieRegel) {
+      instructies = instructieRegel.split(':')[1]?.trim() || '';
+    }
+    logResult('instructies', instructies);
+
     let laadDatum = '';
     let laadTijd = '';
     let instructies = '';
@@ -132,7 +138,7 @@ export default async function parseDFDS(pdfBuffer) {
       temperatuur: logResult('temperatuur', regels.find(r => r.includes('°C'))?.match(/(\d{1,2})/)?.[1] || ''),
       datum: laadDatum,
       tijd,
-      instructies: '',
+      instructies,
       laadreferentie: referentie,
       inleverreferentie: referentie,
       bootnaam,
