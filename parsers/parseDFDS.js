@@ -55,8 +55,10 @@ export default async function parseDFDS(pdfBuffer) {
   const ritnummer = ritnummerMatch?.[0] || '';
   logResult('ritnummer', ritnummer);
 
-  // 📦 Containers
+ 
+// 📦 Containers
 const containers = [];
+const containerRegels = []; // ✅ <— deze ontbrak
   
 for (const container of containerRegels) {
   const containernummer = container.containernummer;
