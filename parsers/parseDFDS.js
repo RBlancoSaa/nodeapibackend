@@ -145,7 +145,11 @@ export default async function parseDFDS(pdfBuffer) {
       const klantpostcode = klantregels[2]?.match(/\d{4}\s?[A-Z]{2}/)?.[0] || '';
       const klantplaats = klantregels[2]?.replace(klantpostcode, '').trim() || '';
 
-
+      console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
+      console.log('👉 naam:', klantnaam);
+      console.log('👉 adres:', klantadres);
+      console.log('👉 postcode:', klantpostcode);
+      console.log('👉 plaats:', klantplaats);
 
     const data = {
       ritnummer,
@@ -238,11 +242,11 @@ export default async function parseDFDS(pdfBuffer) {
       console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
     }
 
-    // Fallback voor ritnummer
-    if ((!ritnummer || ritnummer === '0') && parsed.info?.Title?.includes('OE')) {
-      const match = parsed.info.Title.match(/(O[EI]\d{7})/i);
+    // Fallback voor ritnummer op basis van SFIM-code in PDF-titel
+    if ((!ritnummer || ritnummer === '0') && parsed.info?.Title?.includes('SFIM')) {
+      const match = parsed.info.Title.match(/\bSFIM\d{7}\b/i);
       if (match) {
-        data.ritnummer = match[1];
+        data.ritnummer = match[0];
       }
     }
 
@@ -257,5 +261,5 @@ export default async function parseDFDS(pdfBuffer) {
     console.log('🧪 Terminalinfo (dropoff):', dropoffInfo);
     }
 
-  return { containers };
+  return containers;
 }
