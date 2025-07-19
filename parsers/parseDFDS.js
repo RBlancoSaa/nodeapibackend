@@ -1,10 +1,14 @@
-// 📁 parsers/parseDFDS.js
+// parsers/parseDFDS.js
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import {
-  getTerminalInfoMetFallback,
-  getContainerTypeCode
+  getTerminalInfo,
+  getRederijNaam,
+  getContainerTypeCode,
+  getTerminalInfoFallback,
+  getTerminalInfoMetFallback
 } from '../utils/lookups/terminalLookup.js';
+
 
 function logResult(label, value) {
   const val = value || '';
@@ -29,10 +33,27 @@ export default async function parseDFDS(pdfBuffer) {
     );
   });
 
-  // 📌 Algemene info
-  const ritnummer = logResult('ritnummer', text.match(/\bSFIM\d{7}\b/)?.[0]);
+    // 📌 Algemene info
+    let ritnummer = '';
+
+    // Probeer eerst met volledige zin ("Onze referentie SFIMxxxxxxx")
+    const referentieRegel = regels.find(r =>
+      r.toLowerCase().includes('onze referentie') && r.match(/SFIM\d{7}/i)
+    );
+
+    // Als gevonden in specifieke regel → gebruiken
+    if (referentieRegel) {
+      ritnummer = referentieRegel.match(/SFIM\d{7}/i)?.[0] || '';
+    } else {
+      // Anders: fallback naar eerste SFIM-code in volledige tekst (kan foute zijn)
+      ritnummer = text.match(/\bSFIM\d{7}\b/i)?.[0] || '';
+    }
+
+    logResult('ritnummer', ritnummer);
+    
   const bootnaam = logResult('bootnaam', text.match(/Vaartuig\s+(.+?)\s+Reis/i)?.[1]);
-  const rederij = logResult('rederij', text.match(/Rederij\s+(.+)/i)?.[1]);
+  const rederij = logResult('rederij', multiExtract([/Rederij[:\t ]+(.+)/i]));
+  const inleverRederij = logResult('inleverRederij', rederij);
   const loshaven = logResult('loshaven', text.match(/Loshaven\s+([A-Z]{5})\s*-\s*(.+)/i)?.[2]?.trim());
   const fromLocatie = logResult('from', text.match(/From:\s*(.+)/i)?.[1]?.trim() || '');
   const toLocatie = logResult('to', text.match(/To:\s*(.+)/i)?.[1]?.trim() || '');
@@ -138,6 +159,7 @@ export default async function parseDFDS(pdfBuffer) {
         !blacklist.some(term => r.toLowerCase().includes(term.toLowerCase()))
       );
       
+      
       // 🎯 Terminalnaam (pickup) ophalen voor lookup key
       const pickupTerminalMatch = text.match(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
       const puKey = pickupTerminalMatch?.[1]?.trim() || '';
@@ -158,6 +180,26 @@ export default async function parseDFDS(pdfBuffer) {
         .filter(l => l && !/^Cargo:|^Reference/i.test(l))
         .slice(0, 4);
 
+          try {
+        data.terminal = await getTerminalInfo(data.dropoffTerminal) || '0';
+        data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
+
+        const baseRederij = data.rederij.includes(' - ')
+          ? data.rederij.split(' - ')[1].trim()
+          : data.rederij.trim();
+
+        const officiëleRederij = await getRederijNaam(baseRederij);
+        console.log('🎯 MATCH uit rederijenlijst:', officiëleRederij);
+
+        if (officiëleRederij && officiëleRederij !== '0') {
+          data.rederij = officiëleRederij;
+          data.inleverRederij = officiëleRederij;
+        }
+      } catch (e) {
+        console.warn('⚠️ Fout in terminal of rederij lookup:', e);
+      }
+      
+
       // 💡 Veldextractie per regel (ruwe benadering)
       const klantnaam = klantregels[0] || '';
       const klantadres = klantregels[1] || '';
@@ -175,24 +217,26 @@ export default async function parseDFDS(pdfBuffer) {
       logResult('klantplaats', klantplaats);
 
     const data = {
-      ritnummer,
-      referentie,
-      colli,
-      volume,
-      gewicht,
-      lading,
-      containernummer,
-      containertype: containertypeRaw,
-      containertype_code: containertypeCode,
-      zegel,
-      temperatuur: logResult('temperatuur', regels.find(r => r.includes('°C'))?.match(/(\d{1,2})/)?.[1] || ''),
-      datum: laadDatum,
-      tijd,
-      instructies,
-      laadreferentie: referentie,
-      inleverreferentie: referentie,
-      bootnaam,
-      rederij,
+      ritnummer: logResult('ritnummer', ritnummer),
+      referentie: logResult('referentie', referentie),
+      colli: logResult('colli', colli),
+      volume: logResult('volume', volume),
+      gewicht: logResult('gewicht', gewicht),
+      lading: logResult('lading', lading),
+      klantnaam: logResult('klantnaam', klantnaam),
+      klantadres: logResult('klantadres', klantadres),
+      klantpostcode: logResult('klantpostcode', klantpostcode),
+      klantplaats: logResult('klantplaats', klantplaats),
+      containertype: logResult('containertype', containertypeRaw),
+      containernummer: logResult('containernummer', containernummer),
+      zegel: logResult('zegel', zegel),
+      datum: logResult('datum', datum),
+      tijd: logResult('tijd', tijd),
+      adr: logResult('adr', adr),
+      laadreferentie: logResult('laadreferentie', laadreferentie),
+      inleverreferentie: logResult('inleverreferentie', inleverreferentie),
+      inleverBootnaam: logResult('inleverBootnaam', bootnaam),
+      inleverRederij: logResult('inleverRederij', rederij),
       inlever_bootnaam: bootnaam,
       inlever_rederij: rederij,
       inlever_bestemming: '',
@@ -259,6 +303,27 @@ export default async function parseDFDS(pdfBuffer) {
       }
       ]
     };
+
+
+    // ⬇️ Dan pas terminal- en rederij-verwerking
+    try {
+      data.terminal = await getTerminalInfo(data.dropoffTerminal) || '0';
+      data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
+
+      const baseRederij = data.rederij.includes(' - ')
+        ? data.rederij.split(' - ')[1].trim()
+        : data.rederij.trim();
+
+      const officiëleRederij = await getRederijNaam(baseRederij);
+      console.log('🎯 MATCH uit rederijenlijst:', officiëleRederij);
+
+      if (officiëleRederij && officiëleRederij !== '0') {
+        data.rederij = officiëleRederij;
+        data.inleverRederij = officiëleRederij;
+      }
+    } catch (e) {
+      console.warn('⚠️ Fout in terminal of rederij lookup:', e);
+    }
     // Fallback voor referentie
     if (!referentie || referentie === '0') {
       console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
@@ -274,6 +339,8 @@ export default async function parseDFDS(pdfBuffer) {
 
     // Log per container
     console.log('📤 DFDS CONTAINERDATA:', JSON.stringify(data, null, 2));
+
+
     containers.push(data);
 
     console.log('📦 LOCATIE 0 (pickup):', JSON.stringify(data.locaties[0], null, 2));
