@@ -28,11 +28,8 @@ export default async function parseDFDS(pdfBuffer) {
   const klantAdres = logResult('klant.adres', regels.find(r => r.toLowerCase().includes('adres'))?.split('Adres:')[1]?.trim() || '');
   const klantPostcode = logResult('klant.postcode', regels.find(r => r.toLowerCase().includes('postcode'))?.split('Postcode:')[1]?.trim() || '');
   const klantPlaats = logResult('klant.plaats', regels.find(r => r.toLowerCase().includes('plaats'))?.split('Plaats:')[1]?.trim() || '');
-  const pickupInfo = await getTerminalInfoMetFallback('DFDS Warehousing Rotterdam BV Europoort');
-  const dropoffInfo = await getTerminalInfoMetFallback('DFDS Warehousing Rotterdam BV Europoort');
-
+  
     let laadDatum = '';
-    let laadTijd = '';
     let instructies = '';
 
     let isLossenOpdracht = false;
@@ -80,10 +77,9 @@ export default async function parseDFDS(pdfBuffer) {
     } else {
       const nu = new Date();
       laadDatum = `${nu.getDate().toString().padStart(2, '0')}-${(nu.getMonth() + 1).toString().padStart(2, '0')}-${nu.getFullYear()}`;
-      laadTijd = '';
     }
     logResult('datum', laadDatum);
-    logResult('tijd', laadTijd);
+    logResult('tijd');
 
       let adr = 'Onwaar';
       for (const regel of regels) {
@@ -126,6 +122,38 @@ export default async function parseDFDS(pdfBuffer) {
       logResult('volume', volume);
       logResult('gewicht', gewicht);
 
+      // 🎯 Terminalnaam (pickup) ophalen voor lookup key
+      const pickupTerminalMatch = text.match(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
+      const puKey = pickupTerminalMatch?.[1]?.trim() || '';
+
+      // 🎯 Terminalnaam (dropoff) ophalen voor lookup key
+      const dropoffTerminalMatch = text.match(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i);
+      const dropoffTerminalAdres = dropoffTerminalMatch?.[1]?.trim() || '';
+      const doKey = dropoffTerminalAdres || data.dropoff_terminal || '';
+      console.log('🔑 doKey terminal lookup:', doKey);
+
+      // 🧠 Terminalinformatie ophalen met fallback
+      const pickupInfo = await getTerminalInfoMetFallback(puKey);
+      const dropoffInfo = await getTerminalInfoMetFallback(doKey);
+
+      // 🧾 Klantgegevens uit Pick-up blok halen (na "Pick-up terminal")
+      const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
+      const klantregels = regels
+        .slice(puIndex + 1, puIndex + 8)
+        .filter(l => l && !/^Cargo:|^Reference/i.test(l))
+        .slice(0, 4);
+
+      // 💡 Veldextractie per regel (ruwe benadering)
+      const klantnaam = klantregels[0] || '';
+      const klantadres = klantregels[1] || '';
+      const klantpostcode = klantregels[2]?.match(/\d{4}\s?[A-Z]{2}/)?.[0] || '';
+      const klantplaats = klantregels[2]?.replace(klantpostcode, '').trim() || '';
+
+      console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
+      console.log('👉 naam:', data.klantnaam);
+      console.log('👉 adres:', data.klantadres);
+      console.log('👉 postcode:', data.klantpostcode);
+      console.log('👉 plaats:', data.klantplaats);
 
     const data = {
       ritnummer,
@@ -166,10 +194,10 @@ export default async function parseDFDS(pdfBuffer) {
       opdrachtgever_email: 'nl-rtm-operations@dfds.com',
       opdrachtgever_btw: 'NL007129099B01',
       opdrachtgever_kvk: '24232781',
-      klantnaam: klantNaam,
-      klantadres: klantAdres,
-      klantpostcode: klantPostcode,
-      klantplaats: klantPlaats,
+      klantnaam,
+      klantadres,
+      klantpostcode,
+      klantplaats,
         locaties: [
             {
         volgorde: '0',    
@@ -188,7 +216,7 @@ export default async function parseDFDS(pdfBuffer) {
       },
       {
         volgorde: '0',
-        actie: data.isLossenOpdracht ? 'Lossen' : 'Laden',
+        actie: isLossenOpdracht ? 'Lossen' : 'Laden',
         naam: data.klantnaam || '',
         adres: data.klantadres || '',
         postcode: data.klantpostcode || '',
@@ -237,5 +265,5 @@ export default async function parseDFDS(pdfBuffer) {
     console.log('🧪 Terminalinfo (dropoff):', dropoffInfo);
     }
 
-  return data;
+  return { containers };
 }
