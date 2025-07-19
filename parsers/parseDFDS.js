@@ -24,11 +24,7 @@ export default async function parseDFDS(pdfBuffer) {
   const loshaven = logResult('loshaven', text.match(/Loshaven\s+([A-Z]{5})\s*-\s*(.+)/i)?.[2]?.trim());
   const fromLocatie = logResult('from', text.match(/From:\s*(.+)/i)?.[1]?.trim() || '');
   const toLocatie = logResult('to', text.match(/To:\s*(.+)/i)?.[1]?.trim() || '');
-  const klantNaam = logResult('klant.naam', regels.find(r => r.toLowerCase().includes('dropoff'))?.match(/Dropoff\s+(.+)/i)?.[1]);
-  const klantAdres = logResult('klant.adres', regels.find(r => r.toLowerCase().includes('adres'))?.split('Adres:')[1]?.trim() || '');
-  const klantPostcode = logResult('klant.postcode', regels.find(r => r.toLowerCase().includes('postcode'))?.split('Postcode:')[1]?.trim() || '');
-  const klantPlaats = logResult('klant.plaats', regels.find(r => r.toLowerCase().includes('plaats'))?.split('Plaats:')[1]?.trim() || '');
-  
+
     let laadDatum = '';
     let instructies = '';
 
@@ -79,7 +75,7 @@ export default async function parseDFDS(pdfBuffer) {
       laadDatum = `${nu.getDate().toString().padStart(2, '0')}-${(nu.getMonth() + 1).toString().padStart(2, '0')}-${nu.getFullYear()}`;
     }
     logResult('datum', laadDatum);
-    logResult('tijd');
+    logResult('tijd', tijd);
 
       let adr = 'Onwaar';
       for (const regel of regels) {
@@ -129,7 +125,7 @@ export default async function parseDFDS(pdfBuffer) {
       // 🎯 Terminalnaam (dropoff) ophalen voor lookup key
       const dropoffTerminalMatch = text.match(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i);
       const dropoffTerminalAdres = dropoffTerminalMatch?.[1]?.trim() || '';
-      const doKey = dropoffTerminalAdres || data.dropoff_terminal || '';
+      const doKey = dropoffTerminalAdres || '';
       console.log('🔑 doKey terminal lookup:', doKey);
 
       // 🧠 Terminalinformatie ophalen met fallback
@@ -149,11 +145,7 @@ export default async function parseDFDS(pdfBuffer) {
       const klantpostcode = klantregels[2]?.match(/\d{4}\s?[A-Z]{2}/)?.[0] || '';
       const klantplaats = klantregels[2]?.replace(klantpostcode, '').trim() || '';
 
-      console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
-      console.log('👉 naam:', data.klantnaam);
-      console.log('👉 adres:', data.klantadres);
-      console.log('👉 postcode:', data.klantpostcode);
-      console.log('👉 plaats:', data.klantplaats);
+
 
     const data = {
       ritnummer,
