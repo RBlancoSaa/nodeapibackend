@@ -23,6 +23,7 @@ export default async function handleB2L({ buffer, base64, filename }) {
         })
       });
 
+      
       const result = await response.json();
       console.log('📤 .easy gegenereerd voor B2L-container:', result);
 
