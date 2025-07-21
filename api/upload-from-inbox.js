@@ -19,7 +19,14 @@ const handlers = {
   jordex: { match: name => name.includes('jordex'), handler: handleJordex },
   dfds: { match: name => name.includes('dfds') && name.includes('transportorder'), handler: handleDFDS },
   b2l: { match: name => name.includes('b2l'), handler: handleB2L },
-  easyfresh: { match: name => name.includes('easyfresh'), handler: handleEasyfresh },
+  easyfresh: {
+  match: name =>
+    name.includes('easyfresh') ||
+    name.includes('forwarding vendor') ||
+    name.includes('efn') ||
+    name.includes('proforma'),
+  handler: handleEasyfresh
+},
   kwe: { match: name => name.includes('kwe'), handler: handleKWE },
   neelevat: { match: name => name.includes('neelevat'), handler: handleNeelevat },
   ritra: { match: name => name.includes('ritra'), handler: handleRitra }
