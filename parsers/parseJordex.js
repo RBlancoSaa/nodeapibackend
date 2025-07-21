@@ -162,6 +162,10 @@ if (dateMatch) {
 
 const containers = [];
 const containerLines = text.match(/(20|40)['’] container.+?(?=\n|$)/g) || [];
+if (containerLines.length === 0 && /(\d+)\s*x\s*20['’] container/i.test(text)) {
+  const aantal = parseInt(RegExp.$1);
+  containerLines.push(...Array(aantal).fill("20' container ~fallbackregel"));
+}
 
 for (const line of containerLines) {
   const typeMatch = line.match(/(20|40)['’] container/i)?.[1] || '20';
