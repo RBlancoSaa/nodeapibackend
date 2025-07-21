@@ -8,40 +8,44 @@ export default async function handleJordex({ buffer, base64, filename }) {
   const parsedData = await parseJordex(buffer);
   const easyFiles = [];
 
-  if (!parsedData.ritnummer || parsedData.ritnummer === '0') {
-    throw new Error('❌ Geen geldig ritnummer gevonden voor Jordex');
-  }
+  const containers = Array.isArray(parsedData) ? parsedData : [parsedData];
 
-  try {
-    const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        reference: parsedData.referentie || '0',
-        laadplaats: parsedData.laadplaats || '0',
-        pdfBestandsnaam: filename,
-        skipReprocessing: false,
-        originalPdfBase64: base64,
-        ...parsedData
-      })
-    });
+  for (const data of containers) {
+    if (!data.ritnummer || data.ritnummer === '0') {
+      console.warn('⚠️ Ongeldig ritnummer, container wordt overgeslagen:', data.containernummer || '[GEEN]');
+      continue;
+    }
 
-    const result = await response.json();
-    console.log('📤 Jordex .easy-bestand gegenereerd:', result);
+    try {
+      const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reference: data.referentie || '0',
+          laadplaats: data.laadplaats || '0',
+          pdfBestandsnaam: filename,
+          skipReprocessing: false,
+          originalPdfBase64: base64,
+          ...data
+        })
+      });
 
-    easyFiles.push({
-      filename: result.bestandsnaam,
-      xmlBase64: result.xmlBase64
-    });
+      const result = await response.json();
+      console.log(`📤 .easy-bestand gegenereerd voor container ${data.containernummer}:`, result);
 
-  } catch (err) {
-    console.error('⚠️ Fout bij Jordex .easy-generatie:', err.message);
-    return;
+      easyFiles.push({
+        filename: result.bestandsnaam,
+        xmlBase64: result.xmlBase64
+      });
+
+    } catch (err) {
+      console.error(`❌ Fout bij .easy-generatie voor container ${data.containernummer || 'onbekend'}:`, err.message);
+    }
   }
 
   try {
     await sendEmailWithAttachments({
-      ritnummer: parsedData.ritnummer,
+      ritnummer: containers[0]?.ritnummer || 'onbekend',
       attachments: [
         ...easyFiles.map(file => ({
           filename: file.filename,
