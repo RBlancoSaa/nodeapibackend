@@ -156,6 +156,20 @@ if (dateMatch) {
         console.log('📅 laadDatum:', laadDatum);
         console.log('📅 laadTijd:', laadTijd);
 
+
+// -------------------------------------------------------------
+
+
+const containers = [];
+const containerLines = text.match(/(20|40)['’] container.+?(?=\n|$)/g) || [];
+
+for (const line of containerLines) {
+  const typeMatch = line.match(/(20|40)['’] container/i)?.[1] || '20';
+  const gewicht = line.match(/(\d{4,6})\s*kg/i)?.[1] || '10000';
+  const volume = line.match(/([\d.,]+)\s*m³/i)?.[1]?.replace(',', '.') || '0';
+  const lading = line.match(/kg\s+(.+)$/i)?.[1]?.trim() || 'Fertilizers';
+  const containertype = `${typeMatch}ft`;
+
 const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
     referentie: logResult('referentie', (() => {
@@ -374,5 +388,15 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
   console.log('👉 Locatie 2 (dropoff terminal):', JSON.stringify(data.locaties[2], null, 2));
   console.log('🧪 DROP-OFF terminal:', dropoffInfo);
   console.log('🧪 PICK-UP terminal:', pickupInfo);
-  return data;
-}
+  
+
+  containers.push(data);
+} // 👈 sluit de for-loop
+
+console.log(`📦 Jordex containers gevonden: ${containers.length}`);
+containers.forEach((c, i) => {
+  console.log(`🧾 Container ${i + 1}:`, c.containernummer, c.referentie, c.gewicht);
+});
+
+return containers;
+} // 👈 sluit parseJordex functie
