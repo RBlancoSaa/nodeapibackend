@@ -167,14 +167,28 @@ if (containerLines.length === 0 && /(\d+)\s*x\s*20['’] container/i.test(text))
   containerLines.push(...Array(aantal).fill("20' container ~fallbackregel"));
 }
 
-for (const line of containerLines) {
-  const typeMatch = line.match(/(20|40)['’] container/i)?.[1] || '20';
+for (let i = 0; i < containerLines.length; i++) {
+  const line = containerLines[i];
+
   const gewicht = line.match(/(\d{4,6})\s*kg/i)?.[1] || '10000';
   const volume = line.match(/([\d.,]+)\s*m³/i)?.[1]?.replace(',', '.') || '0';
+  const containertype = line.includes('40') ? '40ft' : '20ft';
+  const containernummer = line.match(/[A-Z]{4}U\d{7}/i)?.[0] || '';
   const lading = line.match(/kg\s+(.+)$/i)?.[1]?.trim() || 'Fertilizers';
-  const containertype = `${typeMatch}ft`;
 
-const data = {
+  const data = {
+    containernummer,
+    containertype,
+    gewicht,
+    volume,
+    lading,
+  };
+
+  containers.push(data);
+}
+
+  const data = {
+
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
     referentie: logResult('referentie', (() => {
     const blok = text.match(/Pick[-\s]?up terminal[\s\S]+?(?=Pick[-\s]?up|Drop[-\s]?off|Extra Information)/i)?.[0] || '';
@@ -186,6 +200,8 @@ const data = {
     gewicht: logResult('gewicht', gewicht),
     lading: logResult('lading', lading),
     
+    containertype,
+    gewicht,
 
     inleverreferentie: logResult('inleverreferentie', (() => {
       const m = text.match(/Drop[-\s]?off terminal:[\s\S]+?Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
@@ -403,4 +419,3 @@ containers.forEach((c, i) => {
 });
 
 return containers;
-} // 👈 sluit parseJordex functie
