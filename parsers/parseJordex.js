@@ -190,8 +190,6 @@ for (let i = 0; i < containerLines.length; i++) {
     gewicht: logResult('gewicht', gewicht),
     lading: logResult('lading', lading),
     
-    containertype,
-    gewicht,
 
     inleverreferentie: logResult('inleverreferentie', (() => {
       const m = text.match(/Drop[-\s]?off terminal:[\s\S]+?Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
