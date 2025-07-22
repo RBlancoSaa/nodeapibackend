@@ -169,16 +169,8 @@ if (containerLines.length === 0 && /(\d+)\s*x\s*20['’] container/i.test(text))
 
 for (let i = 0; i < containerLines.length; i++) {
   const line = containerLines[i];
-
-  const gewicht = line.match(/(\d{4,6})\s*kg/i)?.[1] || '10000';
-  const volume = line.match(/([\d.,]+)\s*m³/i)?.[1]?.replace(',', '.') || '0';
-  const containertype = line.includes('40') ? '40ft' : '20ft';
-  const containernummer = line.match(/[A-Z]{4}U\d{7}/i)?.[0] || '';
-  const lading = line.match(/kg\s+(.+)$/i)?.[1]?.trim() || 'Fertilizers';
-
-
+  
   const data = {
-
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
     referentie: logResult('referentie', (() => {
     const blok = text.match(/Pick[-\s]?up terminal[\s\S]+?(?=Pick[-\s]?up|Drop[-\s]?off|Extra Information)/i)?.[0] || '';
@@ -375,6 +367,9 @@ data.locaties = [
   }
 ];
 
+
+
+
   if (!data.referentie || data.referentie === '0') {
     console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
   }
@@ -406,5 +401,6 @@ containers.forEach((c, i) => {
   console.log(`🧾 Container ${i + 1}:`, c.containernummer, c.referentie, c.gewicht);
 });
 
+console.log('🚨 GEHEUGENCONTROLE containers[]:', containers);
 return containers;
 }
