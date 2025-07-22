@@ -176,16 +176,6 @@ for (let i = 0; i < containerLines.length; i++) {
   const containernummer = line.match(/[A-Z]{4}U\d{7}/i)?.[0] || '';
   const lading = line.match(/kg\s+(.+)$/i)?.[1]?.trim() || 'Fertilizers';
 
-  const data = {
-    containernummer,
-    containertype,
-    gewicht,
-    volume,
-    lading,
-  };
-
-  containers.push(data);
-}
 
   const data = {
 
@@ -419,3 +409,4 @@ containers.forEach((c, i) => {
 });
 
 return containers;
+}
