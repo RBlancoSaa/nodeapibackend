@@ -93,21 +93,17 @@ data.zegel = log('zegel', containerMatch?.[4] || '');
   const pickupBlok = regels.find(r => r.startsWith('Pickup'));
   data.laadreferentie = log('laadreferentie', pickupBlok?.match(/Reference:?\s*(\S+)/i)?.[1] || '');
   const pickupLine = regels.find(r => r.match(/\d{2}-\d{2}-\d{4}/));
-  const rawDate = pickupLine?.match(/(\d{2})-(\d{2})-(\d{4})/);
-  data.datum = log(
-    'datum',
-    rawDate ? `${parseInt(rawDate[1])}-${parseInt(rawDate[2])}-${rawDate[3]}` : ''
-  );
+data.datum = log('datum', pickupLine?.match(/(\d{2}-\d{2}-\d{4})/)?.[1] || '');
 
-  if (!data.datum) {
-    const uploadDate = new Date();
-    const d = uploadDate.getDate();
-    const m = uploadDate.getMonth() + 1;
-    const y = uploadDate.getFullYear();
-    data.datum = `${d}-${m}-${y}`;
-    data.instructies = 'DATUM STAAT VERKEERD';
-    console.warn('⚠️ Geen datum gevonden in PDF, uploaddatum gebruikt.');
-  }
+if (!data.datum) {
+  const uploadDate = new Date();
+  const dd = String(uploadDate.getDate()).padStart(2, '0');
+  const mm = String(uploadDate.getMonth() + 1).padStart(2, '0');
+  const yyyy = uploadDate.getFullYear();
+  data.datum = `${dd}-${mm}-${yyyy}`;
+  data.instructies = 'DATUM STAAT VERKEERD';
+  console.warn('⚠️ Geen datum gevonden in PDF, uploaddatum gebruikt.');
+}
   data.tijd = log('tijd', formatTijd(regels.find(r => r.includes('Lossen')) || ''));
 
   // Lossen + Dropoff referentie
