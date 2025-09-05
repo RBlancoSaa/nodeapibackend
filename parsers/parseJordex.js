@@ -169,7 +169,7 @@ if (containerLines.length === 0 && /(\d+)\s*x\s*20['’] container/i.test(text))
 
 for (let i = 0; i < containerLines.length; i++) {
   const line = containerLines[i];
-  
+
   const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
     referentie: logResult('referentie', (() => {
@@ -366,7 +366,6 @@ data.locaties = [
     bicsCode: dropoffInfo.bicsCode || ''
   }
 ];
-
 
 
 
