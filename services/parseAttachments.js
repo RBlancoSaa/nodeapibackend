@@ -44,14 +44,12 @@ mails.push({
 });
 
 
-     allAttachments.push(...attachments.map(att => ({
-  uid: message.uid,
-  filename: att.filename || 'bijlage.pdf',
-  buffer: att.content,
-  contentType: att.contentType,
-  content: att.content,
-  base64: att.content?.toString('base64') || ''
-})));
+      allAttachments.push(...attachments.map(att => ({
+        uid: message.uid,
+        filename: att.filename,
+        contentType: att.contentType,
+        content: att.content
+      })));
 
     } catch (err) {
       console.error(`❌ Fout bij verwerken van UID ${message.uid}:`, err);

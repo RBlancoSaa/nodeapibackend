@@ -32,7 +32,7 @@ export default async function handler(req, res) {
       console.warn('⚠️ Ontbrekende klantnaam');
     }
     
-console.log('➡️ Naar XML-generator:', data);
+
     const xml = await generateXmlFromJson(data);
     const bestandsnaam = `Order_${data.ritnummer || 'GEEN_RITNUMMER'}.easy`;
     const localPath = path.join('/tmp', bestandsnaam);

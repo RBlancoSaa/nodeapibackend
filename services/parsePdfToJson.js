@@ -55,21 +55,10 @@ console.log('📄 Eerste 500 tekens tekst:\n', text.slice(0, 500));
     return await parseB2L(buffer, 'b2l');
   }
 
-  // herken DFDS op: nl-rtm-operations@dfds.com of 'DFDS Warehousing Rotterdam B.V.'
-const textLower = text.toLowerCase();
-
-if (
-  textLower.includes('dfds') ||
-  textLower.includes('estron') ||
-  textLower.includes('nl-rtm-operations@dfds.com') ||
-  textLower.includes('dfds warehousing rotterdam b.v.') ||
-  textLower.includes('@dfds.com')
-) {
-  console.log('🔍 DFDS PDF herkend');
-  const result = await parseDFDS(buffer);
-  if (Array.isArray(result)) return result; // ✅ meerdere containers
-  return [result]; // ✅ één container als fallback
-}
+  if (text.includes('DFDS')) {
+    console.log('🔍 DFDS PDF herkend');
+    return await parseDFDS(buffer, 'dfds');
+  }
 
   if (text.includes('Easyfresh')) {
     console.log('🔍 Easyfresh PDF herkend');

@@ -28,30 +28,33 @@ export default async function handler(req, res) {
   }
 
   // 2. Parse naar JSON
-  const parsedContainers = await parsePdfToJson(pdfData);
+  const parsedData = await parsePdfToJson(pdfData);
   if (!parsedData || Object.keys(parsedData).length === 0) {
     console.warn('⚠️ Parser leverde geen data op');
     return res.status(200).json({ success: false, message: 'Parser gaf geen resultaat terug' });
   }
 
-    for (const container of parsedContainers) {
-      const xml = await generateXmlFromJson(container);
-      const reference = container.referentie || 'GeenReferentie';
-      const laadplaats = container.locaties?.[0]?.naam?.replace(/[^\w\s]/gi, '') || 'Onbekend';
-      const easyFilename = `Order_${reference}_${laadplaats}.easy`;
-      const easyPath = path.join('/tmp', easyFilename);
-      fs.writeFileSync(easyPath, xml);
+  // 3. Genereer XML
+  const xml = await generateXmlFromJson(parsedData);
 
-      await uploadPdfAttachmentsToSupabase([
-        { filename: easyFilename, content: fs.readFileSync(easyPath) }
-      ]);
+  // 4. Sla op als .easy in /tmp
+  const reference = parsedData.referentie || 'GeenReferentie';
+  const laadplaats = parsedData.locaties?.[0]?.naam?.replace(/[^\w\s]/gi, '') || 'Onbekend';
+  const easyFilename = `Order_${reference}_${laadplaats}.easy`;
+  const easyPath = path.join('/tmp', easyFilename);
+  fs.writeFileSync(easyPath, xml);
 
-      await sendEmailWithAttachments({
-        reference,
-        filePath: easyPath,
-        filename: easyFilename
-      });
-    }
+  // 5. Upload .easy naar Supabase
+  await uploadPdfAttachmentsToSupabase([
+    { filename: easyFilename, content: fs.readFileSync(easyPath) }
+  ]);
+
+  // 6. Verstuur e-mail met bijlage
+  await sendEmailWithAttachments({
+    reference,
+    filePath: easyPath,
+    filename: easyFilename
+  });
 
   // 7. Bevestiging
   return res.status(200).json({

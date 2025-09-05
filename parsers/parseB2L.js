@@ -1,5 +1,3 @@
-// parser/parseB2L.js
-
 export default async function parseB2L(buffer, alias) {
   return {
     klantnaam: alias,

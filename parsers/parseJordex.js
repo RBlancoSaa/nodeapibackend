@@ -61,7 +61,6 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     }
     return '';
   };
-  
   // ✅ 100% correcte extractie uit alleen het "Pick-up" blok (klant)
     const pickupBlokMatch = text.match(/Pick-up\s*\n([\s\S]+?)(?=\n(?:Drop-off terminal|Pick-up terminal|Extra Information|$))/i);
     const pickupBlok = pickupBlokMatch?.[1] || '';
@@ -156,21 +155,7 @@ if (dateMatch) {
         console.log('📅 laadDatum:', laadDatum);
         console.log('📅 laadTijd:', laadTijd);
 
-
-// -------------------------------------------------------------
-
-
-const containers = [];
-const containerLines = text.match(/(20|40)['’] container.+?(?=\n|$)/g) || [];
-if (containerLines.length === 0 && /(\d+)\s*x\s*20['’] container/i.test(text)) {
-  const aantal = parseInt(RegExp.$1);
-  containerLines.push(...Array(aantal).fill("20' container ~fallbackregel"));
-}
-
-for (let i = 0; i < containerLines.length; i++) {
-  const line = containerLines[i];
-
-  const data = {
+const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
     referentie: logResult('referentie', (() => {
     const blok = text.match(/Pick[-\s]?up terminal[\s\S]+?(?=Pick[-\s]?up|Drop[-\s]?off|Extra Information)/i)?.[0] || '';
@@ -367,8 +352,6 @@ data.locaties = [
   }
 ];
 
-
-
   if (!data.referentie || data.referentie === '0') {
     console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
   }
@@ -390,16 +373,5 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
   console.log('👉 Locatie 2 (dropoff terminal):', JSON.stringify(data.locaties[2], null, 2));
   console.log('🧪 DROP-OFF terminal:', dropoffInfo);
   console.log('🧪 PICK-UP terminal:', pickupInfo);
-  
-
-  containers.push(data);
-} // 👈 sluit de for-loop
-
-console.log(`📦 Jordex containers gevonden: ${containers.length}`);
-containers.forEach((c, i) => {
-  console.log(`🧾 Container ${i + 1}:`, c.containernummer, c.referentie, c.gewicht);
-});
-
-console.log('🚨 GEHEUGENCONTROLE containers[]:', containers);
-return containers;
+  return data;
 }
