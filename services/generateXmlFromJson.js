@@ -118,8 +118,11 @@ export async function generateXmlFromJson(data) {
     fetchList('rederijen'),
     fetchList('containers')
   ]);
+  console.log('🔎 Containers geladen:', containers.length, containers.map(c => c.label));
+  console.log('🔎 Norm:', normalizeContainerOmschrijving("40ft HC")); // Verwacht: "40fthc"
+  console.log('🔎 Norm altLabels:', containers[0].altLabels.map(normalizeContainerOmschrijving));
 
-let baseRederij = '';
+  let baseRederij = '';
 if (typeof data.rederij === 'string') {
   const parts = data.rederij.trim().split(' - ').filter(Boolean);
   baseRederij = parts.length > 1 ? parts[1].trim() : parts[0].trim();
@@ -152,11 +155,26 @@ console.log('🧾 Rederij in data:', data.rederij);
   });
 
 // 📌 Match containertype-omschrijving → code uit containerslijst
-const code = getContainerCodeFromOmschrijving(data.containertype, containers);
-if (!code) {
-  throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
+let omschrijving = data.containertypeOmschrijving || data.containertype;
+
+// Als containertype al een geldige code is, niet opnieuw mappen
+const isCode = containers.some(c => c.code === data.containertype);
+if (isCode) {
+  // containertype is al een code, dus niet opnieuw mappen
+  omschrijving = null;
+}
+
+let code = data.containertype;
+if (!isCode) {
+  code = getContainerCodeFromOmschrijving(omschrijving, containers);
+  if (!code) {
+    throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
+  }
 }
 data.containertype = code;
+console.log('🔎 Omschrijving voor mapping:', omschrijving);
+console.log('🔎 Genormaliseerd:', normalizeContainerOmschrijving(omschrijving));
+console.log('🔎 Alle genormaliseerde opties:', containers.flatMap(c => [c.label, ...(c.altLabels || [])]).map(normalizeContainerOmschrijving));
 
 // ✅ Minimale vereisten check – verplaatst naar ná code-matching
 if (!data.containertype || data.containertype === '0') {

@@ -1,32 +1,30 @@
-// parsePdfToEasyFile.js
+// 📁 parsePdfToEasyFile.js
 import '../utils/fsPatch.js';
-import { createClient } from '@supabase/supabase-js';
 import parsePdfToJson from './parsePdfToJson.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 export default async function parsePdfToEasyFile(pdfBuffer) {
   console.log('📥 Start parsePdfToEasyFile...');
 
-  const parsedData = await parsePdfToJson(pdfBuffer);
+  const parsedContainers = await parsePdfToJson(pdfBuffer);
 
-  if (!parsedData || typeof parsedData !== 'object') {
-    console.warn('⛔️ Geen geldige parserdata ontvangen');
-    return '';
+  if (!Array.isArray(parsedContainers) || parsedContainers.length === 0) {
+    console.warn('⛔️ Geen containers gevonden in parserdata');
+    return [];
   }
 
-  console.log('📄 Parsed data ontvangen:', parsedData);
-  console.log('📄 JSON input voor XML-generator:\n', JSON.stringify(parsedData, null, 2));
+  const easyXmlList = [];
 
-  try {
-    const xml = await generateXmlFromJson(parsedData);
-    console.log('📦 XML succesvol gegenereerd');
-    return xml;
-  } catch (error) {
-    console.error('❌ Fout tijdens XML-generatie:', error.message);
-    return '';
+  for (const containerData of parsedContainers) {
+    try {
+      console.log('📦 XML input per container:', JSON.stringify(containerData, null, 2));
+      const xml = await generateXmlFromJson(containerData);
+      easyXmlList.push(xml);
+    } catch (err) {
+      console.error(`❌ Fout tijdens XML-generatie voor container ${containerData.containernummer || '[onbekend]'}`, err.message);
+    }
   }
+
+  console.log(`✅ Aantal gegenereerde XML-bestanden: ${easyXmlList.length}`);
+  return easyXmlList;
 }
