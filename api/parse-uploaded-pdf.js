@@ -25,14 +25,7 @@ export default async function handler(req, res) {
   }
 
   // 1. Download PDF uit Supabase
-  console.log('🔗 Supabase URL:', process.env.SUPABASE_URL);
-  console.log('🔑 Key lengte:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
-  console.log('🔑 Key start:', process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 20));
   console.log('📥 Downloading:', filename);
-
-  const { data: buckets, error: bErr } = await getSupabase().storage.listBuckets();
-  console.log('📦 Buckets zichtbaar:', JSON.stringify(buckets?.map(b => b.id)), '| Error:', JSON.stringify(bErr));
-
   const { data: pdfBlob, error } = await getSupabase().storage.from('inboxpdf').download(filename);
   if (error) {
     console.error('❌ Fout bij downloaden PDF:', JSON.stringify(error));
