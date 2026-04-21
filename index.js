@@ -1,13 +1,11 @@
+import 'dotenv/config';
 import fs from 'fs';
 import express from 'express';
-import dotenv from 'dotenv';
 import { ImapFlow } from 'imapflow';
 import path from 'path';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 import { uploadPdfAttachmentsToSupabase } from './services/uploadPdfAttachmentsToSupabase.js';
-
-dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
