@@ -21,9 +21,11 @@ export default async function handler(req, res) {
   }
 
   // 1. Download PDF uit Supabase
+  console.log('🔗 Supabase URL:', process.env.SUPABASE_URL);
+  console.log('📥 Downloading:', filename);
   const { data: pdfData, error } = await supabase.storage.from('inboxpdf').download(filename);
   if (error) {
-    console.error('❌ Fout bij downloaden PDF:', error.message);
+    console.error('❌ Fout bij downloaden PDF:', JSON.stringify(error));
     return res.status(500).json({ success: false, message: 'Fout bij downloaden PDF' });
   }
 
