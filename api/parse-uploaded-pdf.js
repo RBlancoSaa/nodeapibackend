@@ -8,7 +8,10 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+let _supabase;
+function getSupabase() {
+  return _supabase ??= createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -26,10 +29,10 @@ export default async function handler(req, res) {
   console.log('🔑 Key start:', process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 20));
   console.log('📥 Downloading:', filename);
 
-  const { data: buckets, error: bErr } = await supabase.storage.listBuckets();
+  const { data: buckets, error: bErr } = await getSupabase().storage.listBuckets();
   console.log('📦 Buckets zichtbaar:', JSON.stringify(buckets?.map(b => b.id)), '| Error:', JSON.stringify(bErr));
 
-  const { data: pdfData, error } = await supabase.storage.from('inboxpdf').download(filename);
+  const { data: pdfData, error } = await getSupabase().storage.from('inboxpdf').download(filename);
   if (error) {
     console.error('❌ Fout bij downloaden PDF:', JSON.stringify(error));
     return res.status(500).json({ success: false, message: 'Fout bij downloaden PDF' });

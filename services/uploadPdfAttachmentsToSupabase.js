@@ -5,10 +5,10 @@ import parsePdfToJson from './parsePdfToJson.js';
 import { generateXmlFromJson } from './generateXmlFromJson.js';
 import { sendEmailWithAttachments } from './sendEmailWithAttachments.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+let _supabase;
+function getSupabase() {
+  return _supabase ??= createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
 
 
 export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
