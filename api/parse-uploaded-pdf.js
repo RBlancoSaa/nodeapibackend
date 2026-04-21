@@ -51,8 +51,8 @@ export default async function handler(req, res) {
   const processedFiles = [];
   for (const container of parsedContainers) {
     const xml = await generateXmlFromJson(container);
-    const reference = container.referentie || 'GeenReferentie';
-    const laadplaats = container.locaties?.[0]?.naam?.replace(/[^\w\s]/gi, '') || 'Onbekend';
+    const reference = (container.referentie && container.referentie !== '0') ? container.referentie : (container.ritnummer || 'GeenReferentie');
+    const laadplaats = container.locaties?.[1]?.naam?.replace(/[^\w\s]/gi, '') || container.locaties?.[0]?.naam?.replace(/[^\w\s]/gi, '') || 'Onbekend';
     const easyFilename = `Order_${reference}_${laadplaats}.easy`;
     const easyPath = path.join(os.tmpdir(), easyFilename);
     fs.writeFileSync(easyPath, xml);
@@ -63,8 +63,9 @@ export default async function handler(req, res) {
     ]);
 
     await sendEmailWithAttachments({
-      ritnummer: reference,
-      attachments: [{ filename: easyFilename, path: easyPath }]
+      ritnummer: container.ritnummer || reference,
+      attachments: [{ filename: easyFilename, path: easyPath }],
+      verwerkingsresultaten: [{ filename: easyFilename, parsed: true }]
     });
   }
 
