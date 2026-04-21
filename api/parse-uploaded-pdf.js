@@ -29,34 +29,36 @@ export default async function handler(req, res) {
 
   // 2. Parse naar JSON
   const parsedContainers = await parsePdfToJson(pdfData);
-  if (!parsedData || Object.keys(parsedData).length === 0) {
+  if (!parsedContainers || !Array.isArray(parsedContainers) || parsedContainers.length === 0) {
     console.warn('⚠️ Parser leverde geen data op');
     return res.status(200).json({ success: false, message: 'Parser gaf geen resultaat terug' });
   }
 
-    for (const container of parsedContainers) {
-      const xml = await generateXmlFromJson(container);
-      const reference = container.referentie || 'GeenReferentie';
-      const laadplaats = container.locaties?.[0]?.naam?.replace(/[^\w\s]/gi, '') || 'Onbekend';
-      const easyFilename = `Order_${reference}_${laadplaats}.easy`;
-      const easyPath = path.join('/tmp', easyFilename);
-      fs.writeFileSync(easyPath, xml);
+  const processedFiles = [];
+  for (const container of parsedContainers) {
+    const xml = await generateXmlFromJson(container);
+    const reference = container.referentie || 'GeenReferentie';
+    const laadplaats = container.locaties?.[0]?.naam?.replace(/[^\w\s]/gi, '') || 'Onbekend';
+    const easyFilename = `Order_${reference}_${laadplaats}.easy`;
+    const easyPath = path.join('/tmp', easyFilename);
+    fs.writeFileSync(easyPath, xml);
+    processedFiles.push(easyFilename);
 
-      await uploadPdfAttachmentsToSupabase([
-        { filename: easyFilename, content: fs.readFileSync(easyPath) }
-      ]);
+    await uploadPdfAttachmentsToSupabase([
+      { filename: easyFilename, content: fs.readFileSync(easyPath) }
+    ]);
 
-      await sendEmailWithAttachments({
-        reference,
-        filePath: easyPath,
-        filename: easyFilename
-      });
-    }
+    await sendEmailWithAttachments({
+      reference,
+      filePath: easyPath,
+      filename: easyFilename
+    });
+  }
 
   // 7. Bevestiging
   return res.status(200).json({
     success: true,
     message: 'PDF verwerkt en .easy verzonden',
-    filename: easyFilename
+    filenames: processedFiles
   });
 }

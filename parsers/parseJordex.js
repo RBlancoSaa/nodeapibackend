@@ -169,8 +169,8 @@ const data = {
     
 
     inleverreferentie: logResult('inleverreferentie', (() => {
-      const m = text.match(/Drop[-\s]?off terminal:[\s\S]+?Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
-      return m?.[1]?.trim() || '0';
+      const sectie = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?=Pick[-\s]?up terminal\b|$)/i)?.[1] || '';
+      return sectie.match(/Reference\(s\):\s*(.+)/i)?.[1]?.trim() || '0';
       })()),
     rederij: logResult('rederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
     bootnaam: logResult('bootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
@@ -203,15 +203,6 @@ const data = {
       const sectie = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?=Pick[-\s]?up terminal\b|$)/i)?.[1] || '';
       return sectie.match(/Address:\s*(.+)/i)?.[1].trim() || '';
       })()),
-      // 🔍 Inleverreferentie uit Drop-off terminal sectie
-    inleverreferentie: logResult('inleverreferentie', (() => {
-      const sectie = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?=Pick[-\s]?up terminal\b|$)/i)?.[1] || '';
-      return sectie.match(/Reference\(s\):\s*(.+)/i)?.[1]?.trim() || '';
-  })()),
-      
-    colli: logResult('colli', colli),
-    volume: logResult('volume', volume),
-    lading: logResult('lading', multiExtract([/Description of goods[:\t ]+(.+)/i]) || '0'),
     imo: logResult('imo', multiExtract([/IMO[:\t ]+(\d+)/i]) || '0'),
     unnr: logResult('unnr', multiExtract([/UN[:\t ]+(\d+)/i]) || '0'),
     brix: logResult('brix', multiExtract([/Brix[:\t ]+(\d+)/i]) || '0'),

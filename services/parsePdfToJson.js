@@ -27,14 +27,14 @@ function cleanTekst(input) {
 export default async function parsePdfToJson(buffer) {
   if (!Buffer.isBuffer(buffer)) {
     console.warn('⚠️ Ongeldige of ontbrekende PDF-buffer');
-    return {};
+    return [];
   }
 
   const { text: rawText } = await pdfParse(buffer);
 const text = cleanTekst(rawText);
 if (!text?.trim()) {
   console.warn('⚠️ Lege of ongeldige tekstinhoud in PDF');
-  return {};
+  return [];
 }
 
 console.log('📄 Eerste 500 tekens tekst:\n', text.slice(0, 500));
@@ -42,17 +42,17 @@ console.log('📄 Eerste 500 tekens tekst:\n', text.slice(0, 500));
   // 🔍 Klantdectectie op basis van tekst
   if (text.includes('Jordex Shipping & Forwarding')) {
     console.log('🔍 Jordex PDF herkend');
-    return await parseJordex(buffer, 'jordex');
+    return [await parseJordex(buffer, 'jordex')];
   }
 
   if (text.includes('Neele-Vat') || text.includes('Neelevat')) {
     console.log('🔍 Neelevat PDF herkend');
-    return await parseNeelevat(buffer, 'neelevat');
+    return [await parseNeelevat(buffer, 'neelevat')];
   }
 
   if (text.includes('B2L Cargocare') || text.includes('B2L')) {
     console.log('🔍 B2L PDF herkend');
-    return await parseB2L(buffer, 'b2l');
+    return [await parseB2L(buffer, 'b2l')];
   }
 
   // herken DFDS op: nl-rtm-operations@dfds.com of 'DFDS Warehousing Rotterdam B.V.'
@@ -73,19 +73,19 @@ if (
 
   if (text.includes('Easyfresh')) {
     console.log('🔍 Easyfresh PDF herkend');
-    return await parseEasyfresh(buffer, 'easyfresh');
+    return [await parseEasyfresh(buffer, 'easyfresh')];
   }
 
   if (text.includes('Kintetsu World Express') || text.includes('KWE')) {
     console.log('🔍 KWE PDF herkend');
-    return await parseKWE(buffer, 'kwe');
+    return [await parseKWE(buffer, 'kwe')];
   }
 
   if (text.includes('Ritra')) {
     console.log('🔍 Ritra PDF herkend');
-    return await parseRitra(buffer, 'ritra');
+    return [await parseRitra(buffer, 'ritra')];
   }
 
   console.warn('⚠️ Onbekende klant; geen parser uitgevoerd');
-  return {};
+  return [];
 }
