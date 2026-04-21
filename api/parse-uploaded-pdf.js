@@ -63,9 +63,8 @@ export default async function handler(req, res) {
     ]);
 
     await sendEmailWithAttachments({
-      reference,
-      filePath: easyPath,
-      filename: easyFilename
+      ritnummer: reference,
+      attachments: [{ filename: easyFilename, path: easyPath }]
     });
   }
 
