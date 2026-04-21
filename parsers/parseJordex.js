@@ -130,7 +130,7 @@ const data = {
     referentie: logResult('referentie', (() => {
     const blok = text.match(/Pick[-\s]?up terminal[\s\S]+?(?=Pick[-\s]?up|Drop[-\s]?off|Extra Information)/i)?.[0] || '';
     const match = blok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
-    return match?.[1]?.trim() || '0';
+    return match?.[1]?.trim() || laadreferentie || '0';
       })()),
     colli: logResult('colli', colli),
     volume: logResult('volume', volume),
@@ -159,10 +159,11 @@ const data = {
     containertype: logResult('containertype', containertype),
     inleverBootnaam: logResult('inleverBootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
     inleverRederij: logResult('inleverRederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
-      inleverBestemming: logResult('inleverBestemming', multiExtract([
-      /Final destination[:\t ]+(.+)/i,
-      /Arrival[:\t ]+(.+)/i
-       ])),
+      inleverBestemming: logResult('inleverBestemming', (() => {
+        const raw = multiExtract([/Final destination[:\t ]+(.+)/i, /Arrival[:\t ]+(.+)/i]);
+        // Strip leading date like "12 Jun 2026 " from arrival lines
+        return raw?.replace(/^\d{1,2}\s+\w+\s+\d{4}\s+/i, '').trim() || '';
+      })()),
 
 // Terminalextractie: werkelijke naam staat onder “Address:” in de sectie
    pickupTerminal: logResult('pickupTerminal', (() => {
@@ -192,21 +193,19 @@ const data = {
   };
 
 // Verwijder “terminal” suffix zodat je sleutel mét en stemt met Supabase
-  const pickupTerminalMatch = text.match(/Pick[-\s]?up terminal[\s\S]+?Address:\s*(.+)/i);
-  const puKey = pickupTerminalMatch?.[1]?.trim() || '';
-
-// 🎯 Terminaladres extractie
-  const dropoffTerminalMatch = text.match(/Drop[-\s]?off terminal[\s\S]+?Address:\s*(.+)/i);
-  const dropoffTerminalAdres = dropoffTerminalMatch?.[1]?.trim() || '';
-  const doKey = dropoffTerminalAdres || data.dropoffTerminal || '';
-    console.log('🔑 doKey terminal lookup:', doKey);
+// Terminalnamen uit eerste regel na de sectiekop (geen "Address:" prefix in terminalsecties)
+const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
+const doIndex = regels.findIndex(line => /^Drop[-\s]?off terminal$/i.test(line));
+const puKey = regels[puIndex + 1] || '';
+const doKey = regels[doIndex + 1] || '';
+  console.log('🔑 puKey terminal lookup:', puKey);
+  console.log('🔑 doKey terminal lookup:', doKey);
 
 // 🧠 Terminal lookup mét fallback op volledigheid
   let pickupInfo = await getTerminalInfoMetFallback(puKey);
   let dropoffInfo = await getTerminalInfoMetFallback(doKey);
 
 // Klantgegevens uit de Pick-up sectie: vier regels erna
-const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
 const klantregels = regels
   .slice(puIndex + 1, puIndex + 8)
   .filter(l => l && !/^Cargo:|^Reference/i.test(l))
