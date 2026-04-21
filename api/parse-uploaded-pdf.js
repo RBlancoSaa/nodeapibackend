@@ -1,6 +1,7 @@
 // 📁 /api/parse-uploaded-pdf.js
 import '../utils/fsPatch.js';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { createClient } from '@supabase/supabase-js';
 import parsePdfToJson from '../services/parsePdfToJson.js';
@@ -53,7 +54,7 @@ export default async function handler(req, res) {
     const reference = container.referentie || 'GeenReferentie';
     const laadplaats = container.locaties?.[0]?.naam?.replace(/[^\w\s]/gi, '') || 'Onbekend';
     const easyFilename = `Order_${reference}_${laadplaats}.easy`;
-    const easyPath = path.join('/tmp', easyFilename);
+    const easyPath = path.join(os.tmpdir(), easyFilename);
     fs.writeFileSync(easyPath, xml);
     processedFiles.push(easyFilename);
 
