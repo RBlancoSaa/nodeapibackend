@@ -1,18 +1,9 @@
 import 'dotenv/config';
-import fs from 'fs';
 import express from 'express';
 import { ImapFlow } from 'imapflow';
-import path from 'path';
-import nodemailer from 'nodemailer';
-import { createClient } from '@supabase/supabase-js';
-import { uploadPdfAttachmentsToSupabase } from './services/uploadPdfAttachmentsToSupabase.js';
 import parsePdfHandler from './api/parse-uploaded-pdf.js';
 import generateEasyHandler from './api/generate-easy-files.js';
 import uploadFromInboxHandler from './api/upload-from-inbox.js';
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 const app = express();
 app.use(express.json()); // ✅ noodzakelijk voor POST/JSON body parsing
