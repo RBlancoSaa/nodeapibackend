@@ -1,6 +1,10 @@
 import 'dotenv/config';
+import fs from 'fs';
 import express from 'express';
 import { ImapFlow } from 'imapflow';
+import path from 'path';
+import nodemailer from 'nodemailer';
+import { uploadPdfAttachmentsToSupabase } from './services/uploadPdfAttachmentsToSupabase.js';
 import parsePdfHandler from './api/parse-uploaded-pdf.js';
 import generateEasyHandler from './api/generate-easy-files.js';
 import uploadFromInboxHandler from './api/upload-from-inbox.js';
