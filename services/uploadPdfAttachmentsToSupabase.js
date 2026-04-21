@@ -78,7 +78,7 @@ export async function uploadPdfAttachmentsToSupabase(attachments, referentie) {
       console.log(`📤 Upload naar Supabase: ${fileName}`);
       const juisteBucket = att.filename.endsWith('.easy') ? 'easyfiles' : 'inboxpdf';
 
-      const { error } = await supabase
+      const { error } = await getSupabase()
         .storage
         .from(juisteBucket)
         .upload(fileName, contentBuffer, {

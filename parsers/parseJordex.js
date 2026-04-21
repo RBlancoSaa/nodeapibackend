@@ -110,11 +110,9 @@ for (let regel of regelsContainer) {
   }
 }
 
-  // Lading = alles tussen eerste BLOKPALLET-regel en -20 DEGREES
-    const ladingStartIndex = regelsContainer.findIndex(r => /BLOKPALLETS/i.test(r));
-    const ladingEndIndex = regelsContainer.findIndex(r => /-20 DEGREES/i.test(r));
-    const ladingArray = regelsContainer.slice(ladingStartIndex, ladingEndIndex + 1);
-    const lading = ladingArray.join(' ') || '';
+  // Lading = tekst na gewicht (bijv. "25000kgFROZEN PORK" → "FROZEN PORK")
+    const containerDataLine = pickupRegels.find(r => /\d+\s*m³.*\d+\s*kg/i.test(r)) || '';
+    const lading = containerDataLine.match(/\d+\s*kg\s*(.+)/i)?.[1]?.trim() || '';
   
   // 📅 Datum & tijd
     const dateLine = pickupRegels.find(r => /^Date[:\t ]+/i.test(r)) || '';
@@ -204,7 +202,7 @@ const data = {
       return sectie.match(/Address:\s*(.+)/i)?.[1].trim() || '';
       })()),
     imo: logResult('imo', multiExtract([/IMO[:\t ]+(\d+)/i]) || '0'),
-    unnr: logResult('unnr', multiExtract([/UN[:\t ]+(\d+)/i]) || '0'),
+    unnr: logResult('unnr', multiExtract([/\bUN[:\t ]+(\d{4})\b/i]) || '0'),
     brix: logResult('brix', multiExtract([/Brix[:\t ]+(\d+)/i]) || '0'),
 
     opdrachtgeverNaam: 'JORDEX FORWARDING',
