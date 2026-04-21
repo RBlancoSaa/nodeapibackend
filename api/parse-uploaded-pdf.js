@@ -32,11 +32,13 @@ export default async function handler(req, res) {
   const { data: buckets, error: bErr } = await getSupabase().storage.listBuckets();
   console.log('📦 Buckets zichtbaar:', JSON.stringify(buckets?.map(b => b.id)), '| Error:', JSON.stringify(bErr));
 
-  const { data: pdfData, error } = await getSupabase().storage.from('inboxpdf').download(filename);
+  const { data: pdfBlob, error } = await getSupabase().storage.from('inboxpdf').download(filename);
   if (error) {
     console.error('❌ Fout bij downloaden PDF:', JSON.stringify(error));
     return res.status(500).json({ success: false, message: 'Fout bij downloaden PDF' });
   }
+
+  const pdfData = Buffer.from(await pdfBlob.arrayBuffer());
 
   // 2. Parse naar JSON
   const parsedContainers = await parsePdfToJson(pdfData);
