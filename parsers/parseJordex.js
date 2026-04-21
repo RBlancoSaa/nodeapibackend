@@ -77,17 +77,14 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
     const containertype = cargoLine.match(/1\s*x\s*(.+)/i)?.[1]?.trim() || '';
 
-  // 📦 Containerwaarden uit de data-regel (bijv. "40' high cube reefer050m³25000kgFROZEN PORK")
+  // 📦 Containerwaarden + lading uit de data-regel (bijv. "40' high cube reefer050m³25000kgFROZEN PORK")
   const containerDataLine = pickupRegels.find(r => /\d+\s*m³.*\d+\s*kg/i.test(r)) || '';
   const gewichtRaw = containerDataLine.match(/([\d.,]+)\s*kg/i)?.[1]?.replace(',', '.') || '0';
   const gewicht = gewichtRaw.includes('.') ? Math.round(parseFloat(gewichtRaw)).toString() : gewichtRaw;
   const volumeRaw = containerDataLine.match(/([\d.,]+)\s*m³/i)?.[1] || '0';
   const volume = String(parseInt(volumeRaw, 10) || 0);
   const colli = '0';
-
-  // Lading = tekst na gewicht (bijv. "25000kgFROZEN PORK" → "FROZEN PORK")
-    const containerDataLine = pickupRegels.find(r => /\d+\s*m³.*\d+\s*kg/i.test(r)) || '';
-    const lading = containerDataLine.match(/\d+\s*kg\s*(.+)/i)?.[1]?.trim() || '';
+  const lading = containerDataLine.match(/\d+\s*kg\s*(.+)/i)?.[1]?.trim() || '';
   
   // 📅 Datum & tijd
     const dateLine = pickupRegels.find(r => /^Date[:\t ]+/i.test(r)) || '';
