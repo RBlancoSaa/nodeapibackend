@@ -66,16 +66,27 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const pickupBlok = pickupBlokMatch?.[1] || '';
     const pickupRegels = pickupBlok.split('\n').map(r => r.trim()).filter(Boolean);
 
-  // 👤 Klantgegevens
-    const klantNaam = pickupRegels.find(r => r.startsWith('Address:'))?.replace('Address:', '').trim() || '';
-    const adresIndex = pickupRegels.findIndex(r => r.includes(klantNaam)) + 1;
-    const adres = pickupRegels[adresIndex] || '';
-    const postcode = pickupRegels[adresIndex + 1] || '';
-    const plaats = pickupRegels[adresIndex + 2] || '';
+  // 👤 Klantgegevens – postcode als anker zodat meerregelige bedrijfsnamen correct worden samengevoegd
+  const adresLineIdx = pickupRegels.findIndex(r => r.startsWith('Address:'));
+  const postcodeIdx  = pickupRegels.findIndex(r => /^\d{4}\s*[A-Z]{2}\b/i.test(r));
+  let klantNaam = '', adres = '', postcode = '', plaats = '';
+  if (adresLineIdx >= 0 && postcodeIdx > adresLineIdx) {
+    const straatIdx = postcodeIdx - 1;
+    const naamSlice = pickupRegels.slice(adresLineIdx, straatIdx > adresLineIdx ? straatIdx : adresLineIdx + 1);
+    klantNaam  = naamSlice.map((r, i) => i === 0 ? r.replace(/^Address:/i, '').trim() : r.trim()).join(' ').trim();
+    adres      = straatIdx > adresLineIdx ? (pickupRegels[straatIdx] || '') : '';
+    postcode   = pickupRegels[postcodeIdx] || '';
+    plaats     = pickupRegels[postcodeIdx + 1] || '';
+  } else if (adresLineIdx >= 0) {
+    klantNaam  = pickupRegels[adresLineIdx].replace(/^Address:/i, '').trim();
+    adres      = pickupRegels[adresLineIdx + 1] || '';
+    postcode   = pickupRegels[adresLineIdx + 2] || '';
+    plaats     = pickupRegels[adresLineIdx + 3] || '';
+  }
 
-  // 📦 Containerinformatie
+  // 📦 Containerinformatie (eerste Cargo-regel als fallback)
     const cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
-    const containertype = cargoLine.match(/1\s*x\s*(.+)/i)?.[1]?.trim() || '';
+    const containertype = cargoLine.match(/\d+\s*x\s*(.+)/i)?.[1]?.trim() || '';
 
   // 📦 Containerwaarden + lading uit de data-regel (kolommen: Type|Number|Seal|Colli|Volume|Weight|Description)
   const containerDataLines = pickupRegels.filter(r => /\d+\s*m³.*\d+\s*kg/i.test(r));
@@ -198,8 +209,8 @@ const data = {
 // Terminalnamen uit eerste regel na de sectiekop (geen "Address:" prefix in terminalsecties)
 const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
 const doIndex = regels.findIndex(line => /^Drop[-\s]?off terminal$/i.test(line));
-const puKey = regels[puIndex + 1] || '';
-const doKey = regels[doIndex + 1] || '';
+const puKey = (regels[puIndex + 1] || '').replace(/^Address:\s*/i, '').trim();
+const doKey = (regels[doIndex + 1] || '').replace(/^Address:\s*/i, '').trim();
   console.log('🔑 puKey terminal lookup:', puKey);
   console.log('🔑 doKey terminal lookup:', doKey);
 
@@ -352,12 +363,59 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
     };
   };
 
-  if (containerDataLines.length === 0) {
-    console.warn('⚠️ Geen containerregel gevonden, basisdata teruggeven');
-    return [data];
+  // Format A: reefer tabelrijen met m³ + kg
+  if (containerDataLines.length > 0) {
+    const results = await Promise.all(containerDataLines.map(parseContainerRegel));
+    console.log(`✅ ${results.length} container(s) geparsed (Format A: tabelrijen)`);
+    return results;
   }
 
-  const results = await Promise.all(containerDataLines.map(parseContainerRegel));
-  console.log(`✅ ${results.length} container(s) geparsed`);
-  return results;
+  // Format B: meerdere Cargo:-blokken (droge containers / gevaarlijke goederen)
+  const cargoIndices = pickupRegels.reduce((acc, r, i) => {
+    if (/^cargo:/i.test(r)) acc.push(i);
+    return acc;
+  }, []);
+
+  if (cargoIndices.length > 1) {
+    const maandenB = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+    const results = await Promise.all(cargoIndices.map(async (startIdx, i) => {
+      const endIdx = cargoIndices[i + 1] || pickupRegels.length;
+      const blok = pickupRegels.slice(startIdx, endIdx);
+
+      const ctType = blok[0].match(/\d+\s*x\s*(.+)/i)?.[1]?.trim() || data.containertype;
+      const ctCode = await getContainerTypeCode(ctType) || '0';
+
+      const dlMatch = blok.find(r => /^Date:/i.test(r))
+        ?.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
+      let datum = data.datum;
+      let tijd  = data.tijd;
+      if (dlMatch) {
+        const maand = maandenB[dlMatch[2].toLowerCase().slice(0, 3)];
+        datum = `${parseInt(dlMatch[1])}-${maand}-${dlMatch[3]}`;
+        tijd  = dlMatch[4] ? `${dlMatch[4]}:00` : '';
+      }
+
+      const ref    = blok.find(r => /^Reference/i.test(r))
+        ?.match(/Reference(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || data.laadreferentie;
+      const remark = blok.find(r => /^Remark/i.test(r))
+        ?.match(/Remark(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || '';
+
+      console.log(`📦 Container ${i + 1} (Format B): type=${ctType}, datum=${datum}, tijd=${tijd}, ref=${ref}`);
+      return {
+        ...data,
+        containertype: ctType,
+        containertypeCode: ctCode,
+        datum,
+        tijd,
+        laadreferentie: ref,
+        instructies: remark || data.instructies
+      };
+    }));
+    console.log(`✅ ${results.length} container(s) geparsed (Format B: Cargo-blokken)`);
+    return results;
+  }
+
+  // Fallback: 1 container met basisdata
+  console.warn('⚠️ Geen meerdere containerregels gevonden, basisdata teruggeven');
+  return [data];
 }
