@@ -78,8 +78,9 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const containertype = cargoLine.match(/1\s*x\s*(.+)/i)?.[1]?.trim() || '';
 
   // 📦 Containerwaarden + lading uit de data-regel (kolommen: Type|Number|Seal|Colli|Volume|Weight|Description)
-  const containerDataLine = pickupRegels.find(r => /\d+\s*m³.*\d+\s*kg/i.test(r)) || '';
-  console.log('📦 containerDataLine raw:', containerDataLine);
+  const containerDataLines = pickupRegels.filter(r => /\d+\s*m³.*\d+\s*kg/i.test(r));
+  const containerDataLine = containerDataLines[0] || '';
+  console.log(`📦 ${containerDataLines.length} containerregel(s) gevonden:`, containerDataLines);
   const volumeRaw = containerDataLine.match(/([\d.,]+)\s*m³/i)?.[1] || '0';
   const volume = String(parseInt(volumeRaw, 10) || 0);
   const gewichtRaw = containerDataLine.match(/([\d.,]+)\s*kg/i)?.[1]?.replace(',', '.') || '0';
@@ -326,13 +327,37 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
 
   console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
   console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
-  console.log('📤 DATA OBJECT UIT PARSEJORDEX:', JSON.stringify(data, null, 2));
-  console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
-  console.log('📦 LOCATIES:');
-  console.log('👉 Locatie 0 (pickup terminal):', JSON.stringify(data.locaties[0], null, 2));
-  console.log('👉 Locatie 1 (klant):', JSON.stringify(data.locaties[1], null, 2));
-  console.log('👉 Locatie 2 (dropoff terminal):', JSON.stringify(data.locaties[2], null, 2));
   console.log('🧪 DROP-OFF terminal:', dropoffInfo);
   console.log('🧪 PICK-UP terminal:', pickupInfo);
-  return data;
+
+  // 📦 Per container een apart resultaat object
+  const parseContainerRegel = async (line, index) => {
+    const vRaw = line.match(/([\d.,]+)\s*m³/i)?.[1] || '0';
+    const vol = String(parseInt(vRaw, 10) || 0);
+    const gRaw = line.match(/([\d.,]+)\s*kg/i)?.[1]?.replace(',', '.') || '0';
+    const gew = gRaw.includes('.') ? Math.round(parseFloat(gRaw)).toString() : gRaw;
+    const lad = line.match(/\d+\s*kg\s*(.+)/i)?.[1]?.trim() || '';
+    // Containertype = alles vóór de eerste aaneengesloten cijferreeks die eindigt op m³
+    const ctType = line.replace(/\d+\s*m³.*$/i, '').replace(/\d+$/, '').trim() || data.containertype;
+    const ctCode = await getContainerTypeCode(ctType) || '0';
+    console.log(`📦 Container ${index + 1}: type=${ctType}, volume=${vol}, gewicht=${gew}, lading=${lad}, code=${ctCode}`);
+    return {
+      ...data,
+      volume: vol,
+      gewicht: gew,
+      lading: lad,
+      colli: '0',
+      containertype: ctType,
+      containertypeCode: ctCode
+    };
+  };
+
+  if (containerDataLines.length === 0) {
+    console.warn('⚠️ Geen containerregel gevonden, basisdata teruggeven');
+    return [data];
+  }
+
+  const results = await Promise.all(containerDataLines.map(parseContainerRegel));
+  console.log(`✅ ${results.length} container(s) geparsed`);
+  return results;
 }

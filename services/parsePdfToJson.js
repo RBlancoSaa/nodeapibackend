@@ -42,7 +42,8 @@ console.log('📄 Eerste 500 tekens tekst:\n', text.slice(0, 500));
   // 🔍 Klantdectectie op basis van tekst
   if (text.includes('Jordex Shipping & Forwarding')) {
     console.log('🔍 Jordex PDF herkend');
-    return [await parseJordex(buffer, 'jordex')];
+    const result = await parseJordex(buffer, 'jordex');
+    return Array.isArray(result) ? result : [result];
   }
 
   if (text.includes('Neele-Vat') || text.includes('Neelevat')) {
