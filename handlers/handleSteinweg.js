@@ -3,9 +3,44 @@ import '../utils/fsPatch.js';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 import parseSteinweg from '../parsers/parseSteinweg.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
+import defaultTransporter from '../utils/smtpTransport.js';
+
+// Gebruik Gmail als GMAIL_USER/GMAIL_PASS zijn ingesteld, anders de standaard transporter
+function getTransporter() {
+  if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
+    return nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS }
+    });
+  }
+  return defaultTransporter;
+}
+
+function getFromEmail() {
+  return process.env.GMAIL_USER || process.env.FROM_EMAIL;
+}
+
+async function sendSteinwegEmail({ ritnummer, attachments }) {
+  const transporter = getTransporter();
+  const from = getFromEmail();
+  const formattedAttachments = attachments.map(att => ({
+    filename: att.filename,
+    content: att.content || (att.path && fs.existsSync(att.path) ? fs.readFileSync(att.path) : Buffer.from(''))
+  }));
+  await transporter.sendMail({
+    from,
+    to: from,
+    subject: `easytrip file - ${ritnummer}`,
+    text: `Transportopdracht verwerkt: ${ritnummer}`,
+    attachments: formattedAttachments
+  });
+}
 
 let _supabase;
 function getSupabase() {
@@ -28,48 +63,62 @@ export default async function handleSteinweg({ route1Buffer, route2Buffer, email
     return;
   }
 
-  console.log(`📦 ${containers.length} Steinweg container(s) – in queue plaatsen`);
+  const useGmail = !!(process.env.GMAIL_USER && process.env.GMAIL_PASS);
+  console.log(`📦 ${containers.length} Steinweg container(s) | verzendmethode: ${useGmail ? 'Gmail (direct)' : 'queue'}`);
 
-  // Upload original email as .eml for later attachment
+  // Sla originele email op als .eml
   const ordernummer = containers[0]?.ritnummer || `steinweg_${Date.now()}`;
   const elmFilename = `${ordernummer}.eml`;
+  let elmPath = null;
   if (emailSource) {
     try {
       const elmBuf = Buffer.isBuffer(emailSource) ? emailSource : Buffer.from(emailSource);
-      await uploadToQueue(`eml/${elmFilename}`, elmBuf);
-      console.log(`📧 Email opgeslagen: ${elmFilename}`);
+      elmPath = path.join(os.tmpdir(), elmFilename);
+      fs.writeFileSync(elmPath, elmBuf);
+      if (!useGmail) await uploadToQueue(`eml/${elmFilename}`, elmBuf);
     } catch (err) {
-      console.warn('⚠️ Email upload mislukt:', err.message);
+      console.warn('⚠️ Email opslaan mislukt:', err.message);
     }
   }
 
-  let queued = 0;
+  let processed = 0;
   for (const container of containers) {
     try {
       const xml = await generateXmlFromJson(container);
       const cntr = container.containernummer || 'onbekend';
       const ref  = container.ritnummer || cntr;
       const easyFilename = `Order_${ref}_${cntr}_Steinweg.easy`;
+      const easyBuf      = Buffer.from(xml, 'utf-8');
+      const easyPath     = path.join(os.tmpdir(), easyFilename);
+      fs.writeFileSync(easyPath, easyBuf);
 
-      // Queue: upload .easy
-      await uploadToQueue(easyFilename, Buffer.from(xml, 'utf-8'));
-
-      // Queue: upload meta JSON
-      const meta = {
-        ritnummer:  ref,
-        easyFilename,
-        elmFilename: emailSource ? elmFilename : null,
-        queuedAt:   new Date().toISOString()
-      };
-      await uploadToQueue(`${easyFilename}.meta.json`, Buffer.from(JSON.stringify(meta), 'utf-8'));
-
-      queued++;
-      console.log(`✅ In queue: ${easyFilename}`);
+      if (useGmail) {
+        // Direct verzenden via Gmail – geen limiet
+        const attachments = [{ filename: easyFilename, path: easyPath }];
+        if (elmPath && fs.existsSync(elmPath)) {
+          attachments.push({ filename: elmFilename, path: elmPath });
+        }
+        await sendSteinwegEmail({ ritnummer: ref, attachments });
+        console.log(`📧 Gmail: verstuurd ${easyFilename}`);
+      } else {
+        // Queue in Supabase voor vertraagde verzending
+        await uploadToQueue(easyFilename, easyBuf);
+        const meta = {
+          ritnummer: ref, easyFilename,
+          elmFilename: emailSource ? elmFilename : null,
+          queuedAt: new Date().toISOString()
+        };
+        await uploadToQueue(`${easyFilename}.meta.json`, Buffer.from(JSON.stringify(meta)));
+        console.log(`📬 Queue: ${easyFilename}`);
+      }
+      processed++;
     } catch (err) {
-      console.error(`❌ Fout bij queuen ${container.containernummer}:`, err.message);
+      console.error(`❌ Fout bij ${container.containernummer}:`, err.message);
     }
   }
 
-  console.log(`📬 ${queued}/${containers.length} containers in Steinweg-queue geplaatst`);
-  console.log('💡 Roep /api/process-steinweg-queue aan om emails te versturen (max 10 per 5 min)');
+  console.log(`✅ ${processed}/${containers.length} Steinweg containers verwerkt`);
+  if (!useGmail) {
+    console.log('💡 Stel GMAIL_USER + GMAIL_PASS in voor direct verzenden, of roep /api/process-steinweg-queue elke 5 min aan.');
+  }
 }

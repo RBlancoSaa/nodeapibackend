@@ -6,7 +6,28 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
-import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
+import nodemailer from 'nodemailer';
+import defaultTransporter from '../utils/smtpTransport.js';
+
+function getTransporter() {
+  if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
+    return nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 587, secure: false,
+      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS }
+    });
+  }
+  return defaultTransporter;
+}
+
+async function sendEmail({ ritnummer, attachments }) {
+  const from = process.env.GMAIL_USER || process.env.FROM_EMAIL;
+  await getTransporter().sendMail({
+    from, to: from,
+    subject: `easytrip file - ${ritnummer}`,
+    text: `Transportopdracht verwerkt: ${ritnummer}`,
+    attachments: attachments.map(a => ({ filename: a.filename, content: a.content || a.path }))
+  });
+}
 
 const BATCH_SIZE = 10;
 
@@ -79,10 +100,9 @@ export default async function handler(req, res) {
           }
         }
 
-        await sendEmailWithAttachments({
+        await sendEmail({
           ritnummer: meta.ritnummer || meta.easyFilename,
-          attachments,
-          verwerkingsresultaten: [{ filename: meta.easyFilename, parsed: true }]
+          attachments
         });
 
         console.log(`📧 Verstuurd: ${meta.easyFilename}`);
