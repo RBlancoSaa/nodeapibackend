@@ -19,10 +19,13 @@ export async function getTerminalInfo(referentie) {
     const res = await fetch(url);
     const lijst = await res.json();
     const norm = referentie.toLowerCase().replace(/\s+/g, '').trim();
+    // Zoek op referentie-veld OF op naam (case-insensitief, spaties genegeerd)
     const gevonden = lijst.find(i =>
-      i.referentie?.toLowerCase().replace(/\s+/g, '').trim() === norm
+      i.referentie?.toLowerCase().replace(/\s+/g, '').trim() === norm ||
+      i.naam?.toLowerCase().replace(/\s+/g, '').trim() === norm
     );
-return gevonden?.terminal || '0';
+    console.log(`🔍 getTerminalInfo("${referentie}") → ${gevonden ? gevonden.naam : 'niet gevonden'}`);
+    return gevonden || '0';
   } catch (e) {
     console.error('❌ getTerminalInfo error:', e);
     return '0';

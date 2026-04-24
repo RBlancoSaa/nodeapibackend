@@ -106,7 +106,7 @@ export default async function parseDFDS(buffer) {
     const ladM    = cargo.match(/^\d+\s+\w+\s+(.+?)\s+[\d.,]+\s*kg/i);
     const lading  = (ladM?.[1]?.trim() || '').toUpperCase();
     goederenMap.set(cntr, { zegel, colli, lading, gewicht, cbm });
-    console.log(`📦 Goederen [${cntr}]: zegel=${zegel}, colli=${colli}, gewicht=${gewicht}, lading=${lading}`);
+    console.log(`📦 Goederen [${cntr}]: zegel=${zegel} | colli=${colli} | gewicht=${gewicht} | cbm=${cbm} | lading="${lading}" | rawGewicht="${rawGewicht}"`);
   }
 
   // === Transport tabel: per-container blokken ===
@@ -127,8 +127,10 @@ export default async function parseDFDS(buffer) {
       const pickupRef = r.match(/Pickup\s+(\S+)\s+\d{2}-\d{2}-\d{4}/i)?.[1] || '';
       const lossenR  = regels[i + 1] || '';
       const dropoffR = regels[i + 2] || '';
-      const lossenM  = lossenR.match(/^Lossen\s+(\S+)\s+(\d{2}-\d{2}-\d{4})\s+(\d{2}:\d{2})/i);
+      // Tijd is optioneel – sommige DFDS regels hebben geen tijdslot
+      const lossenM  = lossenR.match(/^Lossen\s+(\S+)\s+(\d{2}-\d{2}-\d{4})(?:\s+(\d{2}:\d{2}))?/i);
       const dropRef  = dropoffR.match(/^Dropoff\s+(\S+)/i)?.[1] || '';
+      console.log(`🚛 [${cntr}] lossenRegel: "${lossenR}" → ref=${lossenM?.[1]||'—'} datum=${lossenM?.[2]||'—'} tijd=${lossenM?.[3]||'—'}`);
       containerBlokken.push({
         containernummer: cntr,
         containertype:   typeM?.[1]?.trim() || '',
@@ -139,7 +141,6 @@ export default async function parseDFDS(buffer) {
         tijd:            formatTijd(lossenM?.[3] || ''),
         dropoffRef:      dropRef
       });
-      console.log(`🚛 Blok [${cntr}]: lossenRef=${lossenM?.[1]}, dropoffRef=${dropRef}, datum=${lossenM?.[2]||pickupDt}`);
       i += 3;
     } else if (r.startsWith('Pickup ') && !r.includes('PORTBASE')) {
       break; // locatiesectie begint
