@@ -45,6 +45,7 @@ function parseKg(val) {
 
 export default async function parseDFDS(buffer) {
   const regels = await extractLinesPdf2Json(buffer);
+  console.log('📋 DFDS alle regels:\n', regels.map((r, i) => `[${i}] ${r}`).join('\n'));
   const data = {};
 
   // Hardcoded opdrachtgever
@@ -66,18 +67,17 @@ export default async function parseDFDS(buffer) {
   data.inleverBootnaam = data.bootnaam;
   data.inleverRederij = data.rederij;
 
-// Containerregel en zegel
-const containerLine = regels.find(r => r.match(/\b[A-Z]{4}\d{7}\b.*Zegel/i));
-const containerMatch = containerLine?.match(/([A-Z]{4}\d{7})\s+(.+?)\s*-\s*([\d.]+)\s*m3.*Zegel:\s*(\S+)/i);
+// Containerregel: zoek op containernummer-patroon (ook zonder Zegel-veld)
+const containerLine = regels.find(r => /\b[A-Z]{4}\d{7}\b/i.test(r)) || '';
+console.log('📦 Container line raw:', containerLine);
+const containerMatch = containerLine.match(/([A-Z]{4}\d{7})\s+(.+?)\s*-\s*([\d,\.]+)\s*m/i);
 
 data.containernummer = log('containernummer', containerMatch?.[1] || '');
-
-const containertypeRaw = containerMatch?.[2]?.trim() || ''; // ✅ eerst definiëren
-data.containertypeOmschrijving = containertypeRaw;           // ❗️omschrijving bewaren
+const containertypeRaw = containerMatch?.[2]?.trim() || '';
+data.containertypeOmschrijving = containertypeRaw;
 data.containertype = log('containertype', containertypeRaw);
-
-data.cbm = log('cbm', containerMatch?.[3] || '0');
-data.zegel = log('zegel', containerMatch?.[4] || '');
+data.cbm = log('cbm', containerMatch?.[3]?.replace(',', '.') || '0');
+data.zegel = log('zegel', containerLine.match(/Zegel:\s*(\S+)/i)?.[1] || '');
 
   // Lading, gewicht, colli
   const goodsLine = regels.find(r => r.match(/\d+\s+\w+\s+RECHARGEABLE/i));
