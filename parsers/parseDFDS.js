@@ -126,6 +126,7 @@ export default async function parseDFDS(buffer) {
       const typeM    = r.match(/[A-Z]{3}U\d{7}\s+(.+?)\s+-\s+([\d,]+)\s*m/i);
       const pickupDt = r.match(/(\d{2}-\d{2}-\d{4})/)?.[1] || '';
       const pickupRef = r.match(/Pickup\s+(\S+)\s+\d{2}-\d{2}-\d{4}/i)?.[1] || '';
+      const pickupRef = r.match(/Pickup\s+(\S+)\s+\d{2}-\d{2}-\d{4}/i)?.[1] || '';
       const lossenR  = regels[i + 1] || '';
       const dropoffR = regels[i + 2] || '';
       // Tijd is optioneel – sommige DFDS regels hebben geen tijdslot
@@ -137,6 +138,7 @@ export default async function parseDFDS(buffer) {
         containertype:   typeM?.[1]?.trim() || '',
         cbmTransport:    typeM?.[2]?.replace(',', '.') || '0',
         pickupDatum:     pickupDt,
+        pickupRef,
         lossenRef:       lossenM?.[1] || '',
         datum:           lossenM?.[2] || pickupDt || orderDatum,
         tijd:            formatTijd(lossenM?.[3] || ''),
@@ -262,7 +264,7 @@ export default async function parseDFDS(buffer) {
       lading:                 (g.lading || '').toUpperCase(),
       brutogewicht:           g.gewicht || '0',
       geladenGewicht:         g.gewicht || '0',
-      referentie:             '',
+      referentie:             blok.pickupRef,
       datum:                  blok.datum,
       tijd:                   blok.tijd,
       laadreferentie:         blok.lossenRef,
