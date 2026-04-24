@@ -67,15 +67,25 @@ export default async function handler(req, res) {
 
   let client;
   try {
+    // Fail fast if critical env vars are missing
+    const missing = ['IMAP_HOST','IMAP_USER','IMAP_PASS'].filter(k => !process.env[k]);
+    if (missing.length > 0) {
+      return res.status(500).json({ error: `Ontbrekende omgevingsvariabelen: ${missing.join(', ')}` });
+    }
+
     console.log('📡 Verbind met IMAP...');
     client = new ImapFlow({
       host: process.env.IMAP_HOST,
-      port: Number(process.env.IMAP_PORT),
-      secure: process.env.IMAP_SECURE === 'true',
+      port: Number(process.env.IMAP_PORT || 993),
+      secure: process.env.IMAP_SECURE !== 'false',
       auth: {
         user: process.env.IMAP_USER,
         pass: process.env.IMAP_PASS
-      }
+      },
+      connectionTimeout: 8000,
+      greetingTimeout:   5000,
+      socketTimeout:     8000,
+      logger: false
     });
 
     await client.connect();
