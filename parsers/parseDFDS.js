@@ -69,9 +69,9 @@ export default async function parseDFDS(buffer) {
   const refRegel    = regels.find(r => r.includes('Onze referentie'));
   const klantadres  = refRegel?.split('Onze referentie')[0]?.trim() || '';
   // Postcode + plaats
-  const plaatsRegel = regels.find(r => /^\d{4}\s+[A-Z]{2}\s+[A-Z]+/.test(r));
-  const klantpostcode = plaatsRegel?.match(/^(\d{4}\s+[A-Z]{2})/)?.[1]?.trim() || '';
-  const klantplaats   = plaatsRegel?.match(/^\d{4}\s+[A-Z]{2}\s+([A-Z]+)/)?.[1]?.trim() || '';
+  const plaatsRegel = regels.find(r => /^\d{4}\s+[A-Za-z]{2}\s+\S/.test(r));
+  const klantpostcode = plaatsRegel?.match(/^(\d{4}\s*[A-Za-z]{2})/)?.[1]?.replace(/\s+/, ' ').trim() || '';
+  const klantplaats   = plaatsRegel?.match(/^\d{4}\s+[A-Za-z]{2}\s+(.+)/)?.[1]?.trim() || '';
 
   const adr = /ADR/i.test(regels.join(' ')) ? 'Waar' : 'Onwaar';
 
@@ -264,7 +264,7 @@ export default async function parseDFDS(buffer) {
       referentie:             blok.lossenRef,
       datum:                  blok.datum,
       tijd:                   blok.tijd,
-      laadreferentie:         '',
+      laadreferentie:         blok.lossenRef,
       inleverreferentie:      blok.dropoffRef
     };
   }));
