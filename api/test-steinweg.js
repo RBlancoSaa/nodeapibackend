@@ -19,14 +19,18 @@ async function downloadXlsx(filename) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-
-  const { route1, route2, emailBody, emailSubject } = req.query;
+  // Accepteer zowel GET (query params) als POST (body of query params)
+  const query = { ...req.query, ...req.body };
+  // Ondersteun ook { filename } als alias voor route1
+  const route1    = query.route1    || query.filename || null;
+  const route2    = query.route2    || null;
+  const emailBody    = query.emailBody    || 'Hi, Graag overrijden.';
+  const emailSubject = query.emailSubject || 'Test Steinweg order';
 
   if (!route1) {
     return res.status(400).json({
-      error: 'Geef minstens ?route1=bestandsnaam.xlsx mee',
-      voorbeeld: '/api/test-steinweg?route1=PickupNotice_Route1_24-04-2026%20083055.xlsx&route2=PickupNotice_Route2_24-04-2026%20083112.xlsx'
+      error: 'Geef minstens route1 of filename mee (query param of POST body)',
+      voorbeeld: 'POST body: {"filename":"PickupNotice_Route1_31-03-2026 114245.xlsx"}'
     });
   }
 

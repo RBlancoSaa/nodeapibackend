@@ -20,6 +20,7 @@ app.post('/api/generate-easy-files', generateEasyHandler);
 app.get('/api/upload-from-inbox', uploadFromInboxHandler);
 app.get('/api/process-steinweg-queue', processSteinwegQueueHandler);
 app.get('/api/test-steinweg', testSteinwegHandler);
+app.post('/api/test-steinweg', testSteinwegHandler);
 
 app.get('/api/check-inbox', async (req, res) => {
   if (req.method !== 'GET') {
