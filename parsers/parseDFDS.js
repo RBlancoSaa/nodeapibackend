@@ -84,14 +84,24 @@ export default async function parseDFDS(buffer) {
     if (!zm) continue;
     const cntr  = zm[1];
     const zegel = zm[2].replace(/[,.]$/, '');
-    const cargo = regels[i + 1] || '';
+    // Zoek cargo-lijn: direct op i+1, of de eerstvolgende lijn met kg binnen 3 stappen
+    let cargo = '';
+    for (let j = 1; j <= 3; j++) {
+      const candidate = regels[i + j] || '';
+      if (/^\d+\s+\w+/i.test(candidate) && /\d+\s*kg/i.test(candidate)) {
+        cargo = candidate;
+        break;
+      }
+    }
+    console.log(`📦 Cargo-lijn voor ${zm[1]}: "${cargo}"`);
     const colli = cargo.match(/^(\d+)/)?.[1] || '0';
-    // Gewicht: Europees formaat "18.338,73 kg" → strip puntscheiding → "18338.73"
-    const gm = cargo.match(/([\d.]+,\d+)\s*kg/i) || cargo.match(/([\d.]+)\s*kg/i);
-    const gewicht = gm ? gm[1].replace('.', '').replace(',', '.') : '0';
+    const gm = cargo.match(/([\d.]+,\d+)\s*kg/i) || cargo.match(/([\d]+(?:[.,]\d+)?)\s*kg/i);
+    const rawGewicht = gm?.[1] || '';
+    const gewicht = rawGewicht ? rawGewicht.replace(/\./g, '').replace(',', '.') : '0';
     const cbm     = cargo.match(/([\d.]+)\s*m3/i)?.[1] || '0';
-    const ladM    = cargo.match(/^\d+\s+\w+\s+(.+?)\s+[\d.]+,\d+\s*kg/i);
-    const lading  = ladM?.[1]?.trim() || '';
+    // lading: alles tussen de eenheid (BAG/CTN/…) en het gewicht, ongeacht formaat
+    const ladM    = cargo.match(/^\d+\s+\w+\s+(.+?)\s+[\d.,]+\s*kg/i);
+    const lading  = (ladM?.[1]?.trim() || '').toUpperCase();
     goederenMap.set(cntr, { zegel, colli, lading, gewicht, cbm });
     console.log(`📦 Goederen [${cntr}]: zegel=${zegel}, colli=${colli}, gewicht=${gewicht}, lading=${lading}`);
   }
@@ -111,6 +121,7 @@ export default async function parseDFDS(buffer) {
       const cntr     = r.match(/([A-Z]{3}U\d{7})/i)?.[1] || '';
       const typeM    = r.match(/[A-Z]{3}U\d{7}\s+(.+?)\s+-\s+([\d,]+)\s*m/i);
       const pickupDt = r.match(/(\d{2}-\d{2}-\d{4})/)?.[1] || '';
+      const pickupRef = r.match(/Pickup\s+(\S+)\s+\d{2}-\d{2}-\d{4}/i)?.[1] || '';
       const lossenR  = regels[i + 1] || '';
       const dropoffR = regels[i + 2] || '';
       const lossenM  = lossenR.match(/^Lossen\s+(\S+)\s+(\d{2}-\d{2}-\d{4})\s+(\d{2}:\d{2})/i);
@@ -120,6 +131,7 @@ export default async function parseDFDS(buffer) {
         containertype:   typeM?.[1]?.trim() || '',
         cbmTransport:    typeM?.[2]?.replace(',', '.') || '0',
         pickupDatum:     pickupDt,
+        pickupRef,
         lossenRef:       lossenM?.[1] || '',
         datum:           lossenM?.[2] || pickupDt || orderDatum,
         tijd:            formatTijd(lossenM?.[3] || ''),
@@ -242,12 +254,12 @@ export default async function parseDFDS(buffer) {
       cbm:                    g.cbm  || blok.cbmTransport,
       zegel:                  g.zegel || '',
       colli:                  g.colli || '0',
-      lading:                 g.lading || '',
+      lading:                 (g.lading || '').toUpperCase(),
       brutogewicht:           g.gewicht || '0',
       geladenGewicht:         g.gewicht || '0',
       datum:                  blok.datum,
       tijd:                   blok.tijd,
-      laadreferentie:         blok.lossenRef,
+      laadreferentie:         blok.pickupRef,
       inleverreferentie:      blok.dropoffRef
     };
   }));
