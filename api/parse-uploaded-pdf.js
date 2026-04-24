@@ -57,7 +57,10 @@ export default async function handler(req, res) {
 
     await sendEmailWithAttachments({
       ritnummer: container.ritnummer || reference,
-      attachments: [{ filename: easyFilename, path: easyPath }],
+      attachments: [
+        { filename: easyFilename, path: easyPath },
+        { filename: filename, content: pdfData }
+      ],
       verwerkingsresultaten: [{ filename: easyFilename, parsed: true }]
     });
   }
