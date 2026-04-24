@@ -13,11 +13,17 @@ export default async function handler(req, res) {
   if (!bestand) {
     return res.status(400).json({
       error: 'Geef een bestandsnaam mee via ?file=bestandsnaam.pdf',
-      voorbeeld: '/api/inspect-pdf?file=transport_285404.pdf'
+      voorbeeld: '/api/inspect-pdf?file=transport_285404.pdf',
+      supabaseUrl: process.env.SUPABASE_URL || '(niet ingesteld)',
+      keySet: !!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY.includes('VERVANG')
     });
   }
 
   try {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY.includes('VERVANG')) {
+      return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE_KEY is niet ingesteld in de omgevingsvariabelen.' });
+    }
+
     const { data, error } = await getSupabase()
       .storage
       .from('inboxpdf')

@@ -14,17 +14,53 @@ import handleKWE from '../handlers/handleKWE.js';
 import handleNeelevat from '../handlers/handleNeelevat.js';
 import handleRitra from '../handlers/handleRitra.js';
 import handleSteinweg from '../handlers/handleSteinweg.js';
+import handleReservering from '../handlers/handleReservering.js';
 
-// ✅ Klantdetectie en handlermapping
+// ✅ Klantdetectie en handlermapping (op bestandsnaam)
 const handlers = {
-  jordex: { match: name => name.includes('jordex'), handler: handleJordex },
-  dfds: { match: name => name.includes('dfds') && name.includes('transportorder'), handler: handleDFDS },
-  b2l: { match: name => name.includes('b2l'), handler: handleB2L },
-  easyfresh: { match: name => name.includes('easyfresh'), handler: handleEasyfresh },
-  kwe: { match: name => name.includes('kwe'), handler: handleKWE },
-  neelevat: { match: name => name.includes('neelevat'), handler: handleNeelevat },
-  ritra: { match: name => name.includes('ritra'), handler: handleRitra }
+  jordex:    { match: name => name.includes('jordex'),                                         handler: handleJordex },
+  dfds:      { match: name => name.includes('dfds') && name.includes('transportorder'),        handler: handleDFDS },
+  b2l:       { match: name => name.includes('b2l'),                                            handler: handleB2L },
+  easyfresh: { match: name => name.includes('easyfresh'),                                      handler: handleEasyfresh },
+  kwe:       { match: name => name.includes('kwe'),                                            handler: handleKWE },
+  neelevat:  { match: name => name.includes('neelevat'),                                       handler: handleNeelevat },
+  ritra:     { match: name => name.includes('ritra') || name.includes('transport_'),           handler: handleRitra }
 };
+
+// ✅ Email classificatie
+function classifyEmail(mail) {
+  const subject = (mail.subject || '').toLowerCase();
+  const body    = (mail.bodyText || '').toLowerCase();
+
+  // Update / wijziging → overslaan
+  if (/\b(update|wijziging|aanpassing|gewijzigd|correction|corrected|amendment)\b/.test(subject)) {
+    return 'update';
+  }
+
+  // Reservering
+  if (/reservering|ter\s+reservering/.test(subject) || /ter\s+reservering/.test(body)) {
+    return 'reservering';
+  }
+
+  // Heeft er een bekende transport-bijlage?
+  const attachments = mail.attachments || [];
+  const heeftTransport =
+    attachments.some(a => {
+      const fn = (a.filename || '').toLowerCase();
+      return Object.values(handlers).some(h => h.match(fn));
+    }) ||
+    attachments.some(a => {
+      const fn = (a.filename || '').toLowerCase();
+      return fn.endsWith('.pdf') || fn.endsWith('.xlsx');
+    });
+
+  if (heeftTransport) return 'transport';
+
+  // Heeft "reservering" ook in de bodytekst?
+  if (/reservering/.test(body)) return 'reservering';
+
+  return 'onbekend';
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
@@ -55,92 +91,130 @@ export default async function handler(req, res) {
     console.log(`📨 Ongelezen e-mails gevonden: ${uids.length}`);
     const { mails, allAttachments } = await parseAttachmentsFromEmails(client, uids);
 
-    const pdfAttachments = allAttachments.filter(att =>
-      att.filename && att.filename.toLowerCase().endsWith('.pdf')
-    );
+    const verwerkt    = { transport: 0, reservering: 0, update: 0, onbekend: 0 };
+    const uploadedFiles = [];
+    let verwerkingsresultaten = [];
 
-    console.log(`📎 PDF-bijlagen gedetecteerd: ${pdfAttachments.length}`);
-    pdfAttachments.forEach(att => {
-      console.log(` - ${att.filename} (${att.base64 ? 'base64 ✅' : 'base64 ❌'})`);
-    });
+    for (const mail of mails) {
+      const type = classifyEmail(mail);
+      console.log(`📧 [${type.toUpperCase()}] ${mail.subject}`);
 
-    const { uploadedFiles, verwerkingsresultaten } = await uploadPdfAttachmentsToSupabase(pdfAttachments);
-    console.log(`☁️ Upload naar Supabase voltooid: ${uploadedFiles.length} bestanden`);
-
-    for (const attachment of pdfAttachments) {
-      const filename = attachment.filename?.toLowerCase() || '';
-
-      const matchedHandler = Object.entries(handlers).find(([key, config]) =>
-        config.match(filename)
-      );
-
-      if (matchedHandler) {
-        const [klant, { handler }] = matchedHandler;
-        console.log(`🚚 Handler gevonden voor ${klant.toUpperCase()}: ${handler.name}`);
-        try {
-          await handler({
-            buffer: attachment.buffer,
-            base64: attachment.base64,
-            filename: attachment.filename
-          });
-        } catch (err) {
-          console.error(`❌ Fout tijdens verwerking ${klant}:`, err.message);
-        }
-      } else {
-        console.log(`⏭️ Geen handler gevonden voor: ${filename}`);
+      // ── Updates overslaan ─────────────────────────────────────────
+      if (type === 'update') {
+        console.log(`⏭️ Update-email overgeslagen: ${mail.subject}`);
+        verwerkt.update++;
+        continue;
       }
-    }
-    await sendEmailWithAttachments({
-  ritnummer: verwerkingsresultaten.find(v => v.parsed)?.ritnummer || 'onbekend',
-  attachments: uploadedFiles.map(file => ({
-    filename: file.filename,
-    content: file.content
-  })),
-  verwerkingsresultaten
-});
 
-    // Markeer alle verwerkte emails als gelezen zodat ze niet opnieuw verwerkt worden
+      // ── Reserveringen ─────────────────────────────────────────────
+      if (type === 'reservering') {
+        try {
+          await handleReservering({
+            subject:  mail.subject,
+            bodyText: mail.bodyText,
+            from:     mail.from,
+            date:     mail.date
+          });
+          verwerkt.reservering++;
+        } catch (err) {
+          console.error('❌ handleReservering fout:', err.message);
+        }
+        continue;
+      }
+
+      // ── Transportopdrachten ───────────────────────────────────────
+      if (type === 'transport') {
+        verwerkt.transport++;
+
+        // PDF-bijlagen verwerken
+        const pdfAtts = (mail.attachments || []).filter(a =>
+          a.filename?.toLowerCase().endsWith('.pdf')
+        );
+
+        if (pdfAtts.length > 0) {
+          // Upload naar Supabase
+          const mailAllAtts = allAttachments.filter(a => a.uid === mail.uid);
+          const { uploadedFiles: uf, verwerkingsresultaten: vr } =
+            await uploadPdfAttachmentsToSupabase(mailAllAtts.filter(a => a.filename?.toLowerCase().endsWith('.pdf')));
+          uploadedFiles.push(...uf);
+          verwerkingsresultaten.push(...(vr || []));
+
+          for (const att of mailAllAtts.filter(a => a.filename?.toLowerCase().endsWith('.pdf'))) {
+            const filename = (att.filename || '').toLowerCase();
+            const matchedHandler = Object.entries(handlers).find(([, cfg]) => cfg.match(filename));
+            if (matchedHandler) {
+              const [klant, { handler: h }] = matchedHandler;
+              console.log(`🚚 Handler: ${klant.toUpperCase()} voor ${att.filename}`);
+              try {
+                await h({ buffer: att.buffer, base64: att.base64, filename: att.filename });
+              } catch (err) {
+                console.error(`❌ Handler ${klant} fout:`, err.message);
+              }
+            } else {
+              console.log(`⏭️ Geen handler voor: ${att.filename}`);
+            }
+          }
+        }
+
+        // Steinweg xlsx-bijlagen verwerken
+        const xlsxAtts = (mail.attachments || []).filter(a =>
+          a.filename?.toLowerCase().endsWith('.xlsx')
+        );
+        const isSteinweg =
+          xlsxAtts.some(a => /pickupnotice/i.test(a.filename)) ||
+          xlsxAtts.some(a => /steinweg/i.test(a.filename)) ||
+          /steinweg/i.test(mail.subject || '');
+
+        if (isSteinweg && xlsxAtts.length > 0) {
+          console.log(`📊 Steinweg email: ${mail.subject} (${xlsxAtts.length} xlsx)`);
+          const route1Att  = xlsxAtts.find(a => /route.?1/i.test(a.filename));
+          const route2Att  = xlsxAtts.find(a => /route.?2/i.test(a.filename));
+          const fallbackAtt = !route1Att && !route2Att ? xlsxAtts[0] : null;
+          try {
+            await handleSteinweg({
+              route1Buffer:  route1Att?.content  || fallbackAtt?.content || null,
+              route2Buffer:  route2Att?.content  || null,
+              emailBody:     mail.bodyText  || '',
+              emailSubject:  mail.subject   || '',
+              emailSource:   mail.source    || null,
+              emailFilename: `${(mail.subject || 'steinweg').replace(/[^\w\d\-]/g, '_')}_${mail.uid}.eml`
+            });
+          } catch (err) {
+            console.error('❌ handleSteinweg fout:', err.message);
+          }
+        }
+
+        continue;
+      }
+
+      // ── Onbekend ──────────────────────────────────────────────────
+      verwerkt.onbekend++;
+      console.log(`❓ Onbekende email-type, overgeslagen: ${mail.subject}`);
+    }
+
+    // Verstuur upload-samenvatting als er bestanden geüpload zijn
+    if (uploadedFiles.length > 0) {
+      await sendEmailWithAttachments({
+        ritnummer: verwerkingsresultaten.find(v => v.parsed)?.ritnummer || 'onbekend',
+        attachments: uploadedFiles.map(file => ({
+          filename: file.filename,
+          content: file.content
+        })),
+        verwerkingsresultaten
+      });
+    }
+
+    // Markeer alle verwerkte emails als gelezen
     if (uids.length > 0) {
       await client.messageFlagsAdd(uids, ['\\Seen']);
       console.log(`✉️ ${uids.length} email(s) gemarkeerd als gelezen`);
-    }
-
-    // === Steinweg: detecteer xlsx-bijlagen met PickupNotice ===
-    for (const mail of mails) {
-      const xlsxAtts = (mail.attachments || []).filter(a =>
-        a.filename?.toLowerCase().endsWith('.xlsx')
-      );
-      const isSteinweg =
-        xlsxAtts.some(a => /pickupnotice/i.test(a.filename)) ||
-        xlsxAtts.some(a => /steinweg/i.test(a.filename)) ||
-        /steinweg/i.test(mail.subject || '');
-
-      if (isSteinweg && xlsxAtts.length > 0) {
-        console.log(`📊 Steinweg email gevonden: ${mail.subject} (${xlsxAtts.length} xlsx)`);
-        const route1Att = xlsxAtts.find(a => /route.?1/i.test(a.filename));
-        const route2Att = xlsxAtts.find(a => /route.?2/i.test(a.filename));
-        // Als er geen route1/route2 label is, beschouw het eerste xlsx als route1
-        const fallbackAtt = !route1Att && !route2Att ? xlsxAtts[0] : null;
-        try {
-          await handleSteinweg({
-            route1Buffer: route1Att?.content || fallbackAtt?.content || null,
-            route2Buffer: route2Att?.content || null,
-            emailBody:    mail.bodyText  || '',
-            emailSubject: mail.subject   || '',
-            emailSource:  mail.source    || null,
-            emailFilename: `${(mail.subject || 'steinweg').replace(/[^\w\d\-]/g, '_')}_${mail.uid}.eml`
-          });
-        } catch (err) {
-          console.error('❌ handleSteinweg fout:', err.message);
-        }
-      }
     }
 
     await client.logout();
     return res.status(200).json({
       success: true,
       mailCount: mails.length,
-      attachmentCount: allAttachments.length,
+      verwerkt,
       uploadedCount: uploadedFiles.length,
       filenames: uploadedFiles.map(f => f.filename)
     });

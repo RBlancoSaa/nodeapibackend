@@ -37,6 +37,7 @@ function fallbackOnwaar(value) {
 }
 
 function bevatADR(data) {
+  if (data.adr === 'Waar') return true;
   const ladingTekst = `${data.lading || ''}`.toUpperCase();
   const imoTekst = `${data.imo || ''}`.toUpperCase();
   return (
