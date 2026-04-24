@@ -84,22 +84,25 @@ export default async function parseDFDS(buffer) {
     if (!zm) continue;
     const cntr  = zm[1];
     const zegel = zm[2].replace(/[,.]$/, '');
-    // Zoek cargo-lijn: direct op i+1, of de eerstvolgende lijn met kg binnen 3 stappen
+    // Zoek cargo-lijn: eerstvolgende lijn met kg binnen 5 stappen
     let cargo = '';
-    for (let j = 1; j <= 3; j++) {
+    for (let j = 1; j <= 5; j++) {
       const candidate = regels[i + j] || '';
-      if (/^\d+\s+\w+/i.test(candidate) && /\d+\s*kg/i.test(candidate)) {
+      if (/\d+\s*kg/i.test(candidate)) {
         cargo = candidate;
         break;
       }
+      console.log(`📦 Kandidaat [i+${j}] voor ${zm[1]}: "${candidate}"`);
     }
     console.log(`📦 Cargo-lijn voor ${zm[1]}: "${cargo}"`);
-    const colli = cargo.match(/^(\d+)/)?.[1] || '0';
+    const colli = cargo.match(/(\d+)\s+(?:BAG|CTN|PLT|PKG|BOX|BALE|DRUM|COIL|PCE|PCS|STK|ROL)/i)?.[1]
+                || cargo.match(/^(\d+)/)?.[1] || '0';
+    // Gewicht: Europees formaat – verwijder punten (duizendtal), vervang komma door punt
     const gm = cargo.match(/([\d.]+,\d+)\s*kg/i) || cargo.match(/([\d]+(?:[.,]\d+)?)\s*kg/i);
     const rawGewicht = gm?.[1] || '';
     const gewicht = rawGewicht ? rawGewicht.replace(/\./g, '').replace(',', '.') : '0';
-    const cbm     = cargo.match(/([\d.]+)\s*m3/i)?.[1] || '0';
-    // lading: alles tussen de eenheid (BAG/CTN/…) en het gewicht, ongeacht formaat
+    const cbm     = cargo.match(/([\d.,]+)\s*m3/i)?.[1]?.replace(',', '.') || '0';
+    // lading: alles tussen de eenheid (BAG/CTN/…) en het gewicht, ongeacht formaat (punt of komma decimalen)
     const ladM    = cargo.match(/^\d+\s+\w+\s+(.+?)\s+[\d.,]+\s*kg/i);
     const lading  = (ladM?.[1]?.trim() || '').toUpperCase();
     goederenMap.set(cntr, { zegel, colli, lading, gewicht, cbm });
@@ -131,12 +134,12 @@ export default async function parseDFDS(buffer) {
         containertype:   typeM?.[1]?.trim() || '',
         cbmTransport:    typeM?.[2]?.replace(',', '.') || '0',
         pickupDatum:     pickupDt,
-        pickupRef,
         lossenRef:       lossenM?.[1] || '',
         datum:           lossenM?.[2] || pickupDt || orderDatum,
         tijd:            formatTijd(lossenM?.[3] || ''),
         dropoffRef:      dropRef
       });
+      console.log(`🚛 Blok [${cntr}]: lossenRef=${lossenM?.[1]}, dropoffRef=${dropRef}, datum=${lossenM?.[2]||pickupDt}`);
       i += 3;
     } else if (r.startsWith('Pickup ') && !r.includes('PORTBASE')) {
       break; // locatiesectie begint
@@ -259,7 +262,7 @@ export default async function parseDFDS(buffer) {
       geladenGewicht:         g.gewicht || '0',
       datum:                  blok.datum,
       tijd:                   blok.tijd,
-      laadreferentie:         blok.pickupRef,
+      laadreferentie:         blok.lossenRef,
       inleverreferentie:      blok.dropoffRef
     };
   }));
