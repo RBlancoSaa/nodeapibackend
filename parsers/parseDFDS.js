@@ -21,8 +21,7 @@ function extractLinesPdf2Json(buffer) {
         }
       }
       const sorted = [...linesMap.entries()].sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
-      const regels = sorted.map(([_, woorden]) => woorden.join(' ').trim());
-      resolve(regels);
+      resolve(sorted.map(([_, woorden]) => woorden.join(' ').trim()));
     });
     pdfParser.parseBuffer(buffer);
   });
@@ -34,143 +33,225 @@ function log(label, val) {
 }
 
 function formatTijd(t) {
-  const m = t.match(/(\d{2}):(\d{2})/);
+  const m = t?.match(/(\d{2}):(\d{2})/);
   return m ? `${m[1]}:${m[2]}:00` : '';
 }
 
-function parseKg(val) {
-  const m = val.match(/([\d.,]+)\s*kg/i);
-  return m ? m[1].replace(',', '.').replace('.', '') : '';
+// Splits "EUROPAWEG 875 , 3199 LD Maasvlakte / Rotterdam, THE NETHERLANDS" into adres/postcode/plaats
+function parseAdresRegel(r) {
+  if (!r) return { adres: '', postcode: '', plaats: '' };
+  const cleaned = r.replace(/,?\s*THE NETHERLANDS.*$/i, '').trim();
+  const m = cleaned.match(/^(.+?)\s*,?\s*(\d{4}\s*[A-Z]{2})\s+(.+)$/i);
+  if (m) {
+    return {
+      adres: m[1].replace(/\s*,\s*$/, '').trim(),
+      postcode: m[2].trim(),
+      plaats: m[3].replace(/\s*\/.*$/, '').trim()
+    };
+  }
+  return { adres: cleaned, postcode: '', plaats: '' };
 }
 
 export default async function parseDFDS(buffer) {
   const regels = await extractLinesPdf2Json(buffer);
-  console.log('📋 DFDS alle regels:\n', regels.map((r, i) => `[${i}] ${r}`).join('\n'));
-  const data = {};
+  console.log('📋 DFDS regels:\n', regels.map((r, i) => `[${i}] ${r}`).join('\n'));
 
-  // Hardcoded opdrachtgever
-  data.opdrachtgeverNaam = 'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.';
-  data.opdrachtgeverAdres = 'WOLGAWEG 3';
-  data.opdrachtgeverPostcode = '3198 LR';
-  data.opdrachtgeverPlaats = 'ROTTERDAM';
-  data.opdrachtgeverTelefoon = '010-1234567';
-  data.opdrachtgeverEmail = 'nl-rtm-operations@dfds.com';
-  data.opdrachtgeverBTW = 'NL007129099B01';
-  data.opdrachtgeverKVK = '24232781';
+  // === Gedeelde orderdata ===
+  const datumRegel  = regels.find(r => /\bDatum\s+\d{2}-\d{2}-\d{4}\b/.test(r));
+  const orderDatum  = datumRegel?.match(/(\d{2}-\d{2}-\d{4})/)?.[1] || '';
+  const ritnummer   = log('ritnummer', regels.find(r => r.includes('Onze referentie'))?.match(/SFIM\d{7}/)?.[0] || '');
+  const bootnaam    = log('bootnaam',  regels.find(r => r.includes('Vaartuig'))?.split('Vaartuig')[1]?.split('Reis')[0]?.trim() || '');
+  const rederij     = log('rederij',   regels.find(r => r.includes('Rederij'))?.split('Rederij')[1]?.trim() || '');
 
-  // Ritnummer
-  data.ritnummer = log('ritnummer', regels.find(r => r.includes('Onze referentie'))?.match(/SFIM\d{7}/)?.[0] || '');
+  // Klantnaam: eerste woord(en) voor " Datum " op de datumregel
+  const klantnaam   = log('klantnaam',  datumRegel?.match(/^(.+?)\s+Datum\s+\d{2}-\d{2}-\d{4}/)?.[1]?.trim() || '');
+  // Klantadres: alles voor "Onze referentie" op die regel
+  const refRegel    = regels.find(r => r.includes('Onze referentie'));
+  const klantadres  = refRegel?.split('Onze referentie')[0]?.trim() || '';
+  // Postcode + plaats
+  const plaatsRegel = regels.find(r => /^\d{4}\s+[A-Z]{2}\s+[A-Z]+/.test(r));
+  const klantpostcode = plaatsRegel?.match(/^(\d{4}\s+[A-Z]{2})/)?.[1]?.trim() || '';
+  const klantplaats   = plaatsRegel?.match(/^\d{4}\s+[A-Z]{2}\s+([A-Z]+)/)?.[1]?.trim() || '';
 
-  // Bootnaam en rederij
-  data.bootnaam = log('bootnaam', regels.find(r => r.includes('Vaartuig'))?.split('Vaartuig')[1]?.split('Reis')[0]?.trim() || '');
-  data.rederij = log('rederij', regels.find(r => r.includes('Rederij'))?.split('Rederij')[1]?.trim() || '');
-  data.inleverBootnaam = data.bootnaam;
-  data.inleverRederij = data.rederij;
+  const adr = /ADR/i.test(regels.join(' ')) ? 'Waar' : 'Onwaar';
 
-// Containerregel: zoek op containernummer-patroon (ook zonder Zegel-veld)
-const containerLine = regels.find(r => /\b[A-Z]{4}\d{7}\b/i.test(r)) || '';
-console.log('📦 Container line raw:', containerLine);
-const containerMatch = containerLine.match(/([A-Z]{4}\d{7})\s+(.+?)\s*-\s*([\d,\.]+)\s*m/i);
+  // === Goederen informatie: container# → {zegel, colli, lading, gewicht, cbm} ===
+  // Lijn: "MEDU2842649 20ft - 33,2 m ³ / Zegel: 236199"
+  // Volgende lijn: "10 BAG CON SIERRITA LS HB 4000 LB NT BB (UL) EU 18.338,73 kg 0 m3"
+  const goederenMap = new Map();
+  for (let i = 0; i < regels.length; i++) {
+    const zm = regels[i].match(/([A-Z]{3}U\d{7})\s+.+\/\s*Zegel:\s*(\S+)/i);
+    if (!zm) continue;
+    const cntr  = zm[1];
+    const zegel = zm[2].replace(/[,.]$/, '');
+    const cargo = regels[i + 1] || '';
+    const colli = cargo.match(/^(\d+)/)?.[1] || '0';
+    // Gewicht: Europees formaat "18.338,73 kg" → strip puntscheiding → "18338.73"
+    const gm = cargo.match(/([\d.]+,\d+)\s*kg/i) || cargo.match(/([\d.]+)\s*kg/i);
+    const gewicht = gm ? gm[1].replace('.', '').replace(',', '.') : '0';
+    const cbm     = cargo.match(/([\d.]+)\s*m3/i)?.[1] || '0';
+    const ladM    = cargo.match(/^\d+\s+\w+\s+(.+?)\s+[\d.]+,\d+\s*kg/i);
+    const lading  = ladM?.[1]?.trim() || '';
+    goederenMap.set(cntr, { zegel, colli, lading, gewicht, cbm });
+    console.log(`📦 Goederen [${cntr}]: zegel=${zegel}, colli=${colli}, gewicht=${gewicht}, lading=${lading}`);
+  }
 
-data.containernummer = log('containernummer', containerMatch?.[1] || '');
-const containertypeRaw = containerMatch?.[2]?.trim() || '';
-data.containertypeOmschrijving = containertypeRaw;
-data.containertype = log('containertype', containertypeRaw);
-data.cbm = log('cbm', containerMatch?.[3]?.replace(',', '.') || '0');
-data.zegel = log('zegel', containerLine.match(/Zegel:\s*(\S+)/i)?.[1] || '');
+  // === Transport tabel: per-container blokken ===
+  // Header: "Container Maat / soort Soort Referentie Datum / Tijd"
+  // Daarna per container 3 regels:
+  //   [CNTR] 20ft - 33,2 m³ Pickup PORTBASE [date]
+  //   Lossen [booking_ref] [date] [tijd]
+  //   Dropoff [dropoff_ref] [date]
+  const tableHdrIdx = regels.findIndex(r => r.includes('Container') && r.includes('Maat') && r.includes('Referentie'));
+  const containerBlokken = [];
+  let i = tableHdrIdx + 1;
+  while (i < regels.length) {
+    const r = regels[i];
+    if (/^[A-Z]{3}U\d{7}\s+.+Pickup/i.test(r)) {
+      const cntr     = r.match(/([A-Z]{3}U\d{7})/i)?.[1] || '';
+      const typeM    = r.match(/[A-Z]{3}U\d{7}\s+(.+?)\s+-\s+([\d,]+)\s*m/i);
+      const pickupDt = r.match(/(\d{2}-\d{2}-\d{4})/)?.[1] || '';
+      const lossenR  = regels[i + 1] || '';
+      const dropoffR = regels[i + 2] || '';
+      const lossenM  = lossenR.match(/^Lossen\s+(\S+)\s+(\d{2}-\d{2}-\d{4})\s+(\d{2}:\d{2})/i);
+      const dropRef  = dropoffR.match(/^Dropoff\s+(\S+)/i)?.[1] || '';
+      containerBlokken.push({
+        containernummer: cntr,
+        containertype:   typeM?.[1]?.trim() || '',
+        cbmTransport:    typeM?.[2]?.replace(',', '.') || '0',
+        pickupDatum:     pickupDt,
+        lossenRef:       lossenM?.[1] || '',
+        datum:           lossenM?.[2] || pickupDt || orderDatum,
+        tijd:            formatTijd(lossenM?.[3] || ''),
+        dropoffRef:      dropRef
+      });
+      i += 3;
+    } else if (r.startsWith('Pickup ') && !r.includes('PORTBASE')) {
+      break; // locatiesectie begint
+    } else {
+      i++;
+    }
+  }
+  console.log(`📦 ${containerBlokken.length} container(s) in transport tabel`);
 
-  // Lading, gewicht, colli
-  const goodsLine = regels.find(r => r.match(/\d+\s+\w+\s+RECHARGEABLE/i));
-  data.colli = log('colli', goodsLine?.match(/^(\d+)/)?.[1] || '0');
-  data.lading = log('lading', goodsLine?.replace(/^\d+\s+\w+\s+/, '')?.replace(/\s+\d+[\.,]\d+\s*kg.*$/, '') || '');
-  const gewichtLine = regels.find(r => r.includes('kg'));
-  data.brutogewicht = log('brutogewicht', parseKg(gewichtLine || '') || '0');
-  data.geladenGewicht = data.brutogewicht;
-  data.tarra = '0';
-  data.brix = '0';
+  // === Locaties: aparte sectie na de transport tabel ===
+  // "Pickup Ect Delta Terminal" / "Lossen Climax" / "Dropoff MEDREPAIR NEDERLAND"
+  // Locatielijnen hebben geen PORTBASE / cijferreeksen / datums in de naam
+  const isLocNaam = r => !/\d{7}|\d{2}-\d{2}-\d{4}|PORTBASE/i.test(r);
 
-  // Pickup info
-  const pickupBlok = regels.find(r => r.startsWith('Pickup'));
-  data.laadreferentie = log('laadreferentie', pickupBlok?.match(/Reference:?\s*(\S+)/i)?.[1] || '');
-  const pickupLine = regels.find(r => r.match(/\d{2}-\d{2}-\d{4}/));
-data.datum = log('datum', pickupLine?.match(/(\d{2}-\d{2}-\d{4})/)?.[1] || '');
+  const pickupLocR  = regels.find(r => r.startsWith('Pickup ')  && isLocNaam(r));
+  const lossenLocR  = regels.find(r => r.startsWith('Lossen ')  && isLocNaam(r));
+  const dropoffLocR = regels.find(r => r.startsWith('Dropoff ') && isLocNaam(r));
 
-if (!data.datum) {
-  const uploadDate = new Date();
-  const dd = String(uploadDate.getDate()).padStart(2, '0');
-  const mm = String(uploadDate.getMonth() + 1).padStart(2, '0');
-  const yyyy = uploadDate.getFullYear();
-  data.datum = `${dd}-${mm}-${yyyy}`;
-  data.instructies = 'DATUM STAAT VERKEERD';
-  console.warn('⚠️ Geen datum gevonden in PDF, uploaddatum gebruikt.');
-}
-  data.tijd = log('tijd', formatTijd(regels.find(r => r.includes('Lossen')) || ''));
+  const pickupLocNaam  = pickupLocR?.replace('Pickup ', '').trim()  || '';
+  const lossenLocNaam  = lossenLocR?.replace('Lossen ', '').trim()  || '';
+  const dropoffLocNaam = dropoffLocR?.replace('Dropoff ', '').trim() || '';
 
-  // Lossen + Dropoff referentie
-  data.inleverreferentie = log('inleverreferentie', regels.find(r => r.startsWith('Lossen'))?.split(' ')[1] || '');
-  data.referentie = log('referentie', regels.find(r => r.startsWith('Dropoff'))?.split(' ')[1] || '');
+  const pickupLocAdres  = pickupLocR  ? regels[regels.findIndex(r => r === pickupLocR)  + 1] || '' : '';
+  const lossenLocAdres  = lossenLocR  ? regels[regels.findIndex(r => r === lossenLocR)  + 1] || '' : '';
+  const dropoffLocAdres = dropoffLocR ? regels[regels.findIndex(r => r === dropoffLocR) + 1] || '' : '';
 
-  // ADR
-  data.adr = log('adr', /ADR/i.test(regels.join(' ')) ? 'Waar' : 'Onwaar');
+  console.log('📍 Opzetten:', pickupLocNaam, '|', pickupLocAdres);
+  console.log('📍 Lossen:',  lossenLocNaam,  '|', lossenLocAdres);
+  console.log('📍 Afzetten:', dropoffLocNaam, '|', dropoffLocAdres);
 
-  // Instructies, tar, documentatie
-  data.instructies = '';
-  data.tar = '';
-  data.documentatie = '';
-  data.inleverBestemming = '';
+  const [pickupInfo, lossenInfo, dropoffInfo] = await Promise.all([
+    getTerminalInfoMetFallback(pickupLocNaam),
+    getTerminalInfoMetFallback(lossenLocNaam),
+    getTerminalInfoMetFallback(dropoffLocNaam)
+  ]);
 
-  // Laden of Lossen
-  data.ladenOfLossen = log('ladenOfLossen', pickupBlok?.includes('NL') ? 'Laden' : 'Lossen');
+  const pA = parseAdresRegel(pickupLocAdres);
+  const lA = parseAdresRegel(lossenLocAdres);
+  const dA = parseAdresRegel(dropoffLocAdres);
 
-  // Locaties ophalen en Supabase fallback
-  const pickupNaam = regels.find(r => r.startsWith('Pickup'))?.replace('Pickup ', '')?.trim();
-  const pickupAdres = regels[regels.indexOf(regels.find(r => r.startsWith('Pickup'))) + 1]?.trim();
-  const lossenNaam = regels.find(r => r.startsWith('Lossen'))?.replace('Lossen ', '')?.trim();
-  const lossenAdres = regels[regels.indexOf(regels.find(r => r.startsWith('Lossen'))) + 1]?.trim();
-  const dropoffNaam = regels.find(r => r.startsWith('Dropoff'))?.replace('Dropoff ', '')?.trim();
-  const dropoffAdres = regels[regels.indexOf(regels.find(r => r.startsWith('Dropoff'))) + 1]?.trim();
-
-  const locatie1 = await getTerminalInfoMetFallback(`${pickupNaam} ${pickupAdres}`);
-  const locatie2 = await getTerminalInfoMetFallback(`${lossenNaam} ${lossenAdres}`);
-  const locatie3 = await getTerminalInfoMetFallback(`${dropoffNaam} ${dropoffAdres}`);
-
-  data.locaties = [
+  const locaties = [
     {
-      volgorde: '0',
-      actie: 'Opzetten',
-      naam: locatie1.naam || pickupNaam,
-      adres: locatie1.adres || pickupAdres,
-      postcode: locatie1.postcode || '',
-      plaats: locatie1.plaats || '',
-      land: 'NL',
-      portbase_code: locatie1.portbase_code || '',
-      bicsCode: locatie1.bicsCode || ''
+      volgorde: '0', actie: 'Opzetten',
+      naam:     pickupInfo.naam     || pickupLocNaam,
+      adres:    pickupInfo.adres    || pA.adres,
+      postcode: pickupInfo.postcode || pA.postcode,
+      plaats:   pickupInfo.plaats   || pA.plaats,
+      land:     pickupInfo.land     || 'NL',
+      voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
+      portbase_code: pickupInfo.portbase_code || '',
+      bicsCode:      pickupInfo.bicsCode      || ''
     },
     {
-      volgorde: '0',
-      actie: 'Lossen',
-      naam: locatie2.naam || lossenNaam,
-      adres: locatie2.adres || lossenAdres,
-      postcode: locatie2.postcode || '',
-      plaats: locatie2.plaats || '',
-      land: 'NL',
-      portbase_code: locatie2.portbase_code || '',
-      bicsCode: locatie2.bicsCode || ''
+      volgorde: '0', actie: 'Lossen',
+      naam:     lossenInfo.naam     || lossenLocNaam,
+      adres:    lossenInfo.adres    || lA.adres,
+      postcode: lossenInfo.postcode || lA.postcode,
+      plaats:   lossenInfo.plaats   || lA.plaats,
+      land:     lossenInfo.land     || 'NL',
+      portbase_code: lossenInfo.portbase_code || '',
+      bicsCode:      lossenInfo.bicsCode      || ''
     },
     {
-      volgorde: '0',
-      actie: 'Afzetten',
-      naam: locatie3.naam || dropoffNaam,
-      adres: locatie3.adres || dropoffAdres,
-      postcode: locatie3.postcode || '',
-      plaats: locatie3.plaats || '',
-      land: 'NL',
-      portbase_code: locatie3.portbase_code || '',
-      bicsCode: locatie3.bicsCode || ''
+      volgorde: '0', actie: 'Afzetten',
+      naam:     dropoffInfo.naam     || dropoffLocNaam,
+      adres:    dropoffInfo.adres    || dA.adres,
+      postcode: dropoffInfo.postcode || dA.postcode,
+      plaats:   dropoffInfo.plaats   || dA.plaats,
+      land:     dropoffInfo.land     || 'NL',
+      voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
+      portbase_code: dropoffInfo.portbase_code || '',
+      bicsCode:      dropoffInfo.bicsCode      || ''
     }
   ];
 
-console.log('➡️ Naar XML-generator:', JSON.stringify(data, null, 2));
+  // === Bouw resultaat per container ===
+  const base = {
+    opdrachtgeverNaam:      'DFDS MAASVLAKTE WAREHOUSING ROTTERDAM B.V.',
+    opdrachtgeverAdres:     'WOLGAWEG 3',
+    opdrachtgeverPostcode:  '3198 LR',
+    opdrachtgeverPlaats:    'ROTTERDAM',
+    opdrachtgeverTelefoon:  '010-1234567',
+    opdrachtgeverEmail:     'nl-rtm-operations@dfds.com',
+    opdrachtgeverBTW:       'NL007129099B01',
+    opdrachtgeverKVK:       '24232781',
+    ritnummer, bootnaam, rederij,
+    inleverBootnaam: bootnaam,
+    inleverRederij:  rederij,
+    klantnaam, klantadres, klantpostcode, klantplaats,
+    adr,
+    ladenOfLossen:    'Lossen',
+    instructies:      '',
+    tar:              '',
+    documentatie:     '',
+    inleverBestemming:'',
+    tarra:            '0',
+    brix:             '0',
+    referentie:       containerBlokken[0]?.dropoffRef || '',
+    locaties
+  };
 
-  return data;
+  if (containerBlokken.length === 0) {
+    console.warn('⚠️ Geen containers gevonden in transport tabel');
+    return [{ ...base, containertype: '', containernummer: '', datum: orderDatum }];
+  }
+
+  const results = await Promise.all(containerBlokken.map(async blok => {
+    const g    = goederenMap.get(blok.containernummer) || {};
+    const ctCode = await getContainerTypeCode(blok.containertype) || '0';
+    return {
+      ...base,
+      containernummer:        blok.containernummer,
+      containertype:          blok.containertype,
+      containertypeCode:      ctCode,
+      cbm:                    g.cbm  || blok.cbmTransport,
+      zegel:                  g.zegel || '',
+      colli:                  g.colli || '0',
+      lading:                 g.lading || '',
+      brutogewicht:           g.gewicht || '0',
+      geladenGewicht:         g.gewicht || '0',
+      datum:                  blok.datum,
+      tijd:                   blok.tijd,
+      laadreferentie:         blok.lossenRef,
+      inleverreferentie:      blok.dropoffRef
+    };
+  }));
+
+  console.log(`✅ ${results.length} DFDS container(s) geparsed`);
+  return results;
 }
