@@ -6,22 +6,11 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
-import nodemailer from 'nodemailer';
-import defaultTransporter from '../utils/smtpTransport.js';
-
-function getTransporter() {
-  if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
-    return nodemailer.createTransport({
-      host: 'smtp.gmail.com', port: 587, secure: false,
-      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS }
-    });
-  }
-  return defaultTransporter;
-}
+import { getGmailTransporter } from '../utils/gmailTransport.js';
 
 async function sendEmail({ ritnummer, attachments }) {
-  const from = process.env.GMAIL_USER || process.env.FROM_EMAIL;
-  await getTransporter().sendMail({
+  const { transporter, from } = getGmailTransporter();
+  await transporter.sendMail({
     from, to: from,
     subject: `easytrip file - ${ritnummer}`,
     text: `Transportopdracht verwerkt: ${ritnummer}`,
