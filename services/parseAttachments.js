@@ -34,8 +34,10 @@ mails.push({
   subject: message.envelope.subject || '(geen onderwerp)',
   from: message.envelope.from.map(f => `${f.name ?? ''} <${f.address}>`.trim()).join(', '),
   date: message.envelope.date,
-  originalPdfFilename: pdfAttachment?.filename || null,   // ✅ toegevoegd
-  originalPdfBase64: pdfBase64,                           // ✅ toegevoegd
+  originalPdfFilename: pdfAttachment?.filename || null,
+  originalPdfBase64: pdfBase64,
+  bodyText: parsed.text || '',
+  source: message.source,
   attachments: attachments.map(att => ({
     filename: att.filename,
     contentType: att.contentType,

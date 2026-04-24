@@ -8,6 +8,7 @@ import { uploadPdfAttachmentsToSupabase } from './services/uploadPdfAttachmentsT
 import parsePdfHandler from './api/parse-uploaded-pdf.js';
 import generateEasyHandler from './api/generate-easy-files.js';
 import uploadFromInboxHandler from './api/upload-from-inbox.js';
+import processSteinwegQueueHandler from './api/process-steinweg-queue.js';
 
 const app = express();
 app.use(express.json()); // ✅ noodzakelijk voor POST/JSON body parsing
@@ -15,7 +16,8 @@ const PORT = process.env.PORT || 3000;
 
 app.post('/api/parse-uploaded-pdf', parsePdfHandler);
 app.post('/api/generate-easy-files', generateEasyHandler);
-app.post('/api/upload-from-inbox', uploadFromInboxHandler);
+app.get('/api/upload-from-inbox', uploadFromInboxHandler);
+app.get('/api/process-steinweg-queue', processSteinwegQueueHandler);
 
 app.get('/api/check-inbox', async (req, res) => {
   if (req.method !== 'GET') {

@@ -13,6 +13,7 @@ import handleEasyfresh from '../handlers/handleEasyfresh.js';
 import handleKWE from '../handlers/handleKWE.js';
 import handleNeelevat from '../handlers/handleNeelevat.js';
 import handleRitra from '../handlers/handleRitra.js';
+import handleSteinweg from '../handlers/handleSteinweg.js';
 
 // ✅ Klantdetectie en handlermapping
 const handlers = {
@@ -97,6 +98,37 @@ export default async function handler(req, res) {
   })),
   verwerkingsresultaten
 });
+
+    // === Steinweg: detecteer xlsx-bijlagen met PickupNotice ===
+    for (const mail of mails) {
+      const xlsxAtts = (mail.attachments || []).filter(a =>
+        a.filename?.toLowerCase().endsWith('.xlsx')
+      );
+      const isSteinweg =
+        xlsxAtts.some(a => /pickupnotice/i.test(a.filename)) ||
+        xlsxAtts.some(a => /steinweg/i.test(a.filename)) ||
+        /steinweg/i.test(mail.subject || '');
+
+      if (isSteinweg && xlsxAtts.length > 0) {
+        console.log(`📊 Steinweg email gevonden: ${mail.subject} (${xlsxAtts.length} xlsx)`);
+        const route1Att = xlsxAtts.find(a => /route.?1/i.test(a.filename));
+        const route2Att = xlsxAtts.find(a => /route.?2/i.test(a.filename));
+        // Als er geen route1/route2 label is, beschouw het eerste xlsx als route1
+        const fallbackAtt = !route1Att && !route2Att ? xlsxAtts[0] : null;
+        try {
+          await handleSteinweg({
+            route1Buffer: route1Att?.content || fallbackAtt?.content || null,
+            route2Buffer: route2Att?.content || null,
+            emailBody:    mail.bodyText  || '',
+            emailSubject: mail.subject   || '',
+            emailSource:  mail.source    || null,
+            emailFilename: `${(mail.subject || 'steinweg').replace(/[^\w\d\-]/g, '_')}_${mail.uid}.eml`
+          });
+        } catch (err) {
+          console.error('❌ handleSteinweg fout:', err.message);
+        }
+      }
+    }
 
     await client.logout();
     return res.status(200).json({
