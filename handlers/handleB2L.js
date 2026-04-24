@@ -1,57 +1,47 @@
 // handlers/handleB2L.js
+import '../utils/fsPatch.js';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import parseB2L from '../parsers/parseB2L.js';
-import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
+import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
+import { getGmailTransporter, hasGmail } from '../utils/gmailTransport.js';
 
 export default async function handleB2L({ buffer, base64, filename }) {
   console.log(`📦 Verwerken van B2L-bestand: ${filename}`);
 
-  const parsedData = await parseB2L(buffer);
-  const easyFiles = [];
+  const containers = await parseB2L(buffer);
 
-  for (const container of parsedData.containers) {
-    try {
-      const response = await fetch(`${process.env.BASE_URL}/api/generate-easy-files`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reference: parsedData.ritnummer || '0',
-          laadplaats: container.laadplaats || '0',
-          pdfBestandsnaam: filename,
-          skipReprocessing: false,
-          originalPdfBase64: base64,
-          ...container
-        })
-      });
-
-      const result = await response.json();
-      console.log('📤 .easy gegenereerd voor B2L-container:', result);
-
-      easyFiles.push({
-        filename: result.bestandsnaam,
-        xmlBase64: result.xmlBase64
-      });
-
-    } catch (err) {
-      console.warn('⚠️ Fout bij B2L .easy-generatie:', err.message);
-    }
+  if (!containers || containers.length === 0) {
+    console.warn('⚠️ Geen B2L containers geparsed');
+    return;
   }
 
-  try {
-    await sendEmailWithAttachments({
-      ritnummer: parsedData.ritnummer,
-      attachments: [
-        ...easyFiles.map(file => ({
-          filename: file.filename,
-          content: Buffer.from(file.xmlBase64, 'base64')
-        })),
-        {
-          filename,
-          content: Buffer.from(base64, 'base64')
-        }
-      ]
-    });
-    console.log(`✅ Mail verstuurd voor rit ${parsedData.ritnummer}`);
-  } catch (err) {
-    console.error('📧 Fout bij e-mailverzending B2L:', err.message);
+  const { transporter, from } = getGmailTransporter();
+
+  for (const container of containers) {
+    try {
+      const xml = await generateXmlFromJson(container);
+      const cntr = container.containernummer || 'onbekend';
+      const ref  = container.ritnummer || cntr;
+      const easyFilename = `Order_${ref}_${cntr}_B2L.easy`;
+      const easyPath = path.join(os.tmpdir(), easyFilename);
+      fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
+
+      const attachments = [
+        { filename: easyFilename, path: easyPath },
+        { filename, content: Buffer.from(base64, 'base64') }
+      ];
+
+      await transporter.sendMail({
+        from, to: from,
+        subject: `easytrip file - ${ref}`,
+        text: `B2L transportopdracht verwerkt: ${ref}`,
+        attachments
+      });
+      console.log(`📧 B2L verstuurd: ${easyFilename}`);
+    } catch (err) {
+      console.error(`❌ Fout bij B2L container ${container.containernummer}:`, err.message);
+    }
   }
 }

@@ -10,6 +10,7 @@ import generateEasyHandler from './api/generate-easy-files.js';
 import uploadFromInboxHandler from './api/upload-from-inbox.js';
 import processSteinwegQueueHandler from './api/process-steinweg-queue.js';
 import testSteinwegHandler from './api/test-steinweg.js';
+import inspectPdfHandler from './api/inspect-pdf.js';
 
 const app = express();
 app.use(express.json()); // ✅ noodzakelijk voor POST/JSON body parsing
@@ -21,6 +22,7 @@ app.get('/api/upload-from-inbox', uploadFromInboxHandler);
 app.get('/api/process-steinweg-queue', processSteinwegQueueHandler);
 app.get('/api/test-steinweg', testSteinwegHandler);
 app.post('/api/test-steinweg', testSteinwegHandler);
+app.get('/api/inspect-pdf', inspectPdfHandler);
 
 app.get('/api/check-inbox', async (req, res) => {
   if (req.method !== 'GET') {
