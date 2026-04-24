@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/upload-from-inbox",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/process-steinweg-queue",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

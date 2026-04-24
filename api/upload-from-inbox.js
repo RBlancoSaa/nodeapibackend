@@ -99,6 +99,12 @@ export default async function handler(req, res) {
   verwerkingsresultaten
 });
 
+    // Markeer alle verwerkte emails als gelezen zodat ze niet opnieuw verwerkt worden
+    if (uids.length > 0) {
+      await client.messageFlagsAdd(uids, ['\\Seen']);
+      console.log(`✉️ ${uids.length} email(s) gemarkeerd als gelezen`);
+    }
+
     // === Steinweg: detecteer xlsx-bijlagen met PickupNotice ===
     for (const mail of mails) {
       const xlsxAtts = (mail.attachments || []).filter(a =>
