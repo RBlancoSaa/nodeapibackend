@@ -100,7 +100,8 @@ export default async function parseDFDS(buffer) {
     // Gewicht: Europees formaat – verwijder punten (duizendtal), vervang komma door punt
     const gm = cargo.match(/([\d.]+,\d+)\s*kg/i) || cargo.match(/([\d]+(?:[.,]\d+)?)\s*kg/i);
     const rawGewicht = gm?.[1] || '';
-    const gewicht = rawGewicht ? rawGewicht.replace(/\./g, '').replace(',', '.') : '0';
+    const gewichtFloat = rawGewicht ? parseFloat(rawGewicht.replace(/\./g, '').replace(',', '.')) : 0;
+    const gewicht = gewichtFloat > 0 ? String(Math.round(gewichtFloat)) : '0';
     const cbm     = cargo.match(/([\d.,]+)\s*m3/i)?.[1]?.replace(',', '.') || '0';
     // lading: alles tussen de eenheid (BAG/CTN/…) en het gewicht, ongeacht formaat (punt of komma decimalen)
     const ladM    = cargo.match(/^\d+\s+\w+\s+(.+?)\s+[\d.,]+\s*kg/i);
