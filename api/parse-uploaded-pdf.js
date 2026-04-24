@@ -45,8 +45,9 @@ export default async function handler(req, res) {
   for (const container of parsedContainers) {
     const xml = await generateXmlFromJson(container);
     const reference = (container.referentie && container.referentie !== '0') ? container.referentie : (container.ritnummer || 'GeenReferentie');
+    const cntrSuffix = container.containernummer ? `_${container.containernummer}` : '';
     const laadplaats = container.locaties?.[1]?.naam?.replace(/[^\w\s]/gi, '') || container.locaties?.[0]?.naam?.replace(/[^\w\s]/gi, '') || 'Onbekend';
-    const easyFilename = `Order_${reference}_${laadplaats}.easy`;
+    const easyFilename = `Order_${reference}${cntrSuffix}_${laadplaats}.easy`;
     const easyPath = path.join(os.tmpdir(), easyFilename);
     fs.writeFileSync(easyPath, xml);
     processedFiles.push(easyFilename);

@@ -262,7 +262,7 @@ export default async function parseDFDS(buffer) {
       lading:                 (g.lading || '').toUpperCase(),
       brutogewicht:           g.gewicht || '0',
       geladenGewicht:         g.gewicht || '0',
-      referentie:             blok.lossenRef,
+      referentie:             '',
       datum:                  blok.datum,
       tijd:                   blok.tijd,
       laadreferentie:         blok.lossenRef,
