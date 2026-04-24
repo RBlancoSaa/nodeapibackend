@@ -238,7 +238,7 @@ export default async function parseDFDS(buffer) {
     inleverBestemming:'',
     tarra:            '0',
     brix:             '0',
-    referentie:       containerBlokken[0]?.dropoffRef || '',
+    referentie:       '',
     locaties
   };
 
@@ -261,9 +261,10 @@ export default async function parseDFDS(buffer) {
       lading:                 (g.lading || '').toUpperCase(),
       brutogewicht:           g.gewicht || '0',
       geladenGewicht:         g.gewicht || '0',
+      referentie:             blok.lossenRef,
       datum:                  blok.datum,
       tijd:                   blok.tijd,
-      laadreferentie:         blok.lossenRef,
+      laadreferentie:         '',
       inleverreferentie:      blok.dropoffRef
     };
   }));
