@@ -126,7 +126,6 @@ export default async function parseDFDS(buffer) {
       const typeM    = r.match(/[A-Z]{3}U\d{7}\s+(.+?)\s+-\s+([\d,]+)\s*m/i);
       const pickupDt = r.match(/(\d{2}-\d{2}-\d{4})/)?.[1] || '';
       const pickupRef = r.match(/Pickup\s+(\S+)\s+\d{2}-\d{2}-\d{4}/i)?.[1] || '';
-      const pickupRef = r.match(/Pickup\s+(\S+)\s+\d{2}-\d{2}-\d{4}/i)?.[1] || '';
       const lossenR  = regels[i + 1] || '';
       const dropoffR = regels[i + 2] || '';
       // Tijd is optioneel – sommige DFDS regels hebben geen tijdslot
