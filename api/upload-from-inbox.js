@@ -1,7 +1,6 @@
 // 📁 /api/upload-from-inbox.js
 import '../utils/fsPatch.js';
-import { ImapFlow } from 'imapflow';
-import { parseAttachmentsFromEmails } from '../services/parseAttachments.js';
+import { fetchUnreadMails, markAsRead } from '../services/gmailApiService.js';
 import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 
@@ -65,41 +64,22 @@ function classifyEmail(mail) {
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  let client;
   try {
     // Fail fast if critical env vars are missing
-    const missing = ['IMAP_HOST','IMAP_USER','IMAP_PASS'].filter(k => !process.env[k]);
+    const missing = ['GMAIL_CLIENT_ID','GMAIL_CLIENT_SECRET','GMAIL_REFRESH_TOKEN'].filter(k => !process.env[k]);
     if (missing.length > 0) {
       return res.status(500).json({ error: `Ontbrekende omgevingsvariabelen: ${missing.join(', ')}` });
     }
 
-    console.log('📡 Verbind met IMAP...');
-    client = new ImapFlow({
-      host: process.env.IMAP_HOST,
-      port: Number(process.env.IMAP_PORT || 993),
-      secure: process.env.IMAP_SECURE !== 'false',
-      auth: {
-        user: process.env.IMAP_USER,
-        pass: process.env.IMAP_PASS
-      },
-      connectionTimeout: 8000,
-      greetingTimeout:   5000,
-      socketTimeout:     8000,
-      logger: false
-    });
+    console.log('📡 Gmail API: ophalen ongelezen emails...');
+    const { mails, allAttachments, ids } = await fetchUnreadMails();
 
-    await client.connect();
-    await client.mailboxOpen('INBOX');
-
-    const uids = await client.search({ seen: false });
-    if (uids.length === 0) {
-      await client.logout();
+    if (mails.length === 0) {
       console.log('📭 Geen ongelezen mails gevonden.');
       return res.status(200).json({ message: 'Geen ongelezen mails' });
     }
 
-    console.log(`📨 Ongelezen e-mails gevonden: ${uids.length}`);
-    const { mails, allAttachments } = await parseAttachmentsFromEmails(client, uids);
+    console.log(`📨 Ongelezen e-mails gevonden: ${mails.length}`);
 
     const verwerkt    = { transport: 0, reservering: 0, update: 0, onbekend: 0 };
     const uploadedFiles = [];
@@ -143,7 +123,7 @@ export default async function handler(req, res) {
 
         if (pdfAtts.length > 0) {
           // Upload naar Supabase
-          const mailAllAtts = allAttachments.filter(a => a.uid === mail.uid);
+          const mailAllAtts = allAttachments.filter(a => a.gmailId === mail.gmailId);
           const { uploadedFiles: uf, verwerkingsresultaten: vr } =
             await uploadPdfAttachmentsToSupabase(mailAllAtts.filter(a => a.filename?.toLowerCase().endsWith('.pdf')));
           uploadedFiles.push(...uf);
@@ -214,13 +194,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Markeer alle verwerkte emails als gelezen
-    if (uids.length > 0) {
-      await client.messageFlagsAdd(uids, ['\\Seen']);
-      console.log(`✉️ ${uids.length} email(s) gemarkeerd als gelezen`);
-    }
+    await markAsRead(ids);
 
-    await client.logout();
     return res.status(200).json({
       success: true,
       mailCount: mails.length,
@@ -230,7 +205,6 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    if (client) await client.logout().catch(() => {});
     console.error('💥 Upload-fout:', error);
     return res.status(500).json({
       success: false,
