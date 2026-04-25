@@ -1,6 +1,7 @@
 // services/gmailApiService.js
 import { google } from 'googleapis';
 import { simpleParser } from 'mailparser';
+import nodemailer from 'nodemailer';
 
 function getGmailClient() {
   const auth = new google.auth.OAuth2(
@@ -77,6 +78,21 @@ export async function fetchUnreadMails() {
   }
 
   return { mails, allAttachments, ids };
+}
+
+export async function sendViaGmailApi({ from, to, subject, text, attachments = [] }) {
+  const gmail = getGmailClient();
+
+  // Build raw RFC 2822 message using nodemailer (no SMTP, just encoding)
+  const builder = nodemailer.createTransport({ streamTransport: true, buffer: true });
+  const info = await builder.sendMail({ from, to, subject, text, attachments });
+  const raw = info.message.toString('base64url');
+
+  await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw }
+  });
+  console.log(`📧 Verstuurd via Gmail API: ${subject} → ${to}`);
 }
 
 export async function markAsRead(ids) {
