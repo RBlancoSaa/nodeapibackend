@@ -32,9 +32,10 @@ export default async function handleReservering({ subject, bodyText, from, date 
     const easyPath = path.join(os.tmpdir(), easyFilename);
     fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
+    const to = process.env.RECIPIENT_EMAIL || fromAddr;
     await transporter.sendMail({
       from: fromAddr,
-      to: fromAddr,
+      to,
       subject: `reservering - ${container.datum} - ${container.klantnaam}`,
       text: `Reservering ontvangen van ${from}.\nDatum: ${container.datum}\nKlant: ${container.klantnaam}\n\nOriginele email:\n${bodyText || '(geen tekst)'}`,
       attachments: [{ filename: easyFilename, path: easyPath }]

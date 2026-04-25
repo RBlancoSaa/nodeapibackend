@@ -34,8 +34,9 @@ export default async function handleRitra({ buffer, base64, filename }) {
         { filename, content: Buffer.from(base64, 'base64') }
       ];
 
+      const to = process.env.RECIPIENT_EMAIL || from;
       await transporter.sendMail({
-        from, to: from,
+        from, to,
         subject: `easytrip file - ${ref}`,
         text: `Ritra transportopdracht verwerkt: ${ref}`,
         attachments

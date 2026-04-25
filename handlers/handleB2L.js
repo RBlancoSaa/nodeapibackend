@@ -33,8 +33,9 @@ export default async function handleB2L({ buffer, base64, filename }) {
         { filename, content: Buffer.from(base64, 'base64') }
       ];
 
+      const to = process.env.RECIPIENT_EMAIL || from;
       await transporter.sendMail({
-        from, to: from,
+        from, to,
         subject: `easytrip file - ${ref}`,
         text: `B2L transportopdracht verwerkt: ${ref}`,
         attachments
