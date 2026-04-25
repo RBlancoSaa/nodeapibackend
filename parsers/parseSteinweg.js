@@ -4,8 +4,10 @@ import XLSX from 'xlsx';
 import { getTerminalInfoMetFallback, getContainerTypeCode, getKlantData } from '../utils/lookups/terminalLookup.js';
 
 function parseXlsxBuffer(buffer) {
-  const wb = XLSX.read(buffer, { type: 'buffer', raw: false });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const wb = XLSX.read(buffer, { type: 'buffer', raw: false, bookVBA: false, bookFiles: false });
+  const sheetName = wb.SheetNames.find(n => !/macro|vba/i.test(n)) || wb.SheetNames[0];
+  const sheet = wb.Sheets[sheetName];
+  if (!sheet) return [];
   return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 }
 
@@ -201,7 +203,11 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
   const instructies = [emailSubject, emailBody]
     .map(s => (s || '').trim())
     .filter(Boolean)
-    .join('\n');
+    .join(' | ')
+    .replace(/[<>&"']/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 300);
 
   const results = [];
 

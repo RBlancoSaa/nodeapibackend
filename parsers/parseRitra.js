@@ -31,10 +31,12 @@ export default async function parseRitra(buffer) {
   // === Ritnummer ===
   const ritnummer = ls.find(l => /Opdracht nr/i.test(l))?.match(/(\d{5,})/)?.[1] || '';
 
-  // === Datum (ETA of documentdatum) ===
+  // === Datum — voorkeur: Leverdatum uit afhaaladres sectie ===
+  const leverdatumIdx = ls.findIndex(l => /^Leverdatum$/i.test(l));
+  const leverdatum = leverdatumIdx >= 0 ? parseDatum(ls[leverdatumIdx + 1] || '') : '';
   const etaLine    = ls.find(l => /^\d{2}\/\d{2}\/\d{2}$/.test(l));
   const docDatLine = ls.find(l => /:\d{2}\/\d{2}\/\d{4}/.test(l));
-  const datum = parseDatum(etaLine) || parseDatum((docDatLine || '').replace(':', ''));
+  const datum = leverdatum || parseDatum(etaLine) || parseDatum((docDatLine || '').replace(':', ''));
 
   // === Container ===
   const cntrLine       = ls.find(l => /[A-Z]{4}\d{7}/.test(l));
