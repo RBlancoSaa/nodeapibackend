@@ -16,7 +16,7 @@ export default async function handleReservering({ subject, bodyText, from, date 
     return;
   }
 
-  const { transporter, from: fromAddr } = getGmailTransporter();
+  const { transporter, from: fromAddr } = await getGmailTransporter();
   const container = containers[0];
 
   if (!container.datum) {

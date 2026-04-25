@@ -17,7 +17,7 @@ export default async function handleRitra({ buffer, base64, filename }) {
     return;
   }
 
-  const { transporter, from } = getGmailTransporter();
+  const { transporter, from } = await getGmailTransporter();
   const ordernummer = containers[0]?.ritnummer || `ritra_${Date.now()}`;
 
   for (const container of containers) {

@@ -17,7 +17,7 @@ export default async function handleB2L({ buffer, base64, filename }) {
     return;
   }
 
-  const { transporter, from } = getGmailTransporter();
+  const { transporter, from } = await getGmailTransporter();
 
   for (const container of containers) {
     try {

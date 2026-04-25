@@ -9,7 +9,7 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, hasGmail } from '../utils/gmailTransport.js';
 
 async function sendSteinwegEmail({ ritnummer, attachments }) {
-  const { transporter, from } = getGmailTransporter();
+  const { transporter, from } = await getGmailTransporter();
   const formatted = attachments.map(att => ({
     filename: att.filename,
     content: att.content || (att.path && fs.existsSync(att.path) ? fs.readFileSync(att.path) : Buffer.from(''))

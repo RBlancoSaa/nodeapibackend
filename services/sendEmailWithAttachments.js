@@ -24,7 +24,7 @@ export async function sendEmailWithAttachments({ ritnummer, attachments, verwerk
       : ''
   ];
 
-  const { transporter, from } = getGmailTransporter();
+  const { transporter, from } = await getGmailTransporter();
   const to = process.env.RECIPIENT_EMAIL || from;
 
   await transporter.sendMail({
