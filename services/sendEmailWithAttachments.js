@@ -1,7 +1,7 @@
 // 📁 services/sendEmailWithAttachments.js
 import '../utils/fsPatch.js';
 import fs from 'fs';
-import transporter from '../utils/smtpTransport.js';
+import { getGmailTransporter } from '../utils/gmailTransport.js';
 
 export async function sendEmailWithAttachments({ ritnummer, attachments, verwerkingsresultaten = [] }) {
   const formattedAttachments = attachments.map(att => ({
@@ -24,13 +24,14 @@ export async function sendEmailWithAttachments({ ritnummer, attachments, verwerk
       : ''
   ];
 
-  const mailOptions = {
-    from: process.env.FROM_EMAIL,
-    to: process.env.FROM_EMAIL,
+  const { transporter, from } = getGmailTransporter();
+  const to = process.env.RECIPIENT_EMAIL || from;
+
+  await transporter.sendMail({
+    from,
+    to,
     subject: `easytrip file - ${ritnummer}`,
     text: tekstregels.join('\n'),
     attachments: formattedAttachments
-  };
-
-  await transporter.sendMail(mailOptions);
+  });
 }
