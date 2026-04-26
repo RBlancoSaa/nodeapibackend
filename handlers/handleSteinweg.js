@@ -64,7 +64,7 @@ export default async function handleSteinweg({ route1Buffer, route2Buffer, email
     }
   }
 
-  let processed = 0;
+  const easyBestanden = [];
   for (const container of containers) {
     try {
       const xml = await generateXmlFromJson(container);
@@ -92,14 +92,12 @@ export default async function handleSteinweg({ route1Buffer, route2Buffer, email
         await uploadToQueue(`${easyFilename}.meta.json`, Buffer.from(JSON.stringify(meta)));
         console.log(`📬 In queue: ${easyFilename}`);
       }
-      processed++;
+      easyBestanden.push(easyFilename);
     } catch (err) {
       console.error(`❌ Fout bij ${container.containernummer}:`, err.message);
     }
   }
 
-  console.log(`✅ ${processed}/${containers.length} Steinweg containers verwerkt`);
-  if (!useGmail) {
-    console.log('💡 Stel GMAIL_USER + GMAIL_CLIENT_ID + GMAIL_CLIENT_SECRET + GMAIL_REFRESH_TOKEN in voor direct verzenden.');
-  }
+  console.log(`✅ ${easyBestanden.length}/${containers.length} Steinweg containers verwerkt`);
+  return easyBestanden;
 }

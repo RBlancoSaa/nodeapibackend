@@ -19,6 +19,7 @@ export default async function handleJordex({ buffer, base64, filename }) {
 
   const { transporter, from } = await getGmailTransporter();
   const to = process.env.RECIPIENT_EMAIL || from;
+  const easyBestanden = [];
 
   for (const container of containers) {
     try {
@@ -40,8 +41,10 @@ export default async function handleJordex({ buffer, base64, filename }) {
         ]
       });
       console.log(`📧 Jordex verstuurd: ${easyFilename}`);
+      easyBestanden.push(easyFilename);
     } catch (err) {
       console.error(`❌ Fout bij Jordex container ${container.containernummer}:`, err.message);
     }
   }
+  return easyBestanden;
 }

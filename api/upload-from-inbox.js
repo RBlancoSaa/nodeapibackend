@@ -1,6 +1,8 @@
 // 📁 /api/upload-from-inbox.js
 import '../utils/fsPatch.js';
+import { randomUUID } from 'crypto';
 import { fetchUnreadMails, markAsRead } from '../services/gmailApiService.js';
+import { supabase } from '../services/supabaseClient.js';
 
 import handleJordex from '../handlers/handleJordex.js';
 import handleDFDS from '../handlers/handleDFDS.js';
@@ -29,7 +31,6 @@ function classifyEmail(mail) {
   if (/\b(update|wijziging|aanpassing|gewijzigd|correction|corrected|amendment)\b/.test(subject)) {
     return 'update';
   }
-
   if (/reservering|ter\s+reservering/.test(subject) || /ter\s+reservering/.test(body)) {
     return 'reservering';
   }
@@ -45,7 +46,6 @@ function classifyEmail(mail) {
     /steinweg/i.test(subject);
 
   if (heeftTransport || heeftSteinweg) return 'transport';
-
   return 'onbekend';
 }
 
@@ -58,46 +58,62 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: `Ontbrekende omgevingsvariabelen: ${missing.join(', ')}` });
     }
 
+    const runId = randomUUID();
+    const logEntries = [];
+
+    function addLog(mail, type, klant, easyBestanden, status, fout_melding = null) {
+      logEntries.push({
+        run_id:         runId,
+        email_subject:  mail.subject,
+        email_van:      mail.from,
+        type,
+        klant:          klant || null,
+        easy_bestanden: easyBestanden,
+        status,
+        fout_melding:   fout_melding || null
+      });
+    }
+
     console.log('📡 Gmail API: ophalen ongelezen emails...');
     const { mails, allAttachments, ids } = await fetchUnreadMails();
 
     if (mails.length === 0) {
       console.log('📭 Geen ongelezen mails gevonden.');
-      return res.status(200).json({ message: 'Geen ongelezen mails' });
+      return res.status(200).json({ success: true, run_id: runId, message: 'Geen ongelezen mails', log: [] });
     }
 
     console.log(`📨 ${mails.length} ongelezen email(s) gevonden`);
-
-    const verwerkt = { transport: 0, reservering: 0, update: 0, onbekend: 0 };
 
     for (const mail of mails) {
       const type = classifyEmail(mail);
       console.log(`📧 [${type.toUpperCase()}] ${mail.subject}`);
 
+      // ── Updates ───────────────────────────────────────────────────────────
       if (type === 'update') {
-        verwerkt.update++;
-        console.log(`⏭️ Update-email overgeslagen: ${mail.subject}`);
+        addLog(mail, 'update', null, [], 'overgeslagen');
+        console.log(`⏭️ Update overgeslagen: ${mail.subject}`);
         continue;
       }
 
+      // ── Reserveringen ─────────────────────────────────────────────────────
       if (type === 'reservering') {
         try {
-          await handleReservering({
+          const bestanden = await handleReservering({
             subject:  mail.subject,
             bodyText: mail.bodyText,
             from:     mail.from,
             date:     mail.date
           });
-          verwerkt.reservering++;
+          addLog(mail, 'reservering', 'reservering', bestanden ?? [], 'verwerkt');
         } catch (err) {
           console.error('❌ handleReservering fout:', err.message);
+          addLog(mail, 'reservering', 'reservering', [], 'fout', err.message);
         }
         continue;
       }
 
+      // ── Transportopdrachten ───────────────────────────────────────────────
       if (type === 'transport') {
-        verwerkt.transport++;
-
         const mailAtts = allAttachments.filter(a => a.gmailId === mail.gmailId);
 
         // PDF-bijlagen
@@ -109,12 +125,15 @@ export default async function handler(req, res) {
             const [klant, { handler: h }] = matchedHandler;
             console.log(`🚚 Handler: ${klant.toUpperCase()} voor ${att.filename}`);
             try {
-              await h({ buffer: att.buffer, base64: att.base64, filename: att.filename });
+              const bestanden = await h({ buffer: att.buffer, base64: att.base64, filename: att.filename });
+              addLog(mail, 'transport', klant, bestanden ?? [], 'verwerkt');
             } catch (err) {
               console.error(`❌ Handler ${klant} fout:`, err.message);
+              addLog(mail, 'transport', klant, [], 'fout', err.message);
             }
           } else {
             console.log(`⏭️ Geen handler voor: ${att.filename}`);
+            addLog(mail, 'transport', null, [], 'overgeslagen');
           }
         }
 
@@ -131,31 +150,64 @@ export default async function handler(req, res) {
           const route2Att   = xlsxAtts.find(a => /route.?2/i.test(a.filename));
           const fallbackAtt = !route1Att && !route2Att ? xlsxAtts[0] : null;
           try {
-            await handleSteinweg({
-              route1Buffer:  route1Att?.content  || fallbackAtt?.content || null,
-              route2Buffer:  route2Att?.content  || null,
-              emailBody:     mail.bodyText  || '',
-              emailSubject:  mail.subject   || '',
-              emailSource:   mail.source    || null
+            const bestanden = await handleSteinweg({
+              route1Buffer: route1Att?.content  || fallbackAtt?.content || null,
+              route2Buffer: route2Att?.content  || null,
+              emailBody:    mail.bodyText  || '',
+              emailSubject: mail.subject   || '',
+              emailSource:  mail.source    || null
             });
+            addLog(mail, 'transport', 'steinweg', bestanden ?? [], 'verwerkt');
           } catch (err) {
             console.error('❌ handleSteinweg fout:', err.message);
+            addLog(mail, 'transport', 'steinweg', [], 'fout', err.message);
           }
         }
 
         continue;
       }
 
-      verwerkt.onbekend++;
+      // ── Onbekend / Privé ──────────────────────────────────────────────────
+      addLog(mail, 'onbekend', null, [], 'overgeslagen');
       console.log(`❓ Onbekend, overgeslagen: ${mail.subject}`);
     }
 
+    // Markeer alle emails als gelezen
     await markAsRead(ids);
 
+    // Sla logboek op in Supabase
+    if (logEntries.length > 0) {
+      const { error: dbError } = await supabase
+        .from('verwerkingslog')
+        .insert(logEntries);
+      if (dbError) {
+        console.error('⚠️ Logboek opslaan mislukt:', dbError.message);
+      } else {
+        console.log(`📒 ${logEntries.length} logregels opgeslagen (run: ${runId})`);
+      }
+    }
+
+    // Samenvatting
+    const transport   = logEntries.filter(e => e.type === 'transport'   && e.status === 'verwerkt');
+    const reservering = logEntries.filter(e => e.type === 'reservering' && e.status === 'verwerkt');
+    const updates     = logEntries.filter(e => e.type === 'update');
+    const onbekend    = logEntries.filter(e => e.type === 'onbekend');
+    const fouten      = logEntries.filter(e => e.status === 'fout');
+
     return res.status(200).json({
-      success: true,
+      success:   true,
+      run_id:    runId,
       mailCount: mails.length,
-      verwerkt
+      verwerkt: {
+        transport:   transport.length,
+        reservering: reservering.length,
+        updates:     updates.length,
+        onbekend:    onbekend.length,
+        fouten:      fouten.length
+      },
+      easy_bestanden: transport.flatMap(e => e.easy_bestanden),
+      fouten_detail:  fouten.map(e => ({ subject: e.email_subject, klant: e.klant, fout: e.fout_melding })),
+      log:            logEntries
     });
 
   } catch (error) {

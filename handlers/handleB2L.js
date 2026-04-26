@@ -18,6 +18,8 @@ export default async function handleB2L({ buffer, base64, filename }) {
   }
 
   const { transporter, from } = await getGmailTransporter();
+  const to = process.env.RECIPIENT_EMAIL || from;
+  const easyBestanden = [];
 
   for (const container of containers) {
     try {
@@ -28,21 +30,20 @@ export default async function handleB2L({ buffer, base64, filename }) {
       const easyPath = path.join(os.tmpdir(), easyFilename);
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
-      const attachments = [
-        { filename: easyFilename, path: easyPath },
-        { filename, content: Buffer.from(base64, 'base64') }
-      ];
-
-      const to = process.env.RECIPIENT_EMAIL || from;
       await transporter.sendMail({
         from, to,
         subject: `easytrip file - ${ref}`,
         text: `B2L transportopdracht verwerkt: ${ref}`,
-        attachments
+        attachments: [
+          { filename: easyFilename, path: easyPath },
+          { filename, content: Buffer.from(base64, 'base64') }
+        ]
       });
       console.log(`📧 B2L verstuurd: ${easyFilename}`);
+      easyBestanden.push(easyFilename);
     } catch (err) {
       console.error(`❌ Fout bij B2L container ${container.containernummer}:`, err.message);
     }
   }
+  return easyBestanden;
 }
