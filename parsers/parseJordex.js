@@ -104,29 +104,36 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     gewicht = gRaw.includes('.') ? Math.round(parseFloat(gRaw)).toString() : gRaw;
     lading  = dl.match(/\d+\s*kg\s*(.+)/i)?.[1]?.trim() || '';
   } else {
-    // Format C: cargo-tabel BUITEN pickupBlok (header: "Type … Weight …")
+    // Format C: cargo-tabel BUITEN pickupBlok (header: "Type … Number … Seal … Weight …")
     const tabelHdrIdx = regels.findIndex(l => /Type\s.*Number.*Seal.*Weight/i.test(l));
     if (tabelHdrIdx >= 0) {
-      // Dataregel direct onder de header
-      const dataLine = regels[tabelHdrIdx + 1] || '';
-      const gRaw = (dataLine.match(/([\d.,]+)\s*kg/i)?.[1] || '0').replace(',', '.');
-      gewicht = gRaw.includes('.') ? Math.round(parseFloat(gRaw)).toString() : gRaw;
-      const vRaw = dataLine.match(/([\d.,]+)\s*m³/i)?.[1] || '0';
-      volume = String(parseInt(vRaw, 10) || 0);
+      // Zoek kg en m³ in de eerste ~8 regels ná de header (pdf-parse kan kolommen splitsen)
+      const scanLines = regels.slice(tabelHdrIdx + 1, tabelHdrIdx + 9);
+      for (const sl of scanLines) {
+        if (/([\d.,]+)\s*m³/i.test(sl) && volume === '0') {
+          const vRaw = sl.match(/([\d.,]+)\s*m³/i)?.[1] || '0';
+          volume = String(parseInt(vRaw, 10) || 0);
+        }
+        if (/([\d.,]+)\s*kg/i.test(sl) && gewicht === '0') {
+          const gRaw = (sl.match(/([\d.,]+)\s*kg/i)?.[1] || '0').replace(',', '.');
+          gewicht = gRaw.includes('.') ? Math.round(parseFloat(gRaw)).toString() : gRaw;
+        }
+      }
 
-      // Omschrijvings- en gewichtregels onder de dataregel
+      // Omschrijvings- en GROSS WEIGHT regels achter de datatabel
       const descLines = [];
-      for (let i = tabelHdrIdx + 2; i < Math.min(tabelHdrIdx + 20, regels.length); i++) {
+      for (let i = tabelHdrIdx + 1; i < Math.min(tabelHdrIdx + 25, regels.length); i++) {
         const dl = regels[i];
         if (!dl || /^(Pick|Drop|Extra\s+Info|Date:|Ref)/i.test(dl)) break;
-        // GROSS WEIGHT override
+        // GROSS WEIGHT override voor exacte brutogewicht
         const gwm = dl.match(/GROSS\s+WEIGHT\s*[:\s]+(\d[\d.,]*)\s*KG/i);
         if (gwm) { gewicht = String(Math.round(parseFloat(gwm[1].replace(',', '.')))); continue; }
-        // Skip louter logistieke tekst
-        if (/\b(NET WEIGHT|FREIGHT|SHIPPED|PREPAID|FULL NAME|ADDRESS|TEL NO|AGENT)\b/i.test(dl)) continue;
+        // Skip technische logistieke velden
+        if (/\b(NET WEIGHT|FREIGHT|SHIPPED|PREPAID|FULL NAME|ADDRESS|TEL NO|AGENT|m³|^\d+kg$)\b/i.test(dl)) continue;
+        // Skip losse getallen die geen beschrijving zijn
+        if (/^\d+([.,]\d+)?\s*(kg|m³)?$/i.test(dl)) continue;
         if (dl.length > 3) descLines.push(dl);
       }
-      // Eerste 2 zinvolle regels als lading-omschrijving
       lading = descLines
         .slice(0, 2)
         .join(' ')
@@ -136,33 +143,36 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   }
   const colli = '0';
   
-  // 📅 Datum & tijd
-    const dateLine = pickupRegels.find(r => /^Date[:\t ]+/i.test(r)) || '';
-    const dateMatch = dateLine.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
-    
-    // 📆 Fallback = upload datum
-    let laadDatum = '';
-    let laadTijd = '';
-    let bijzonderheid = '';
-
-if (dateMatch) {
-  const dag = parseInt(dateMatch[1]);
-  const maandStr = dateMatch[2].toLowerCase().slice(0, 3);
-  const jaar = dateMatch[3];
-  const tijd = dateMatch[4];
-
+  // 📅 Datum & tijd — zoek in pickupRegels, anders in de volledige regels
+  const dateLine = pickupRegels.find(r => /^Date[:\t ]/i.test(r))
+    || regels.find(r => /^Date[:\t ]/i.test(r))
+    || '';
   const maanden = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-  const maand = maanden[maandStr];
+  // Formaat 1: "Date: 21 Apr 2026 08:00"
+  const dateMatchText = dateLine.match(/Date[:\t]\s*(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
+  // Formaat 2: "Date: 21/04/2026" of "Date: 21-04-2026"
+  const dateMatchNum  = dateLine.match(/Date[:\t]\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{2}:\d{2}))?/i);
 
-  laadDatum = `${dag}-${maand}-${jaar}`;
-  laadTijd = tijd ? `${tijd}:00` : '';
-} else {
-  // Fallback: datum van vandaag zonder voorloopnullen
+  let laadDatum = '';
+  let laadTijd = '';
+  let bijzonderheid = '';
+
+  if (dateMatchText) {
+    const dag = parseInt(dateMatchText[1]);
+    const maandStr = dateMatchText[2].toLowerCase().slice(0, 3);
+    const jaar = dateMatchText[3];
+    const tijd = dateMatchText[4];
+    const maand = maanden[maandStr];
+    laadDatum = `${dag}-${maand}-${jaar}`;
+    laadTijd = tijd ? `${tijd}:00` : '';
+  } else if (dateMatchNum) {
+    laadDatum = `${parseInt(dateMatchNum[1])}-${parseInt(dateMatchNum[2])}-${dateMatchNum[3]}`;
+    laadTijd = dateMatchNum[4] ? `${dateMatchNum[4]}:00` : '';
+  } else {
     const nu = new Date();
     laadDatum = `${nu.getDate()}-${nu.getMonth() + 1}-${nu.getFullYear()}`;
-  laadTijd = '';
-  bijzonderheid = 'DATUM STAAT VERKEERD';
-}
+    bijzonderheid = 'DATUM STAAT VERKEERD';
+  }
   // 🔗 Referentie
     const refLine = pickupRegels.find(r => /Reference/.test(r)) || '';
     const laadreferentie = refLine.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i)?.[1]?.trim() || '';
@@ -251,34 +261,33 @@ const doKey = (regels[doIndex + 1] || '').replace(/^Address:\s*/i, '').trim();
   console.log('🔑 puKey terminal lookup:', puKey);
   console.log('🔑 doKey terminal lookup:', doKey);
 
-// Extraheer raw terminal data uit PDF voor gebruik in lookup + fallback
-let puNaamRaw = puKey || '';
+// Extraheer raw terminal data uit PDF — gebruik puKey als naam, volgende regels als adres/pc
+// Geen l2IsName concatenatie: straatadres zoals "Bunschotenweg 21" begint ook met een letter
+const puAdresCandidate  = puIndex >= 0 ? regels[puIndex + 2] || '' : '';
+const puPcCandidate     = puIndex >= 0 ? regels[puIndex + 3] || '' : '';
+let puNaamRaw  = puKey || '';
 let puAdresRaw = '', puPCRaw = '', puPlaatsRaw = '';
-if (puIndex >= 0) {
-  const l2 = regels[puIndex + 2] || '';
-  const l3 = regels[puIndex + 3] || '';
-  const l4 = regels[puIndex + 4] || '';
-  const l2IsName = l2 && !/^\d{4}/.test(l2);
-  if (l2IsName) puNaamRaw = `${puKey} ${l2}`.trim();
-  const adresLine = l2IsName ? l3 : l2;
-  const pcLine    = l2IsName ? l4 : l3;
-  if (/\d/.test(adresLine)) puAdresRaw = adresLine;
-  const pcM = pcLine.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
+if (/[A-Za-z].*\d/.test(puAdresCandidate) || /^\d+\b/.test(puAdresCandidate)) {
+  // Ziet eruit als een straatadres ("Bunschotenweg 21" of "21 Bunschotenweg")
+  puAdresRaw = puAdresCandidate;
+  const pcM = puPcCandidate.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
+  if (pcM) { puPCRaw = `${pcM[1]} ${pcM[2]}`; puPlaatsRaw = pcM[3].trim(); }
+} else if (/^(\d{4})\s*[A-Z]{2}\b/.test(puAdresCandidate)) {
+  // Geen adresregel, meteen postcode
+  const pcM = puAdresCandidate.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
   if (pcM) { puPCRaw = `${pcM[1]} ${pcM[2]}`; puPlaatsRaw = pcM[3].trim(); }
 }
 
-let doNaamRaw = doKey || '';
+const doAdresCandidate  = doIndex >= 0 ? regels[doIndex + 2] || '' : '';
+const doPcCandidate     = doIndex >= 0 ? regels[doIndex + 3] || '' : '';
+let doNaamRaw  = doKey || '';
 let doAdresRaw = '', doPCRaw = '', doPlaatsRaw = '';
-if (doIndex >= 0) {
-  const l2 = regels[doIndex + 2] || '';
-  const l3 = regels[doIndex + 3] || '';
-  const l4 = regels[doIndex + 4] || '';
-  const l2IsName = l2 && !/^\d{4}/.test(l2);
-  if (l2IsName) doNaamRaw = `${doKey} ${l2}`.trim();
-  const adresLine = l2IsName ? l3 : l2;
-  const pcLine    = l2IsName ? l4 : l3;
-  if (/\d/.test(adresLine)) doAdresRaw = adresLine;
-  const pcM = pcLine.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
+if (/[A-Za-z].*\d/.test(doAdresCandidate) || /^\d+\b/.test(doAdresCandidate)) {
+  doAdresRaw = doAdresCandidate;
+  const pcM = doPcCandidate.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
+  if (pcM) { doPCRaw = `${pcM[1]} ${pcM[2]}`; doPlaatsRaw = pcM[3].trim(); }
+} else if (/^(\d{4})\s*[A-Z]{2}\b/.test(doAdresCandidate)) {
+  const pcM = doAdresCandidate.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
   if (pcM) { doPCRaw = `${pcM[1]} ${pcM[2]}`; doPlaatsRaw = pcM[3].trim(); }
 }
 

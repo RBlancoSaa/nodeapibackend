@@ -74,6 +74,15 @@ function berekenScore(zoek, terminal) {
   });
   if (altHit) score = Math.max(score, 65);
 
+  // Acroniem-check: "uwt" = U[nited] W[aalhaven] T[erminals], "apm" = A[PM] T[erminals]...
+  if (nZoek.length >= 2 && nZoek.length <= 5) {
+    const woorden = (terminal.naam || '').split(/\s+/).filter(w => w.length > 1);
+    if (woorden.length >= nZoek.length) {
+      const initialen = woorden.slice(0, nZoek.length).map(w => w[0].toLowerCase()).join('');
+      if (initialen === nZoek) score = Math.max(score, 75);
+    }
+  }
+
   // ★ Adres-bonus — dit is het meest betrouwbare kenmerk
   const straatZ = straatNaam(zoek);
   const straatT = straatNaam(terminal.adres || '');

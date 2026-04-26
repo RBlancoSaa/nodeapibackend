@@ -156,23 +156,21 @@ console.log('🧾 Rederij in data:', data.rederij);
   });
 
 // 📌 Match containertype-omschrijving → code uit containerslijst
-let omschrijving = data.containertypeOmschrijving || data.containertype;
-
-// Als containertype al een geldige code is, niet opnieuw mappen
-const isCode = containers.some(c => c.code === data.containertype);
-if (isCode) {
-  // containertype is al een code, dus niet opnieuw mappen
-  omschrijving = null;
+// Gebruik containertypeCode als de parser het al opgelost heeft
+if (data.containertypeCode && data.containertypeCode !== '0') {
+  data.containertype = data.containertypeCode;
 }
 
+const isCode = containers.some(c => c.code === data.containertype);
 let code = data.containertype;
 if (!isCode) {
+  const omschrijving = data.containertypeOmschrijving || data.containertype;
   code = getContainerCodeFromOmschrijving(omschrijving, containers);
   if (!code) {
-    throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
+    throw new Error(`❌ Geen geldig containertype gevonden: "${data.containertype}"`);
   }
+  data.containertype = code;
 }
-data.containertype = code;
 console.log('🔎 Omschrijving voor mapping:', omschrijving);
 console.log('🔎 Genormaliseerd:', normalizeContainerOmschrijving(omschrijving));
 console.log('🔎 Alle genormaliseerde opties:', containers.flatMap(c => [c.label, ...(c.altLabels || [])]).map(normalizeContainerOmschrijving));
@@ -250,7 +248,7 @@ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Postcode>${c(data.locaties[0].postcode)}</Postcode>
 <Plaats>${c(data.locaties[0].plaats)}</Plaats>
 <Land>${c(data.locaties[0].land)}</Land>
-<Voorgemeld>Onwaar</Voorgemeld>
+<Voorgemeld>${c(fallbackOnwaar(data.locaties[0].voorgemeld))}</Voorgemeld>
 <Aankomst_verw></Aankomst_verw>
 <Tijslot_van></Tijslot_van>
 <Tijslot_tm></Tijslot_tm>
@@ -274,7 +272,7 @@ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Postcode>${c(data.locaties[2].postcode)}</Postcode>
 <Plaats>${c(data.locaties[2].plaats)}</Plaats>
 <Land>${c(data.locaties[2].land)}</Land>
-<Voorgemeld>Onwaar</Voorgemeld>
+<Voorgemeld>${c(fallbackOnwaar(data.locaties[2].voorgemeld))}</Voorgemeld>
 <Aankomst_verw></Aankomst_verw>
 <Tijslot_van></Tijslot_van>
 <Tijslot_tm></Tijslot_tm>
