@@ -44,7 +44,6 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
-  console.log('📋 Jordex ALLE regels:\n', regels.map((r, i) => `[${i}] ${r}`).join('\n'));
   const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
   
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
@@ -90,15 +89,52 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const containertype = cargoLine.match(/\d+\s*x\s*(.+)/i)?.[1]?.trim() || '';
 
   // 📦 Containerwaarden + lading uit de data-regel (kolommen: Type|Number|Seal|Colli|Volume|Weight|Description)
+  // Zoek eerst in pickupRegels (Format A: reefer-tabel), daarna in volledige tekst (Format C: algemene cargo-tabel)
   const containerDataLines = pickupRegels.filter(r => /\d+\s*m³.*\d+\s*kg/i.test(r));
-  const containerDataLine = containerDataLines[0] || '';
   console.log(`📦 ${containerDataLines.length} containerregel(s) gevonden:`, containerDataLines);
-  const volumeRaw = containerDataLine.match(/([\d.,]+)\s*m³/i)?.[1] || '0';
-  const volume = String(parseInt(volumeRaw, 10) || 0);
-  const gewichtRaw = containerDataLine.match(/([\d.,]+)\s*kg/i)?.[1]?.replace(',', '.') || '0';
-  const gewicht = gewichtRaw.includes('.') ? Math.round(parseFloat(gewichtRaw)).toString() : gewichtRaw;
+
+  let volume = '0', gewicht = '0', lading = '';
+
+  if (containerDataLines.length > 0) {
+    // Format A: volume+gewicht op één regel in pickupBlok
+    const dl = containerDataLines[0];
+    const vRaw = dl.match(/([\d.,]+)\s*m³/i)?.[1] || '0';
+    volume = String(parseInt(vRaw, 10) || 0);
+    const gRaw = (dl.match(/([\d.,]+)\s*kg/i)?.[1] || '0').replace(',', '.');
+    gewicht = gRaw.includes('.') ? Math.round(parseFloat(gRaw)).toString() : gRaw;
+    lading  = dl.match(/\d+\s*kg\s*(.+)/i)?.[1]?.trim() || '';
+  } else {
+    // Format C: cargo-tabel BUITEN pickupBlok (header: "Type … Weight …")
+    const tabelHdrIdx = regels.findIndex(l => /Type\s.*Number.*Seal.*Weight/i.test(l));
+    if (tabelHdrIdx >= 0) {
+      // Dataregel direct onder de header
+      const dataLine = regels[tabelHdrIdx + 1] || '';
+      const gRaw = (dataLine.match(/([\d.,]+)\s*kg/i)?.[1] || '0').replace(',', '.');
+      gewicht = gRaw.includes('.') ? Math.round(parseFloat(gRaw)).toString() : gRaw;
+      const vRaw = dataLine.match(/([\d.,]+)\s*m³/i)?.[1] || '0';
+      volume = String(parseInt(vRaw, 10) || 0);
+
+      // Omschrijvings- en gewichtregels onder de dataregel
+      const descLines = [];
+      for (let i = tabelHdrIdx + 2; i < Math.min(tabelHdrIdx + 20, regels.length); i++) {
+        const dl = regels[i];
+        if (!dl || /^(Pick|Drop|Extra\s+Info|Date:|Ref)/i.test(dl)) break;
+        // GROSS WEIGHT override
+        const gwm = dl.match(/GROSS\s+WEIGHT\s*[:\s]+(\d[\d.,]*)\s*KG/i);
+        if (gwm) { gewicht = String(Math.round(parseFloat(gwm[1].replace(',', '.')))); continue; }
+        // Skip louter logistieke tekst
+        if (/\b(NET WEIGHT|FREIGHT|SHIPPED|PREPAID|FULL NAME|ADDRESS|TEL NO|AGENT)\b/i.test(dl)) continue;
+        if (dl.length > 3) descLines.push(dl);
+      }
+      // Eerste 2 zinvolle regels als lading-omschrijving
+      lading = descLines
+        .slice(0, 2)
+        .join(' ')
+        .replace(/^LOADED\s+WITH\s+/i, '')
+        .trim();
+    }
+  }
   const colli = '0';
-  const lading = containerDataLine.match(/\d+\s*kg\s*(.+)/i)?.[1]?.trim() || '';
   
   // 📅 Datum & tijd
     const dateLine = pickupRegels.find(r => /^Date[:\t ]+/i.test(r)) || '';
