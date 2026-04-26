@@ -251,9 +251,40 @@ const doKey = (regels[doIndex + 1] || '').replace(/^Address:\s*/i, '').trim();
   console.log('🔑 puKey terminal lookup:', puKey);
   console.log('🔑 doKey terminal lookup:', doKey);
 
-// 🧠 Terminal lookup mét fallback op volledigheid
-  let pickupInfo = await getTerminalInfoMetFallback(puKey);
-  let dropoffInfo = await getTerminalInfoMetFallback(doKey);
+// Extraheer raw terminal data uit PDF voor gebruik in lookup + fallback
+let puNaamRaw = puKey || '';
+let puAdresRaw = '', puPCRaw = '', puPlaatsRaw = '';
+if (puIndex >= 0) {
+  const l2 = regels[puIndex + 2] || '';
+  const l3 = regels[puIndex + 3] || '';
+  const l4 = regels[puIndex + 4] || '';
+  const l2IsName = l2 && !/^\d{4}/.test(l2);
+  if (l2IsName) puNaamRaw = `${puKey} ${l2}`.trim();
+  const adresLine = l2IsName ? l3 : l2;
+  const pcLine    = l2IsName ? l4 : l3;
+  if (/\d/.test(adresLine)) puAdresRaw = adresLine;
+  const pcM = pcLine.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
+  if (pcM) { puPCRaw = `${pcM[1]} ${pcM[2]}`; puPlaatsRaw = pcM[3].trim(); }
+}
+
+let doNaamRaw = doKey || '';
+let doAdresRaw = '', doPCRaw = '', doPlaatsRaw = '';
+if (doIndex >= 0) {
+  const l2 = regels[doIndex + 2] || '';
+  const l3 = regels[doIndex + 3] || '';
+  const l4 = regels[doIndex + 4] || '';
+  const l2IsName = l2 && !/^\d{4}/.test(l2);
+  if (l2IsName) doNaamRaw = `${doKey} ${l2}`.trim();
+  const adresLine = l2IsName ? l3 : l2;
+  const pcLine    = l2IsName ? l4 : l3;
+  if (/\d/.test(adresLine)) doAdresRaw = adresLine;
+  const pcM = pcLine.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
+  if (pcM) { doPCRaw = `${pcM[1]} ${pcM[2]}`; doPlaatsRaw = pcM[3].trim(); }
+}
+
+// 🧠 Terminal lookup mét rawData voor fuzzy match + auto-create
+  let pickupInfo = await getTerminalInfoMetFallback(puKey, { naam: puNaamRaw, adres: puAdresRaw, postcode: puPCRaw, plaats: puPlaatsRaw });
+  let dropoffInfo = await getTerminalInfoMetFallback(doKey, { naam: doNaamRaw, adres: doAdresRaw, postcode: doPCRaw, plaats: doPlaatsRaw });
 
 // Klantgegevens uit de Pick-up sectie: vier regels erna
 const klantregels = regels
@@ -318,22 +349,6 @@ try {
 }
  
 
-// Fallback pick-up terminal uit PDF-tekst (gebruikt als DB-lookup niets vindt)
-let puNaamRaw = puKey || '';
-let puAdresRaw = '', puPCRaw = '', puPlaatsRaw = '';
-if (puIndex >= 0 && (!pickupInfo || !pickupInfo.naam)) {
-  const l2 = regels[puIndex + 2] || '';
-  const l3 = regels[puIndex + 3] || '';
-  const l4 = regels[puIndex + 4] || '';
-  const l2IsName = l2 && !/^\d{4}/.test(l2);
-  if (l2IsName) puNaamRaw = `${puKey} ${l2}`.trim();
-  const adresLine = l2IsName ? l3 : l2;
-  const pcLine    = l2IsName ? l4 : l3;
-  if (/\d/.test(adresLine)) puAdresRaw = adresLine;
-  const pcM = pcLine.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
-  if (pcM) { puPCRaw = `${pcM[1]} ${pcM[2]}`; puPlaatsRaw = pcM[3].trim(); }
-}
-
 // 🔁 Locatiestructuur definitief en correct
 data.locaties = [
   {
@@ -363,18 +378,18 @@ data.locaties = [
   },
   {
     volgorde: '0',
-     actie: 'Afzetten',
-    naam: dropoffInfo.naam || '',
-    adres: dropoffInfo.adres     || '',
-    postcode: dropoffInfo.postcode  || '',
-    plaats: dropoffInfo.plaats   || '',
-    land: dropoffInfo.land || 'NL',
-    voorgemeld: dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+    actie: 'Afzetten',
+    naam:     dropoffInfo?.naam     || doNaamRaw  || '',
+    adres:    dropoffInfo?.adres    || doAdresRaw || '',
+    postcode: dropoffInfo?.postcode || doPCRaw    || '',
+    plaats:   dropoffInfo?.plaats   || doPlaatsRaw || '',
+    land: dropoffInfo?.land || 'NL',
+    voorgemeld: dropoffInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
     aankomst_verw: '',
     tijslot_van: '',
     tijslot_tm: '',
-    portbase_code: dropoffInfo.portbase_code || '',
-    bicsCode: dropoffInfo.bicsCode || ''
+    portbase_code: dropoffInfo?.portbase_code || '',
+    bicsCode: dropoffInfo?.bicsCode || ''
   }
 ];
 

@@ -140,8 +140,8 @@ export default async function parseRitra(buffer) {
 
   // Terminal lookups
   const [opzettenInfo, afzettenInfo] = await Promise.all([
-    getTerminalInfoMetFallback(opzettenNaam),
-    getTerminalInfoMetFallback(afzettenNaam)
+    getTerminalInfoMetFallback(opzettenNaam, { naam: opzettenNaam, adres: opzettenAdres, postcode: pcData.postcode, plaats: pcData.plaats }),
+    getTerminalInfoMetFallback(afzettenNaam, { naam: afzettenNaam })
   ]);
   const ctCode     = await getContainerTypeCode(containertype);
   const rederijNaam = await getRederijNaam(rederijCode) || rederijCode;

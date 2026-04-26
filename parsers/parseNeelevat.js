@@ -124,8 +124,8 @@ export default async function parseNeelevat(buffer) {
 
   // === Terminal lookups ===
   const [opzettenInfo, afzettenInfo] = await Promise.all([
-    getTerminalInfoMetFallback(loc1.naam || ''),
-    getTerminalInfoMetFallback(loc3.naam || '')
+    getTerminalInfoMetFallback(loc1.naam || '', { naam: loc1.naam, adres: loc1.adres, postcode: loc1.postcode, plaats: loc1.plaats }),
+    getTerminalInfoMetFallback(loc3.naam || '', { naam: loc3.naam, adres: loc3.adres, postcode: loc3.postcode, plaats: loc3.plaats })
   ]);
   const ctCode     = await getContainerTypeCode(containertypeDisplay) || '0';
   const rederijNaam = (await getRederijNaam(rederijRaw)) || rederijRaw;
