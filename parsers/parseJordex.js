@@ -281,22 +281,38 @@ try {
 }
  
 
+// Fallback pick-up terminal uit PDF-tekst (gebruikt als DB-lookup niets vindt)
+let puNaamRaw = puKey || '';
+let puAdresRaw = '', puPCRaw = '', puPlaatsRaw = '';
+if (puIndex >= 0 && (!pickupInfo || !pickupInfo.naam)) {
+  const l2 = regels[puIndex + 2] || '';
+  const l3 = regels[puIndex + 3] || '';
+  const l4 = regels[puIndex + 4] || '';
+  const l2IsName = l2 && !/^\d{4}/.test(l2);
+  if (l2IsName) puNaamRaw = `${puKey} ${l2}`.trim();
+  const adresLine = l2IsName ? l3 : l2;
+  const pcLine    = l2IsName ? l4 : l3;
+  if (/\d/.test(adresLine)) puAdresRaw = adresLine;
+  const pcM = pcLine.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
+  if (pcM) { puPCRaw = `${pcM[1]} ${pcM[2]}`; puPlaatsRaw = pcM[3].trim(); }
+}
+
 // 🔁 Locatiestructuur definitief en correct
 data.locaties = [
   {
-    volgorde: '0',    
+    volgorde: '0',
     actie: 'Opzetten',
-    naam: pickupInfo.naam   || '',
-    adres: pickupInfo.adres    || '',
-    postcode: pickupInfo.postcode || '',
-    plaats: pickupInfo.plaats  || '',
-    land: pickupInfo.land || 'NL',
-    voorgemeld: pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+    naam: pickupInfo?.naam     || puNaamRaw  || '',
+    adres: pickupInfo?.adres   || puAdresRaw || '',
+    postcode: pickupInfo?.postcode || puPCRaw || '',
+    plaats: pickupInfo?.plaats || puPlaatsRaw || '',
+    land: pickupInfo?.land || 'NL',
+    voorgemeld: pickupInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
     aankomst_verw: '',
     tijslot_van: '',
     tijslot_tm: '',
-    portbase_code: pickupInfo.portbase_code || '',
-    bicsCode: pickupInfo.bicsCode || ''
+    portbase_code: pickupInfo?.portbase_code || '',
+    bicsCode: pickupInfo?.bicsCode || ''
   },
   {
     volgorde: '0',
