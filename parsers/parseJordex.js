@@ -44,6 +44,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   const parsed = await pdfParse(pdfBuffer);
   const text = parsed.text;
   const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
+  console.log('📋 Jordex ALLE regels:\n', regels.map((r, i) => `[${i}] ${r}`).join('\n'));
   const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
   
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
