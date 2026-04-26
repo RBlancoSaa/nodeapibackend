@@ -34,9 +34,12 @@ export default async function parseRitra(buffer) {
   // === Datum — voorkeur: Leverdatum uit afhaaladres sectie ===
   const leverdatumIdx = ls.findIndex(l => /^Leverdatum$/i.test(l));
   const leverdatum = leverdatumIdx >= 0 ? parseDatum(ls[leverdatumIdx + 1] || '') : '';
+  // Neelevat-stijl: "Datum / tijd:" label, waarde op volgende regel
+  const datumTijdIdx = ls.findIndex(l => /^Datum\s*\/\s*tijd\s*:?\s*$/i.test(l));
+  const datumTijd = datumTijdIdx >= 0 ? parseDatum(ls[datumTijdIdx + 1] || '') : '';
   const etaLine    = ls.find(l => /^\d{2}\/\d{2}\/\d{2}$/.test(l));
   const docDatLine = ls.find(l => /:\d{2}\/\d{2}\/\d{4}/.test(l));
-  const datum = leverdatum || parseDatum(etaLine) || parseDatum((docDatLine || '').replace(':', ''));
+  const datum = leverdatum || datumTijd || parseDatum(etaLine) || parseDatum((docDatLine || '').replace(':', ''));
 
   // === Container ===
   const cntrLine       = ls.find(l => /[A-Z]{4}\d{7}/.test(l));

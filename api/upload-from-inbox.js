@@ -14,15 +14,62 @@ import handleRitra from '../handlers/handleRitra.js';
 import handleSteinweg from '../handlers/handleSteinweg.js';
 import handleReservering from '../handlers/handleReservering.js';
 
+// Elke klant heeft: matchFile, optioneel matchSender + matchSubject, en handler
 const handlers = {
-  jordex:    { match: name => name.includes('jordex'),                                        handler: handleJordex },
-  dfds:      { match: name => name.includes('dfds') && name.includes('transportorder'),       handler: handleDFDS },
-  b2l:       { match: name => name.includes('b2l'),                                           handler: handleB2L },
-  easyfresh: { match: name => name.includes('easyfresh'),                                     handler: handleEasyfresh },
-  kwe:       { match: name => name.includes('kwe'),                                           handler: handleKWE },
-  neelevat:  { match: name => name.includes('neelevat'),                                      handler: handleNeelevat },
-  ritra:     { match: name => name.includes('ritra') || name.includes('transport_'),          handler: handleRitra }
+  jordex: {
+    matchFile:    fn  => fn.includes('jordex'),
+    matchSender:  frm => /@jordex\.com/i.test(frm),
+    matchSubject: sub => /\bOE\d{5,}\b/i.test(sub),   // bijv. "OE2609386"
+    handler: handleJordex
+  },
+  dfds: {
+    matchFile:    fn  => fn.includes('dfds') && fn.includes('transportorder'),
+    matchSender:  frm => /@dfds\.com/i.test(frm),
+    handler: handleDFDS
+  },
+  b2l: {
+    matchFile:    fn  => fn.includes('b2l'),
+    matchSender:  frm => /@b2l\.nl/i.test(frm) || /@b2lcargocare\.com/i.test(frm),
+    handler: handleB2L
+  },
+  easyfresh: {
+    matchFile:    fn  => fn.includes('easyfresh'),
+    matchSender:  frm => /@easyfresh\.com/i.test(frm),
+    handler: handleEasyfresh
+  },
+  kwe: {
+    matchFile:    fn  => fn.includes('kwe'),
+    matchSender:  frm => /@kwe\.com/i.test(frm),
+    handler: handleKWE
+  },
+  neelevat: {
+    matchFile:    fn  => fn.includes('neelevat') || fn.includes('neele-vat'),
+    matchSender:  frm => /@neele-vat\.com/i.test(frm) || /@neelevat\.com/i.test(frm),
+    handler: handleNeelevat
+  },
+  ritra: {
+    matchFile:    fn  => fn.includes('ritra'),
+    matchSender:  frm => /@ritra\.nl/i.test(frm),
+    handler: handleRitra
+  }
 };
+
+/**
+ * Zoek de juiste handler op basis van bestandsnaam, afzender en onderwerp.
+ * Volgorde: bestandsnaam → afzender → onderwerp
+ */
+function findHandler(filename, mailFrom, mailSubject) {
+  const fn  = (filename    || '').toLowerCase();
+  const frm = (mailFrom    || '').toLowerCase();
+  const sub = (mailSubject || '');
+
+  for (const [klant, cfg] of Object.entries(handlers)) {
+    if (cfg.matchFile   && cfg.matchFile(fn))   return [klant, cfg];
+    if (cfg.matchSender && cfg.matchSender(frm)) return [klant, cfg];
+    if (cfg.matchSubject && cfg.matchSubject(sub)) return [klant, cfg];
+  }
+  return null;
+}
 
 function classifyEmail(mail) {
   const subject = (mail.subject || '').toLowerCase();
@@ -36,17 +83,35 @@ function classifyEmail(mail) {
   }
 
   const attachments = mail.attachments || [];
+
+  // Controleer PDF-bijlagen op bekende handlers (inclusief afzender + onderwerp)
   const heeftTransport = attachments.some(a => {
     const fn = (a.filename || '').toLowerCase();
-    return Object.values(handlers).some(h => h.match(fn));
+    if (Object.values(handlers).some(h => h.matchFile && h.matchFile(fn))) return true;
+    return false;
   });
+
+  // Controleer ook op afzender/onderwerp niveau (Jordex-situatie: PDF heeft geen klant in naam)
+  const heeftTransportViaSenderSubject = !!findHandlerForMail(mail);
+
   const heeftSteinweg =
     attachments.some(a => /pickupnotice/i.test(a.filename || '')) ||
     attachments.some(a => /steinweg/i.test(a.filename || '')) ||
     /steinweg/i.test(subject);
 
-  if (heeftTransport || heeftSteinweg) return 'transport';
+  if (heeftTransport || heeftTransportViaSenderSubject || heeftSteinweg) return 'transport';
   return 'onbekend';
+}
+
+/** Zoek handler op basis van alleen afzender/onderwerp (geen bijlage nodig) */
+function findHandlerForMail(mail) {
+  const frm = (mail.from    || '').toLowerCase();
+  const sub = (mail.subject || '');
+  for (const [klant, cfg] of Object.entries(handlers)) {
+    if (cfg.matchSender  && cfg.matchSender(frm))  return [klant, cfg];
+    if (cfg.matchSubject && cfg.matchSubject(sub))  return [klant, cfg];
+  }
+  return null;
 }
 
 export default async function handler(req, res) {
@@ -118,21 +183,43 @@ export default async function handler(req, res) {
 
         // PDF-bijlagen
         const pdfAtts = mailAtts.filter(a => a.filename?.toLowerCase().endsWith('.pdf'));
+
+        let verwerkteContainers = 0;
+
         for (const att of pdfAtts) {
-          const fn = (att.filename || '').toLowerCase();
-          const matchedHandler = Object.entries(handlers).find(([, cfg]) => cfg.match(fn));
-          if (matchedHandler) {
-            const [klant, { handler: h }] = matchedHandler;
+          const match = findHandler(att.filename, mail.from, mail.subject);
+          if (match) {
+            const [klant, { handler: h }] = match;
             console.log(`🚚 Handler: ${klant.toUpperCase()} voor ${att.filename}`);
             try {
-              const bestanden = await h({ buffer: att.buffer, base64: att.base64, filename: att.filename });
+              const bestanden = await h({
+                buffer:      att.buffer,
+                base64:      att.base64,
+                filename:    att.filename,
+                mailSubject: mail.subject,
+                mailFrom:    mail.from
+              });
               addLog(mail, 'transport', klant, bestanden ?? [], 'verwerkt');
+              verwerkteContainers++;
             } catch (err) {
               console.error(`❌ Handler ${klant} fout:`, err.message);
               addLog(mail, 'transport', klant, [], 'fout', err.message);
             }
           } else {
             console.log(`⏭️ Geen handler voor: ${att.filename}`);
+            addLog(mail, 'transport', null, [], 'overgeslagen');
+          }
+        }
+
+        // Geen PDF-bijlagen maar toch transport (bijv. Jordex met generieke bestandsnaam)?
+        // Probeer de mail zelf te matchen op afzender/onderwerp
+        if (pdfAtts.length === 0) {
+          const match = findHandlerForMail(mail);
+          if (match) {
+            const [klant, { handler: h }] = match;
+            console.log(`🚚 Handler via afzender/onderwerp: ${klant.toUpperCase()} (geen PDF-bijlage)`);
+            addLog(mail, 'transport', klant, [], 'overgeslagen', 'Geen PDF-bijlage gevonden');
+          } else {
             addLog(mail, 'transport', null, [], 'overgeslagen');
           }
         }
