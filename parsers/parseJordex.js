@@ -144,6 +144,11 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
               volume = String(vNum % 100);
             } else {
               volume = String(vNum);
+              // Colli: number immediately before volume in afterNrStr (spaced columns)
+              if (colli === '0') {
+                const colliM2 = afterNrStr.match(/^\s*(\d+)\s+[\d.,]+\s*m[³3]/i);
+                if (colliM2) colli = colliM2[1];
+              }
             }
           } else if (/^[\d.,]+$/.test(sl) && /^m[³3]$/i.test(slNext)) {
             volume = String(parseInt(sl.replace(',', '.'), 10) || 0);
@@ -177,7 +182,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
         const gwm = dl.match(/GROSS\s+WEIGHT\s*[:\s]+(\d[\d.,]*)\s*KG/i);
         if (gwm) { gewicht = String(Math.round(parseFloat(gwm[1].replace(',', '.')))); continue; }
         if (/[\d.,]+\s*m[³3]/i.test(dl)) continue;
-        if (/[\d.,]+\s*kg/i.test(dl)) continue;
+        if (/^[\d.,]+\s*kg\s*$/i.test(dl)) continue; // alleen pure gewichtsregels, niet beschrijvingen met "250 KG" erin
         if (/^m[³3]$/i.test(dl)) continue;
         if (/^kg$/i.test(dl)) continue;
         if (/[A-Z]{3}U\d{7}/i.test(dl)) continue;
