@@ -11,7 +11,7 @@ function parseDatum(str) {
   const m = (str || '').match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
   if (!m) return '';
   const yyyy = m[3].length === 2 ? '20' + m[3] : m[3];
-  return `${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}-${yyyy}`;
+  return `${parseInt(m[1])}-${parseInt(m[2])}-${yyyy}`;
 }
 
 /**
