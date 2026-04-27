@@ -35,6 +35,15 @@ function fallbackOnwaar(value) {
   const str = typeof value === 'string' ? value.trim() : '';
   return str !== '' ? str : 'Onwaar';
 }
+function normalizeLand(val) {
+  const s = (val || '').trim().toUpperCase();
+  if (!s) return 'NL';
+  if (s === 'NEDERLAND' || s === 'NETHERLANDS' || s === 'THE NETHERLANDS') return 'NL';
+  if (s === 'DUITSLAND' || s === 'GERMANY' || s === 'DEUTSCHLAND') return 'DE';
+  if (s === 'BELGIE' || s === 'BELGIË' || s === 'BELGIUM' || s === 'BELGIQUE') return 'BE';
+  if (s === 'FRANKRIJK' || s === 'FRANCE') return 'FR';
+  return s;
+}
 function cleanBicsCode(val) {
   if (!val) return '';
   const str = String(val).trim();
@@ -262,7 +271,7 @@ ${data.adr === 'Waar' ? `<ADR>
 <Adres>${c(data.locaties[0].adres)}</Adres>
 <Postcode>${c(data.locaties[0].postcode)}</Postcode>
 <Plaats>${c(data.locaties[0].plaats)}</Plaats>
-<Land>${c(data.locaties[0].land)}</Land>
+<Land>${normalizeLand(data.locaties[0].land)}</Land>
 <Voorgemeld>${c(fallbackOnwaar(data.locaties[0].voorgemeld))}</Voorgemeld>
 <Aankomst_verw></Aankomst_verw>
 <Tijslot_van></Tijslot_van>
@@ -277,7 +286,7 @@ ${data.adr === 'Waar' ? `<ADR>
 <Adres>${c(data.locaties[1].adres)}</Adres>
 <Postcode>${c(data.locaties[1].postcode)}</Postcode>
 <Plaats>${c(data.locaties[1].plaats)}</Plaats>
-<Land>${c(data.locaties[1].land)}</Land>
+<Land>${normalizeLand(data.locaties[1].land)}</Land>
 <Voorgemeld>Onwaar</Voorgemeld>
 <Aankomst_verw></Aankomst_verw>
 <Tijslot_van></Tijslot_van>
@@ -292,7 +301,7 @@ ${data.adr === 'Waar' ? `<ADR>
 <Adres>${c(data.locaties[2].adres)}</Adres>
 <Postcode>${c(data.locaties[2].postcode)}</Postcode>
 <Plaats>${c(data.locaties[2].plaats)}</Plaats>
-<Land>${c(data.locaties[2].land)}</Land>
+<Land>${normalizeLand(data.locaties[2].land)}</Land>
 <Voorgemeld>${c(fallbackOnwaar(data.locaties[2].voorgemeld))}</Voorgemeld>
 <Aankomst_verw></Aankomst_verw>
 <Tijslot_van></Tijslot_van>
