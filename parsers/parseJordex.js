@@ -88,12 +88,12 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
     const containertype = cargoLine.match(/\d+\s*x\s*(.+)/i)?.[1]?.trim() || '';
 
-  // 📦 Containerwaarden + lading uit de data-regel (kolommen: Type|Number|Seal|Colli|Volume|Weight|Description)
-  // Zoek eerst in pickupRegels (Format A: reefer-tabel), daarna in volledige tekst (Format C: algemene cargo-tabel)
+  // 📦 Containerwaarden + lading
   const containerDataLines = pickupRegels.filter(r => /\d+\s*m³.*\d+\s*kg/i.test(r));
   console.log(`📦 ${containerDataLines.length} containerregel(s) gevonden:`, containerDataLines);
 
-  let volume = '0', gewicht = '0', lading = '';
+  let volume = '0', gewicht = '0', lading = '', colli = '0';
+  let formatCContainerNr = ''; // container nr uit Format C cargo-tabel
 
   if (containerDataLines.length > 0) {
     // Format A: volume+gewicht op één regel in pickupBlok
@@ -107,12 +107,20 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     // Format C: cargo-tabel BUITEN pickupBlok (header: "Type … Number … Seal … Weight …")
     const tabelHdrIdx = regels.findIndex(l => /Type\s.*Number.*Seal.*Weight/i.test(l));
     if (tabelHdrIdx >= 0) {
-      // Zoek kg en m³ in de eerste ~8 regels ná de header (pdf-parse kan kolommen splitsen)
-      const scanLines = regels.slice(tabelHdrIdx + 1, tabelHdrIdx + 9);
-      for (const sl of scanLines) {
+      console.log('📦 Format C tabelheader gevonden op index', tabelHdrIdx, ':', regels[tabelHdrIdx]);
+      const scanLines = regels.slice(tabelHdrIdx + 1, tabelHdrIdx + 10);
+      console.log('📦 Format C scanLines:', scanLines);
+
+      // Container nr, volume, gewicht, colli uit de scanregels
+      let dataLineIdx = -1;
+      for (let si = 0; si < scanLines.length; si++) {
+        const sl = scanLines[si];
+        if (!formatCContainerNr) {
+          const cnM = sl.match(/([A-Z]{3}U\d{7})/i);
+          if (cnM) { formatCContainerNr = cnM[1].toUpperCase(); dataLineIdx = si; }
+        }
         if (/([\d.,]+)\s*m³/i.test(sl) && volume === '0') {
-          const vRaw = sl.match(/([\d.,]+)\s*m³/i)?.[1] || '0';
-          volume = String(parseInt(vRaw, 10) || 0);
+          volume = String(parseInt((sl.match(/([\d.,]+)\s*m³/i)?.[1] || '0'), 10) || 0);
         }
         if (/([\d.,]+)\s*kg/i.test(sl) && gewicht === '0') {
           const gRaw = (sl.match(/([\d.,]+)\s*kg/i)?.[1] || '0').replace(',', '.');
@@ -120,28 +128,35 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
         }
       }
 
-      // Omschrijvings- en GROSS WEIGHT regels achter de datatabel
+      // Colli: probeer te lezen van de data-regel (kolom na seal, vóór volume)
+      if (dataLineIdx >= 0) {
+        const dataLine = scanLines[dataLineIdx];
+        // "20' container TEMU1234567 SEAL123 1 0m³ 21000kg" → colli = "1"
+        const colliM = dataLine.match(/[A-Z]{3}U\d{7}\S*\s+\S+\s+(\d{1,4})\s+[\d.,]+\s*m³/i);
+        if (colliM) colli = colliM[1];
+      }
+
+      // Beschrijving: regels na datatabel, skip datarijen (bevatten m³/kg/container nr)
       const descLines = [];
-      for (let i = tabelHdrIdx + 1; i < Math.min(tabelHdrIdx + 25, regels.length); i++) {
+      for (let i = tabelHdrIdx + 1; i < Math.min(tabelHdrIdx + 30, regels.length); i++) {
         const dl = regels[i];
         if (!dl || /^(Pick|Drop|Extra\s+Info|Date:|Ref)/i.test(dl)) break;
-        // GROSS WEIGHT override voor exacte brutogewicht
         const gwm = dl.match(/GROSS\s+WEIGHT\s*[:\s]+(\d[\d.,]*)\s*KG/i);
         if (gwm) { gewicht = String(Math.round(parseFloat(gwm[1].replace(',', '.')))); continue; }
-        // Skip technische logistieke velden
-        if (/\b(NET WEIGHT|FREIGHT|SHIPPED|PREPAID|FULL NAME|ADDRESS|TEL NO|AGENT|m³|^\d+kg$)\b/i.test(dl)) continue;
-        // Skip losse getallen die geen beschrijving zijn
-        if (/^\d+([.,]\d+)?\s*(kg|m³)?$/i.test(dl)) continue;
+        // Skip datarijen (m³, kg, container nrs, losse getallen)
+        if (/[\d.,]+\s*(m³|kg)/i.test(dl)) continue;
+        if (/[A-Z]{3}U\d{7}/i.test(dl)) continue;
+        if (/^\d+([.,]\d+)?$/.test(dl)) continue;
+        if (/\b(NET WEIGHT|FREIGHT|SHIPPED|PREPAID|FULL NAME|ADDRESS|TEL NO|AGENT)\b/i.test(dl)) continue;
         if (dl.length > 3) descLines.push(dl);
       }
       lading = descLines
-        .slice(0, 2)
+        .slice(0, 3)
         .join(' ')
         .replace(/^LOADED\s+WITH\s+/i, '')
         .trim();
     }
   }
-  const colli = '0';
   
   // 📅 Datum & tijd — zoek in pickupRegels, anders in de volledige regels
   const dateLine = pickupRegels.find(r => /^Date[:\t ]/i.test(r))
@@ -205,11 +220,12 @@ const data = {
     rederij: logResult('rederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
     bootnaam: logResult('bootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
     containernummer: logResult('containernummer', (() => {
-      const result = multiExtract([
-        /Container no[:\t ]+([A-Z]{4}U\d{7})/i,
-        /([A-Z]{4}U\d{7})/i
+      // ISO 6346: 3 owner letters + U + 7 digits, bijv. TEMU1234567
+      const result = formatCContainerNr || multiExtract([
+        /Container no[:\t ]+([A-Z]{3}U\d{7})/i,
+        /([A-Z]{3}U\d{7})/i
       ]);
-      return /^[A-Z]{4}U\d{7}$/.test(result || '') ? result : '';
+      return /^[A-Z]{3}U\d{7}$/.test(result || '') ? result : '';
       })()),
     temperatuur: logResult('temperatuur', multiExtract([/Temperature[:\t ]+([\-\d]+°C)/i]) || '0'),
     datum: logResult('datum', laadDatum),
@@ -235,7 +251,11 @@ const data = {
       return sectie.match(/Address:\s*(.+)/i)?.[1].trim() || '';
       })()),
     imo: logResult('imo', multiExtract([/IMO[:\t ]+(\d+)/i]) || '0'),
-    unnr: logResult('unnr', multiExtract([/\bUN[:\t ]+(\d{4})\b/i]) || '0'),
+    unnr: logResult('unnr', multiExtract([
+      /\bUN[:\t ]+(\d{4})\b/i,      // "UN: 1760" of "UN\t1760"
+      /\bUN\s*(\d{4})\b/i,          // "UN1760" of "UN 1760" in omschrijving
+      /\bUNNO\.?\s*(\d{4})\b/i      // "UNNO. 1760"
+    ]) || '0'),
     brix: logResult('brix', multiExtract([/Brix[:\t ]+(\d+)/i]) || '0'),
 
     opdrachtgeverNaam: 'JORDEX FORWARDING',
