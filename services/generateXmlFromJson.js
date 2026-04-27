@@ -35,6 +35,13 @@ function fallbackOnwaar(value) {
   const str = typeof value === 'string' ? value.trim() : '';
   return str !== '' ? str : 'Onwaar';
 }
+function cleanBicsCode(val) {
+  if (!val) return '';
+  const str = String(val).trim();
+  if (!str || str === '0') return '';
+  // Verwijder trailing .0 (JSON float artifact in op_afzetten.json)
+  return str.replace(/\.0+$/, '');
+}
 
 function bevatADR(data) {
   if (data.adr === 'Waar') return true;
@@ -261,7 +268,7 @@ ${data.adr === 'Waar' ? `<ADR>
 <Tijslot_van></Tijslot_van>
 <Tijslot_tm></Tijslot_tm>
 <Portbase_code>${c(data.locaties[0].portbase_code)}</Portbase_code>
-<bicsCode>${c(data.locaties[0].bicsCode)}</bicsCode>
+<bicsCode>${cleanBicsCode(data.locaties[0].bicsCode)}</bicsCode>
 </Locatie>
 <Locatie>
 <Volgorde>0</Volgorde>
@@ -285,7 +292,7 @@ ${data.adr === 'Waar' ? `<ADR>
 <Tijslot_van></Tijslot_van>
 <Tijslot_tm></Tijslot_tm>
 <Portbase_code>${c(data.locaties[2].portbase_code)}</Portbase_code>
-<bicsCode>${c(data.locaties[2].bicsCode)}</bicsCode>
+<bicsCode>${cleanBicsCode(data.locaties[2].bicsCode)}</bicsCode>
 </Locatie>
 </Locaties>
 <Financieel>

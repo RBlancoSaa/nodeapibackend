@@ -107,7 +107,7 @@ export default async function parseNeelevat(buffer) {
         if (gewicht === '0') gewicht = String(Math.round(parseFloat(line.replace(',', '.'))));
         continue;
       }
-      if (/^\d+[.,]\d+\s+\d+\s+\d+FT/i.test(line)) {
+      if (/^\d+[.,]\d+\s+.*\d+FT\s*$/i.test(line)) {
         const wm = line.match(/^(\d+[.,]\d+)/);
         if (wm && gewicht === '0') gewicht = String(Math.round(parseFloat(wm[1].replace(',', '.'))));
         continue;
