@@ -237,6 +237,16 @@ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Closing_tijd></Closing_tijd>
 <Instructies>${c(data.instructies)}</Instructies>
 </Container>
+${data.adr === 'Waar' ? `<ADR>
+<ADR>
+<Ritnr>${c(data.ritnummer)}</Ritnr>
+<UN>${c(data.unnr !== '0' ? data.unnr : '')}</UN>
+<Productnaam>${c(data.lading || '')}</Productnaam>
+<Afval>Onwaar</Afval>
+<Milieu>Onwaar</Milieu>
+<Vertaling></Vertaling>
+</ADR>
+</ADR>` : ''}
 <Locaties>
 <Locatie>
 <Volgorde>0</Volgorde>
