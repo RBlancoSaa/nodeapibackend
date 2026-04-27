@@ -129,10 +129,23 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
           if (cnM) { formatCContainerNr = cnM[1].toUpperCase(); dataLineIdx = si; }
         }
         // Volume: waarde+eenheid op 1 regel OF getal gevolgd door m³ op volgende regel
+        // When line contains container nr + colli + volume merged (e.g. "GESU10977758025m³"),
+        // extract from the portion AFTER the container number to avoid grabbing its digits
         if (volume === '0') {
-          const vM = sl.match(/([\d.,]+)\s*m[³3]/i);
-          if (vM) { volume = String(parseInt(vM[1], 10) || 0); }
-          else if (/^[\d.,]+$/.test(sl) && /^m[³3]$/i.test(slNext)) {
+          const afterNrStr = formatCContainerNr && sl.includes(formatCContainerNr)
+            ? sl.slice(sl.indexOf(formatCContainerNr) + formatCContainerNr.length)
+            : sl;
+          const vM = afterNrStr.match(/([\d.,]+)\s*m[³3]/i);
+          if (vM) {
+            const vNum = parseInt(vM[1], 10) || 0;
+            if (vNum > 100) {
+              // Merged colli+volume: e.g. "8025" → colli=80, volume=25
+              colli = String(Math.floor(vNum / 100));
+              volume = String(vNum % 100);
+            } else {
+              volume = String(vNum);
+            }
+          } else if (/^[\d.,]+$/.test(sl) && /^m[³3]$/i.test(slNext)) {
             volume = String(parseInt(sl.replace(',', '.'), 10) || 0);
           }
         }
@@ -148,8 +161,9 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
         }
       }
 
-      // Colli: probeer te lezen van de data-regel (kolom na seal, vóór volume)
-      if (dataLineIdx >= 0) {
+      // Colli: probeer te lezen van de data-regel (kolom na seal, vóór volume) — alleen als
+      // nog niet al gezet via de merged-digit heuristiek hierboven
+      if (dataLineIdx >= 0 && colli === '0') {
         const dataLine = scanLines[dataLineIdx];
         const colliM = dataLine.match(/[A-Z]{3}U\d{7}\S*\s+\S+\s+(\d{1,4})\s+[\d.,]+\s*m[³3]/i);
         if (colliM) colli = colliM[1];
