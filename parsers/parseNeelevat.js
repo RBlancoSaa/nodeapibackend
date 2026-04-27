@@ -7,6 +7,20 @@ import {
   getRederijNaam
 } from '../utils/lookups/terminalLookup.js';
 
+function normLand(val) {
+  const s = (val || '').trim().toUpperCase();
+  if (!s) return 'NL';
+  if (s === 'NEDERLAND' || s === 'NETHERLANDS') return 'NL';
+  if (s === 'DUITSLAND' || s === 'GERMANY' || s === 'DEUTSCHLAND') return 'DE';
+  if (s === 'BELGIE' || s === 'BELGIË' || s === 'BELGIUM') return 'BE';
+  return s;
+}
+
+function cleanFloat(val) {
+  if (!val) return '';
+  return String(val).trim().replace(/\.0+$/, '');
+}
+
 function parseDatum(str) {
   const m = (str || '').match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
   if (!m) return '';
@@ -150,11 +164,11 @@ export default async function parseNeelevat(buffer) {
       adres:    opzettenInfo?.adres    || loc1.adres    || '',
       postcode: opzettenInfo?.postcode || loc1.postcode || '',
       plaats:   opzettenInfo?.plaats   || loc1.plaats   || '',
-      land:     opzettenInfo?.land     || 'NL',
+      land:     normLand(opzettenInfo?.land || 'NL'),
       voorgemeld:    opzettenInfo ? (opzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
       aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: opzettenInfo?.portbase_code || '',
-      bicsCode:      opzettenInfo?.bicsCode      || ''
+      portbase_code: cleanFloat(opzettenInfo?.portbase_code || ''),
+      bicsCode:      cleanFloat(opzettenInfo?.bicsCode      || '')
     },
     {
       volgorde: '0', actie: 'Laden',
@@ -170,11 +184,11 @@ export default async function parseNeelevat(buffer) {
       adres:    afzettenInfo?.adres    || loc3.adres    || '',
       postcode: afzettenInfo?.postcode || loc3.postcode || '',
       plaats:   afzettenInfo?.plaats   || loc3.plaats   || '',
-      land:     afzettenInfo?.land     || 'NL',
+      land:     normLand(afzettenInfo?.land || 'NL'),
       voorgemeld:    afzettenInfo ? (afzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
       aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: afzettenInfo?.portbase_code || '',
-      bicsCode:      afzettenInfo?.bicsCode      || ''
+      portbase_code: cleanFloat(afzettenInfo?.portbase_code || ''),
+      bicsCode:      cleanFloat(afzettenInfo?.bicsCode      || '')
     }
   ];
 
