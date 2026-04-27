@@ -171,9 +171,7 @@ if (!isCode) {
   }
   data.containertype = code;
 }
-console.log('🔎 Omschrijving voor mapping:', omschrijving);
-console.log('🔎 Genormaliseerd:', normalizeContainerOmschrijving(omschrijving));
-console.log('🔎 Alle genormaliseerde opties:', containers.flatMap(c => [c.label, ...(c.altLabels || [])]).map(normalizeContainerOmschrijving));
+console.log('🔎 ContainerType na mapping:', data.containertype);
 
 // ✅ Minimale vereisten check – verplaatst naar ná code-matching
 if (!data.containertype || data.containertype === '0') {
