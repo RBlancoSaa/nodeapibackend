@@ -141,6 +141,8 @@ export default async function parseNeelevat(buffer) {
   const loc2 = sec2Idx >= 0 ? extractSection(ls, sec2Idx) : {};
   const loc3 = sec3Idx >= 0 ? extractSection(ls, sec3Idx) : {};
 
+  console.log(`🏭 Neelevat secties: sec1[${sec1Idx}] naam="${loc1.naam}" | sec2[${sec2Idx}] naam="${loc2.naam}" | sec3[${sec3Idx}] naam="${loc3.naam}"`);
+
   // === Terminal & klant lookups ===
   const [opzettenInfo, afzettenInfo, opdrachtgever] = await Promise.all([
     getTerminalInfoMetFallback(loc1.naam || ''),
