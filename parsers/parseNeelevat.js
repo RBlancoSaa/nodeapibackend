@@ -4,7 +4,8 @@ import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
   getContainerTypeCode,
-  getRederijNaam
+  getRederijNaam,
+  getKlantData
 } from '../utils/lookups/terminalLookup.js';
 
 function normLand(val) {
@@ -140,10 +141,11 @@ export default async function parseNeelevat(buffer) {
   const loc2 = sec2Idx >= 0 ? extractSection(ls, sec2Idx) : {};
   const loc3 = sec3Idx >= 0 ? extractSection(ls, sec3Idx) : {};
 
-  // === Terminal lookups ===
-  const [opzettenInfo, afzettenInfo] = await Promise.all([
+  // === Terminal & klant lookups ===
+  const [opzettenInfo, afzettenInfo, opdrachtgever] = await Promise.all([
     getTerminalInfoMetFallback(loc1.naam || ''),
-    getTerminalInfoMetFallback(loc3.naam || '')
+    getTerminalInfoMetFallback(loc3.naam || ''),
+    getKlantData('neelevat')
   ]);
   if (!opzettenInfo) console.log(`⚠️ Opzet-terminal niet in lijst: "${loc1.naam}"`);
   if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${loc3.naam}"`);
@@ -199,14 +201,14 @@ export default async function parseNeelevat(buffer) {
     klantpostcode: loc2.postcode || '',
     klantplaats:   loc2.plaats   || '',
 
-    opdrachtgeverNaam:     'NEELE-VAT LOGISTICS B.V.',
-    opdrachtgeverAdres:    'MOEZELWEG 100',
-    opdrachtgeverPostcode: '3198 LS',
-    opdrachtgeverPlaats:   'EUROPOORT-ROTTERDAM',
-    opdrachtgeverTelefoon: '010-2888400',
-    opdrachtgeverEmail:    'rotterdam@neele-vat.com',
-    opdrachtgeverBTW:      '',
-    opdrachtgeverKVK:      '',
+    opdrachtgeverNaam:     opdrachtgever?.naam     || 'NEELEVAT',
+    opdrachtgeverAdres:    opdrachtgever?.adres    || '',
+    opdrachtgeverPostcode: opdrachtgever?.postcode || '',
+    opdrachtgeverPlaats:   opdrachtgever?.plaats   || '',
+    opdrachtgeverTelefoon: opdrachtgever?.telefoon || '',
+    opdrachtgeverEmail:    opdrachtgever?.email    || '',
+    opdrachtgeverBTW:      opdrachtgever?.btw      || '',
+    opdrachtgeverKVK:      opdrachtgever?.kvk      || '',
 
     containernummer,
     containertype:     containertypeDisplay,
