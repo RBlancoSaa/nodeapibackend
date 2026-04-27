@@ -181,7 +181,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
  
         console.log('📅 Extractie uit pickupRegels:', pickupRegels);
         console.log('📅 dateLine:', dateLine);
-        console.log('📅 dateMatch:', dateMatch);
+        console.log('📅 dateMatchText:', dateMatchText, 'dateMatchNum:', dateMatchNum);
         console.log('📅 laadDatum:', laadDatum);
         console.log('📅 laadTijd:', laadTijd);
 
