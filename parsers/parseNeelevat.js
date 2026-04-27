@@ -124,13 +124,20 @@ export default async function parseNeelevat(buffer) {
 
   // === Terminal lookups ===
   const [opzettenInfo, afzettenInfo] = await Promise.all([
-    getTerminalInfoMetFallback(loc1.naam || '', { naam: loc1.naam, adres: loc1.adres, postcode: loc1.postcode, plaats: loc1.plaats }),
-    getTerminalInfoMetFallback(loc3.naam || '', { naam: loc3.naam, adres: loc3.adres, postcode: loc3.postcode, plaats: loc3.plaats })
+    getTerminalInfoMetFallback(loc1.naam || ''),
+    getTerminalInfoMetFallback(loc3.naam || '')
   ]);
+  if (!opzettenInfo) console.log(`⚠️ Opzet-terminal niet in lijst: "${loc1.naam}"`);
+  if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${loc3.naam}"`);
   const ctCode     = await getContainerTypeCode(containertypeDisplay) || '0';
   const rederijNaam = (await getRederijNaam(rederijRaw)) || rederijRaw;
 
   const datum = loc1.datum || loc2.datum || '';
+
+  // Bijzonderheden bij onbekende terminals
+  const onbekendeMeldingen = [];
+  if (!opzettenInfo && loc1.naam) onbekendeMeldingen.push(`Opzet-terminal niet in lijst: ${loc1.naam}`);
+  if (!afzettenInfo && loc3.naam) onbekendeMeldingen.push(`Afzet-terminal niet in lijst: ${loc3.naam}`);
 
   const locaties = [
     {
@@ -140,7 +147,7 @@ export default async function parseNeelevat(buffer) {
       postcode: opzettenInfo?.postcode || loc1.postcode || '',
       plaats:   opzettenInfo?.plaats   || loc1.plaats   || '',
       land:     opzettenInfo?.land     || 'NL',
-      voorgemeld: opzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+      voorgemeld:    opzettenInfo ? (opzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
       aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
       portbase_code: opzettenInfo?.portbase_code || '',
       bicsCode:      opzettenInfo?.bicsCode      || ''
@@ -160,7 +167,7 @@ export default async function parseNeelevat(buffer) {
       postcode: afzettenInfo?.postcode || loc3.postcode || '',
       plaats:   afzettenInfo?.plaats   || loc3.plaats   || '',
       land:     afzettenInfo?.land     || 'NL',
-      voorgemeld: afzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+      voorgemeld:    afzettenInfo ? (afzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
       aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
       portbase_code: afzettenInfo?.portbase_code || '',
       bicsCode:      afzettenInfo?.bicsCode      || ''
@@ -208,7 +215,7 @@ export default async function parseNeelevat(buffer) {
 
     adr:           'Onwaar',
     ladenOfLossen: 'Laden',
-    instructies:   '',
+    instructies:   onbekendeMeldingen.join(' | '),
     tar: '', documentatie: '', tarra: '0', brix: '0',
 
     locaties

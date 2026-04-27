@@ -121,7 +121,7 @@ export async function getTerminalInfoFallback(zoekwaarde) {
 
     const beste = lijst
       .map(item => ({ item, score: berekenScore(zoekwaarde, item) }))
-      .filter(s => s.score >= 50)
+      .filter(s => s.score >= 65)
       .sort((a, b) => b.score - a.score)[0];
 
     if (beste) {
@@ -135,102 +135,33 @@ export async function getTerminalInfoFallback(zoekwaarde) {
   }
 }
 
-// ─── Nieuwe terminal opslaan in Supabase Storage ─────────────────────────────
-
-async function slaTerminalOp(data) {
-  try {
-    const lijst = await getTerminalLijst();
-
-    // Voorkom duplicaten op naam+adres
-    const bestaat = lijst.some(t =>
-      normStr(t.naam) === normStr(data.naam) &&
-      normStr(t.adres) === normStr(data.adres)
-    );
-    if (bestaat) return null;
-
-    const nieuw = {
-      naam:          (data.naam     || '').trim(),
-      adres:         (data.adres    || '').trim(),
-      postcode:      (data.postcode || '').trim(),
-      plaats:        (data.plaats   || '').trim(),
-      land:          (data.land     || 'NL'),
-      portbase_code: '',
-      bicsCode:      '',
-      voorgemeld:    'nee',
-      altNamen:      []
-    };
-
-    lijst.push(nieuw);
-    _cache = lijst; // direct in cache
-
-    const { error } = await supabase.storage
-      .from(BUCKET)
-      .update(FILE_TERM, JSON.stringify(lijst, null, 2), {
-        contentType: 'application/json',
-        upsert: true
-      });
-
-    if (error) console.error('❌ Nieuwe terminal opslaan mislukt:', error.message);
-    else       console.log(`✅ Nieuwe terminal aangemaakt: "${nieuw.naam}" @ ${nieuw.adres}`);
-
-    return nieuw;
-  } catch (e) {
-    console.error('❌ slaTerminalOp error:', e);
-    return null;
-  }
-}
-
-// ─── Gecombineerde lookup met auto-create ─────────────────────────────────────
+// ─── Gecombineerde lookup (alleen uit lijst — nooit invullen) ─────────────────
 /**
- * @param {string} key        - Terminalnaam uit PDF
- * @param {object} [rawData]  - Ruwe data uit PDF: { naam, adres, postcode, plaats }
- *                              Wordt gebruikt bij adres-fallback en auto-create.
+ * Zoekt een terminal in de lijst via exacte of fuzzy match.
+ * Geeft null terug als niets gevonden — de parser beslist dan wat er in de
+ * bijzonderheden/instructies komt. Er wordt NOOIT iets verzonnen.
+ *
+ * @param {string} key  - Terminalnaam uit PDF
+ * @returns {object|null}
  */
-export async function getTerminalInfoMetFallback(key, rawData) {
+export async function getTerminalInfoMetFallback(key) {
   try {
     const zoek = (key || '').trim();
-    if (!zoek && !rawData?.naam) return {};
+    if (!zoek) return null;
 
     // 1. Exacte naam/referentie-match
-    if (zoek) {
-      const exact = await getTerminalInfo(zoek);
-      if (exact && exact !== '0') return exact;
-    }
+    const exact = await getTerminalInfo(zoek);
+    if (exact && exact !== '0') return exact;
 
-    // 2. Fuzzy naam+adres match
-    if (zoek) {
-      const fuzzy = await getTerminalInfoFallback(zoek);
-      if (fuzzy && fuzzy !== '0') return fuzzy;
-    }
+    // 2. Fuzzy naam+adres match (drempel 65 om valse matches te vermijden)
+    const fuzzy = await getTerminalInfoFallback(zoek);
+    if (fuzzy && fuzzy !== '0') return fuzzy;
 
-    // 3. Probeer ook op raw adres te matchen (straatnaambasis)
-    if (rawData?.adres) {
-      const adresFuzzy = await getTerminalInfoFallback(rawData.adres);
-      if (adresFuzzy && adresFuzzy !== '0') return adresFuzzy;
-    }
-
-    // 4. Nog steeds niets → nieuwe terminal aanmaken
-    if (rawData?.naam && rawData?.adres) {
-      console.log(`📌 Onbekende terminal — aanmaken: "${rawData.naam}" @ ${rawData.adres}`);
-      const nieuw = await slaTerminalOp(rawData);
-      if (nieuw) return nieuw;
-      // Bij schrijffout toch de raw data teruggeven
-      return {
-        naam:          rawData.naam     || '',
-        adres:         rawData.adres    || '',
-        postcode:      rawData.postcode || '',
-        plaats:        rawData.plaats   || '',
-        land:          'NL',
-        portbase_code: '',
-        bicsCode:      '',
-        voorgemeld:    'nee'
-      };
-    }
-
-    return rawData ? { naam: rawData.naam || '', adres: rawData.adres || '', land: 'NL', portbase_code: '', bicsCode: '', voorgemeld: 'nee' } : {};
+    console.log(`⚠️ Terminal niet gevonden in lijst: "${zoek}"`);
+    return null;
   } catch (e) {
     console.error('❌ getTerminalInfoMetFallback error:', e);
-    return rawData || {};
+    return null;
   }
 }
 

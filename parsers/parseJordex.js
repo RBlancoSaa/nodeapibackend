@@ -291,9 +291,11 @@ if (/[A-Za-z].*\d/.test(doAdresCandidate) || /^\d+\b/.test(doAdresCandidate)) {
   if (pcM) { doPCRaw = `${pcM[1]} ${pcM[2]}`; doPlaatsRaw = pcM[3].trim(); }
 }
 
-// 🧠 Terminal lookup mét rawData voor fuzzy match + auto-create
-  let pickupInfo = await getTerminalInfoMetFallback(puKey, { naam: puNaamRaw, adres: puAdresRaw, postcode: puPCRaw, plaats: puPlaatsRaw });
-  let dropoffInfo = await getTerminalInfoMetFallback(doKey, { naam: doNaamRaw, adres: doAdresRaw, postcode: doPCRaw, plaats: doPlaatsRaw });
+// 🧠 Terminal lookup — alleen uit lijst, nooit invullen
+  const pickupInfo  = await getTerminalInfoMetFallback(puKey);
+  const dropoffInfo = await getTerminalInfoMetFallback(doKey);
+  if (!pickupInfo)  console.log(`⚠️ Opzet-terminal niet in lijst: "${puKey}"`);
+  if (!dropoffInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${doKey}"`);
 
 // Klantgegevens uit de Pick-up sectie: vier regels erna
 const klantregels = regels
@@ -358,32 +360,37 @@ try {
 }
  
 
-// 🔁 Locatiestructuur definitief en correct
+// Bijzonderheden uitbreiden bij onbekende terminals
+const onbekendeMeldingen = [];
+if (!pickupInfo  && puNaamRaw)  onbekendeMeldingen.push(`Opzet-terminal niet in lijst: ${puNaamRaw}`);
+if (!dropoffInfo && doNaamRaw)  onbekendeMeldingen.push(`Afzet-terminal niet in lijst: ${doNaamRaw}`);
+if (onbekendeMeldingen.length) {
+  data.instructies = [data.instructies, ...onbekendeMeldingen].filter(Boolean).join(' | ');
+}
+
+// 🔁 Locatiestructuur — alleen data uit lijst of direct uit PDF, nooit invullen
 data.locaties = [
   {
     volgorde: '0',
     actie: 'Opzetten',
-    naam: pickupInfo?.naam     || puNaamRaw  || '',
-    adres: pickupInfo?.adres   || puAdresRaw || '',
-    postcode: pickupInfo?.postcode || puPCRaw || '',
-    plaats: pickupInfo?.plaats || puPlaatsRaw || '',
-    land: pickupInfo?.land || 'NL',
-    voorgemeld: pickupInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-    aankomst_verw: '',
-    tijslot_van: '',
-    tijslot_tm: '',
+    naam:     pickupInfo?.naam     || puNaamRaw  || '',
+    adres:    pickupInfo?.adres    || puAdresRaw || '',
+    postcode: pickupInfo?.postcode || puPCRaw    || '',
+    plaats:   pickupInfo?.plaats   || puPlaatsRaw || '',
+    land:     pickupInfo?.land     || 'NL',
+    voorgemeld:    pickupInfo ? (pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
+    aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
     portbase_code: pickupInfo?.portbase_code || '',
-    bicsCode: pickupInfo?.bicsCode || ''
+    bicsCode:      pickupInfo?.bicsCode      || ''
   },
   {
     volgorde: '0',
     actie: data.isLossenOpdracht ? 'Lossen' : 'Laden',
-    naam: data.klantnaam || '',
-    adres: data.klantadres || '',
+    naam:     data.klantnaam    || '',
+    adres:    data.klantadres   || '',
     postcode: data.klantpostcode || '',
-    plaats: data.klantplaats || '',
+    plaats:   data.klantplaats  || '',
     land: 'NL'
-    // geen andere velden hier
   },
   {
     volgorde: '0',
@@ -392,13 +399,11 @@ data.locaties = [
     adres:    dropoffInfo?.adres    || doAdresRaw || '',
     postcode: dropoffInfo?.postcode || doPCRaw    || '',
     plaats:   dropoffInfo?.plaats   || doPlaatsRaw || '',
-    land: dropoffInfo?.land || 'NL',
-    voorgemeld: dropoffInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-    aankomst_verw: '',
-    tijslot_van: '',
-    tijslot_tm: '',
+    land:     dropoffInfo?.land     || 'NL',
+    voorgemeld:    dropoffInfo ? (dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
+    aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
     portbase_code: dropoffInfo?.portbase_code || '',
-    bicsCode: dropoffInfo?.bicsCode || ''
+    bicsCode:      dropoffInfo?.bicsCode      || ''
   }
 ];
 
