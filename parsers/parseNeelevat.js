@@ -48,11 +48,14 @@ function extractSection(ls, startIdx) {
   const naam = ls[i] || '';
   i++;
 
-  let datum = '', adres = '', postcode = '', plaats = '';
+  let datum = '', adres = '', postcode = '', plaats = '', referentie = '';
   for (let j = i; j < startIdx + 14 && j < ls.length; j++) {
     if (/^Datum\s*\/\s*tijd\s*:?\s*$/i.test(ls[j])) {
       datum  = parseDatum(ls[j + 1] || '');
-      adres  = (ls[j + 2] || '').split(/\s*Referentie:/i)[0].trim();
+      const adresLine = ls[j + 2] || '';
+      const refSplit  = adresLine.split(/\s*Referentie:\s*/i);
+      adres      = refSplit[0].trim();
+      referentie = (refSplit[1] || '').trim();
       const pcLine = ls[j + 3] || '';
       const pcM = pcLine.match(/^(\d{4})\s*([A-Z]{2})\s+(.*)/i);
       if (pcM) {
@@ -62,7 +65,7 @@ function extractSection(ls, startIdx) {
       break;
     }
   }
-  return { naam, datum, adres, postcode, plaats };
+  return { naam, datum, adres, postcode, plaats, referentie };
 }
 
 export default async function parseNeelevat(buffer) {
@@ -141,7 +144,7 @@ export default async function parseNeelevat(buffer) {
   const loc2 = sec2Idx >= 0 ? extractSection(ls, sec2Idx) : {};
   const loc3 = sec3Idx >= 0 ? extractSection(ls, sec3Idx) : {};
 
-  console.log(`🏭 Neelevat secties: sec1[${sec1Idx}] naam="${loc1.naam}" | sec2[${sec2Idx}] naam="${loc2.naam}" | sec3[${sec3Idx}] naam="${loc3.naam}"`);
+  console.log(`🏭 Neelevat secties: sec1[${sec1Idx}] naam="${loc1.naam}" ref="${loc1.referentie}" | sec2[${sec2Idx}] naam="${loc2.naam}" ref="${loc2.referentie}" | sec3[${sec3Idx}] naam="${loc3.naam}" ref="${loc3.referentie}"`);
 
   // === Terminal & klant lookups ===
   const [opzettenInfo, afzettenInfo, opdrachtgever] = await Promise.all([
@@ -219,12 +222,12 @@ export default async function parseNeelevat(buffer) {
     datum,
     tijd: '',
     referentie:        ritnummer,
-    laadreferentie:    '',
-    inleverreferentie: '',
+    laadreferentie:    loc2.referentie || '',
+    inleverreferentie: loc3.referentie || loc1.referentie || '',
     inleverBestemming: '',
 
     rederij:         rederijNaam,
-    bootnaam,
+    bootnaam:        '',
     inleverRederij:  rederijNaam,
     inleverBootnaam: bootnaam,
 
