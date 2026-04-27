@@ -267,7 +267,7 @@ ${data.adr === 'Waar' ? `<ADR>
 <Aankomst_verw></Aankomst_verw>
 <Tijslot_van></Tijslot_van>
 <Tijslot_tm></Tijslot_tm>
-<Portbase_code>${c(data.locaties[0].portbase_code)}</Portbase_code>
+<Portbase_code>${cleanBicsCode(data.locaties[0].portbase_code)}</Portbase_code>
 <bicsCode>${cleanBicsCode(data.locaties[0].bicsCode)}</bicsCode>
 </Locatie>
 <Locatie>
@@ -278,6 +278,12 @@ ${data.adr === 'Waar' ? `<ADR>
 <Postcode>${c(data.locaties[1].postcode)}</Postcode>
 <Plaats>${c(data.locaties[1].plaats)}</Plaats>
 <Land>${c(data.locaties[1].land)}</Land>
+<Voorgemeld>Onwaar</Voorgemeld>
+<Aankomst_verw></Aankomst_verw>
+<Tijslot_van></Tijslot_van>
+<Tijslot_tm></Tijslot_tm>
+<Portbase_code></Portbase_code>
+<bicsCode></bicsCode>
 </Locatie>
 <Locatie>
 <Volgorde>0</Volgorde>
@@ -291,7 +297,7 @@ ${data.adr === 'Waar' ? `<ADR>
 <Aankomst_verw></Aankomst_verw>
 <Tijslot_van></Tijslot_van>
 <Tijslot_tm></Tijslot_tm>
-<Portbase_code>${c(data.locaties[2].portbase_code)}</Portbase_code>
+<Portbase_code>${cleanBicsCode(data.locaties[2].portbase_code)}</Portbase_code>
 <bicsCode>${cleanBicsCode(data.locaties[2].bicsCode)}</bicsCode>
 </Locatie>
 </Locaties>
