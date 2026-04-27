@@ -309,8 +309,12 @@ const data = {
       })()),
     colli: logResult('colli', colli),
     volume: logResult('volume', volume),
+    cbm: logResult('cbm', volume),
     gewicht: logResult('gewicht', gewicht),
+    brutogewicht: logResult('brutogewicht', gewicht),
+    geladenGewicht: logResult('geladenGewicht', gewicht),
     lading: logResult('lading', lading),
+    tarra: '0',
     
 
     inleverreferentie: logResult('inleverreferentie', (() => {
@@ -577,7 +581,10 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
     return {
       ...data,
       volume: vol,
+      cbm: vol,
       gewicht: gew,
+      brutogewicht: gew,
+      geladenGewicht: gew,
       lading: lad,
       colli: '0',
       containertype: ctType,
