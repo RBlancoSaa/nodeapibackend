@@ -30,6 +30,7 @@ export default async function handleNeelevat({ buffer, base64, filename, mailSub
       }
 
       const xml = await generateXmlFromJson(container);
+      console.log('📄 Neelevat XML volledig:\n' + xml);
       const cntr = container.containernummer || 'onbekend';
       const ref  = container.ritnummer || cntr;
       const easyFilename = `Order_${ref}_${cntr}_Neelevat.easy`;
