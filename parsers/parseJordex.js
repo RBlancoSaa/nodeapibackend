@@ -89,8 +89,9 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const containertype = cargoLine.match(/\d+\s*x\s*(.+)/i)?.[1]?.trim() || '';
 
   // 📦 Containerwaarden + lading
-  const containerDataLines = pickupRegels.filter(r => /\d+\s*m³.*\d+\s*kg/i.test(r));
-  console.log(`📦 ${containerDataLines.length} containerregel(s) gevonden:`, containerDataLines);
+  // Format A: m³ en kg op DEZELFDE regel in pickupBlok (reefer)
+  const containerDataLines = pickupRegels.filter(r => /\d+\s*m[³3].*\d+\s*kg/i.test(r));
+  console.log(`📦 ${containerDataLines.length} containerregel(s) gevonden (Format A same-line):`, containerDataLines);
 
   let volume = '0', gewicht = '0', lading = '', colli = '0';
   let formatCContainerNr = ''; // container nr uit Format C cargo-tabel
@@ -98,41 +99,59 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   if (containerDataLines.length > 0) {
     // Format A: volume+gewicht op één regel in pickupBlok
     const dl = containerDataLines[0];
-    const vRaw = dl.match(/([\d.,]+)\s*m³/i)?.[1] || '0';
+    const vRaw = dl.match(/([\d.,]+)\s*m[³3]/i)?.[1] || '0';
     volume = String(parseInt(vRaw, 10) || 0);
     const gRaw = (dl.match(/([\d.,]+)\s*kg/i)?.[1] || '0').replace(',', '.');
     gewicht = gRaw.includes('.') ? Math.round(parseFloat(gRaw)).toString() : gRaw;
     lading  = dl.match(/\d+\s*kg\s*(.+)/i)?.[1]?.trim() || '';
   } else {
-    // Format C: cargo-tabel BUITEN pickupBlok (header: "Type … Number … Seal … Weight …")
-    const tabelHdrIdx = regels.findIndex(l => /Type\s.*Number.*Seal.*Weight/i.test(l));
+    // Format C: cargo-tabel BUITEN pickupBlok
+    // Header kan gesplitst zijn, zoek op meerdere mogelijke patronen
+    const tabelHdrIdx = regels.findIndex(l =>
+      /Type\s.*Number.*Seal.*Weight/i.test(l) ||
+      /Number.*Seal\s+number.*Colli/i.test(l) ||
+      /Seal\s+number.*Volume.*Weight/i.test(l) ||
+      /Colli.*Volume.*Weight.*Description/i.test(l)
+    );
     if (tabelHdrIdx >= 0) {
       console.log('📦 Format C tabelheader gevonden op index', tabelHdrIdx, ':', regels[tabelHdrIdx]);
-      const scanLines = regels.slice(tabelHdrIdx + 1, tabelHdrIdx + 10);
+      const scanLines = regels.slice(tabelHdrIdx + 1, tabelHdrIdx + 15);
       console.log('📦 Format C scanLines:', scanLines);
 
       // Container nr, volume, gewicht, colli uit de scanregels
+      // Houd rekening met gesplitste kolommen: waarde en eenheid kunnen op aparte regels staan
       let dataLineIdx = -1;
       for (let si = 0; si < scanLines.length; si++) {
         const sl = scanLines[si];
+        const slNext = scanLines[si + 1] || '';
         if (!formatCContainerNr) {
           const cnM = sl.match(/([A-Z]{3}U\d{7})/i);
           if (cnM) { formatCContainerNr = cnM[1].toUpperCase(); dataLineIdx = si; }
         }
-        if (/([\d.,]+)\s*m³/i.test(sl) && volume === '0') {
-          volume = String(parseInt((sl.match(/([\d.,]+)\s*m³/i)?.[1] || '0'), 10) || 0);
+        // Volume: waarde+eenheid op 1 regel OF getal gevolgd door m³ op volgende regel
+        if (volume === '0') {
+          const vM = sl.match(/([\d.,]+)\s*m[³3]/i);
+          if (vM) { volume = String(parseInt(vM[1], 10) || 0); }
+          else if (/^[\d.,]+$/.test(sl) && /^m[³3]$/i.test(slNext)) {
+            volume = String(parseInt(sl.replace(',', '.'), 10) || 0);
+          }
         }
-        if (/([\d.,]+)\s*kg/i.test(sl) && gewicht === '0') {
-          const gRaw = (sl.match(/([\d.,]+)\s*kg/i)?.[1] || '0').replace(',', '.');
-          gewicht = gRaw.includes('.') ? Math.round(parseFloat(gRaw)).toString() : gRaw;
+        // Gewicht: waarde+eenheid op 1 regel OF getal gevolgd door kg op volgende regel
+        if (gewicht === '0') {
+          const gM = sl.match(/([\d.,]+)\s*kg/i);
+          if (gM) {
+            const gRaw = gM[1].replace(',', '.');
+            gewicht = gRaw.includes('.') ? Math.round(parseFloat(gRaw)).toString() : gRaw;
+          } else if (/^[\d.,]+$/.test(sl) && /^kg$/i.test(slNext)) {
+            gewicht = Math.round(parseFloat(sl.replace(',', '.'))).toString();
+          }
         }
       }
 
       // Colli: probeer te lezen van de data-regel (kolom na seal, vóór volume)
       if (dataLineIdx >= 0) {
         const dataLine = scanLines[dataLineIdx];
-        // "20' container TEMU1234567 SEAL123 1 0m³ 21000kg" → colli = "1"
-        const colliM = dataLine.match(/[A-Z]{3}U\d{7}\S*\s+\S+\s+(\d{1,4})\s+[\d.,]+\s*m³/i);
+        const colliM = dataLine.match(/[A-Z]{3}U\d{7}\S*\s+\S+\s+(\d{1,4})\s+[\d.,]+\s*m[³3]/i);
         if (colliM) colli = colliM[1];
       }
 
@@ -143,20 +162,82 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
         if (!dl || /^(Pick|Drop|Extra\s+Info|Date:|Ref)/i.test(dl)) break;
         const gwm = dl.match(/GROSS\s+WEIGHT\s*[:\s]+(\d[\d.,]*)\s*KG/i);
         if (gwm) { gewicht = String(Math.round(parseFloat(gwm[1].replace(',', '.')))); continue; }
-        // Skip datarijen (m³, kg, container nrs, losse getallen)
-        if (/[\d.,]+\s*(m³|kg)/i.test(dl)) continue;
+        if (/[\d.,]+\s*m[³3]/i.test(dl)) continue;
+        if (/[\d.,]+\s*kg/i.test(dl)) continue;
+        if (/^m[³3]$/i.test(dl)) continue;
+        if (/^kg$/i.test(dl)) continue;
         if (/[A-Z]{3}U\d{7}/i.test(dl)) continue;
         if (/^\d+([.,]\d+)?$/.test(dl)) continue;
         if (/\b(NET WEIGHT|FREIGHT|SHIPPED|PREPAID|FULL NAME|ADDRESS|TEL NO|AGENT)\b/i.test(dl)) continue;
         if (dl.length > 3) descLines.push(dl);
       }
-      lading = descLines
-        .slice(0, 3)
-        .join(' ')
-        .replace(/^LOADED\s+WITH\s+/i, '')
-        .trim();
+      lading = descLines.slice(0, 3).join(' ').replace(/^LOADED\s+WITH\s+/i, '').trim();
     }
   }
+
+  // ── Brede fallback: scan alle regels als Format A én C niets gevonden hebben ──
+  if (volume === '0') {
+    // Ook in pickupRegels: m³ en kg kunnen op aparte regels staan
+    const vLine = [...pickupRegels, ...regels].find(r => /([\d.,]+)\s*m[³3]/i.test(r));
+    if (vLine) volume = String(parseInt((vLine.match(/([\d.,]+)\s*m[³3]/i)?.[1] || '0'), 10) || 0);
+    // Getal gevolgd door m³ op volgende regel (gesplitste kolom)
+    if (volume === '0') {
+      for (let i = 0; i < regels.length - 1; i++) {
+        if (/^[\d.,]+$/.test(regels[i]) && /^m[³3]$/i.test(regels[i + 1])) {
+          volume = String(parseInt(regels[i].replace(',', '.'), 10) || 0);
+          break;
+        }
+      }
+    }
+  }
+  if (gewicht === '0') {
+    // GROSS WEIGHT patroon (sterkste indicator)
+    const gwLine = regels.find(r => /GROSS\s+WEIGHT[:\s]*([\d.,]+)\s*KG/i.test(r));
+    if (gwLine) {
+      gewicht = String(Math.round(parseFloat((gwLine.match(/GROSS\s+WEIGHT[:\s]*([\d.,]+)\s*KG/i)?.[1] || '0').replace(',', '.'))));
+    } else {
+      // Algemeen kg-patroon (minimaal 100 kg om vals-positieven te vermijden)
+      const kgLine = [...pickupRegels, ...regels].find(r => {
+        const m = r.match(/([\d.,]+)\s*kg/i);
+        return m && parseFloat(m[1].replace(',', '.')) >= 100;
+      });
+      if (kgLine) {
+        const gRaw = (kgLine.match(/([\d.,]+)\s*kg/i)?.[1] || '0').replace(',', '.');
+        gewicht = Math.round(parseFloat(gRaw)).toString();
+      } else {
+        // Getal gevolgd door kg op volgende regel
+        for (let i = 0; i < regels.length - 1; i++) {
+          if (/^[\d.,]+$/.test(regels[i]) && /^kg$/i.test(regels[i + 1])) {
+            const v = parseFloat(regels[i].replace(',', '.'));
+            if (v >= 100) { gewicht = Math.round(v).toString(); break; }
+          }
+        }
+      }
+    }
+  }
+  if (lading === '' && (volume !== '0' || gewicht !== '0')) {
+    // Zoek beschrijving vlak na de volume/gewicht regel
+    const anchorIdx = regels.findIndex(r => /([\d.,]+)\s*m[³3]/i.test(r) || /GROSS\s+WEIGHT/i.test(r));
+    if (anchorIdx >= 0) {
+      for (let i = anchorIdx + 1; i < Math.min(anchorIdx + 6, regels.length); i++) {
+        const dl = regels[i];
+        if (!dl) continue;
+        if (/[\d.,]+\s*m[³3]/i.test(dl) || /[\d.,]+\s*kg/i.test(dl)) continue;
+        if (/^\d+([.,]\d+)?$/.test(dl)) continue;
+        if (/^(Date:|Ref|Pick|Drop|Carrier|Vessel)/i.test(dl)) break;
+        if (dl.length > 3) { lading = dl; break; }
+      }
+    }
+  }
+  // Colli uit pickupRegels: "Colli: 5" of "5 colli" label
+  if (colli === '0') {
+    const colliLine = pickupRegels.find(r => /\bColli[:\s]*\d/i.test(r));
+    if (colliLine) {
+      const cM = colliLine.match(/Colli[:\s]*(\d+)/i);
+      if (cM) colli = cM[1];
+    }
+  }
+  console.log(`📦 Eindwaarden: volume=${volume}, gewicht=${gewicht}, lading=${lading}, colli=${colli}`);
   
   // 📅 Datum & tijd — zoek in pickupRegels, anders in de volledige regels
   const dateLine = pickupRegels.find(r => /^Date[:\t ]/i.test(r))
@@ -227,7 +308,27 @@ const data = {
       ]);
       return /^[A-Z]{3}U\d{7}$/.test(result || '') ? result : '';
       })()),
-    temperatuur: logResult('temperatuur', multiExtract([/Temperature[:\t ]+([\-\d]+°C)/i]) || '0'),
+    temperatuur: logResult('temperatuur', (() => {
+      // Zelfde regel: "Temperature: -18°C" of "Temperature: -18 °C"
+      const t1 = multiExtract([
+        /Temperature[:\t ]*([+\-]?\d+(?:[.,]\d+)?)\s*°[Cc]/i,
+        /Set\s*[Pp]oint[:\t ]*([+\-]?\d+(?:[.,]\d+)?)\s*°[Cc]/i,
+      ]);
+      if (t1) return `${t1}°C`;
+      // Waarde op volgende regel na "Temperature:" label
+      const tempIdx = regels.findIndex(r => /^Temperature[:\s]/i.test(r) || /^Set\s*Point[:\s]/i.test(r));
+      if (tempIdx >= 0) {
+        const nextM = (regels[tempIdx + 1] || '').match(/([+\-]?\d+(?:[.,]\d+)?)/);
+        if (nextM) return `${nextM[1]}°C`;
+      }
+      // Standalone graadregel bijv. "-18°C" of "+2°C"
+      const degLine = regels.find(r => /[+\-]\d+\s*°[Cc]/.test(r));
+      if (degLine) {
+        const m = degLine.match(/([+\-]\d+(?:[.,]\d+)?)\s*°[Cc]/);
+        if (m) return `${m[1]}°C`;
+      }
+      return '0';
+    })()),
     datum: logResult('datum', laadDatum),
     tijd: logResult('tijd', laadTijd),
     instructies: logResult('instructies', bijzonderheid),

@@ -65,6 +65,10 @@ export default async function parseNeelevat(buffer) {
     if (m) ritnummer = m[1];
   }
 
+  // === Container nummer ===
+  const containerNrLine = ls.find(l => /[A-Z]{3}U\d{7}/i.test(l)) || '';
+  const containernummer = (containerNrLine.match(/([A-Z]{3}U\d{7})/i)?.[1] || '').toUpperCase();
+
   // === Rederij ===
   const rederijRaw = (ls.find(l => /^Rederij:\s*/i.test(l)) || '')
     .replace(/^Rederij:\s*/i, '').trim();
@@ -190,7 +194,7 @@ export default async function parseNeelevat(buffer) {
     opdrachtgeverBTW:      '',
     opdrachtgeverKVK:      '',
 
-    containernummer:   '',
+    containernummer,
     containertype:     containertypeDisplay,
     containertypeCode: ctCode,
 
