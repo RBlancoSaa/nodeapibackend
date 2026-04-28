@@ -221,9 +221,9 @@ export default async function parseNeelevat(buffer) {
 
     datum,
     tijd: '',
-    referentie:        ritnummer,
+    referentie:        loc1.referentie || '',
     laadreferentie:    loc2.referentie || '',
-    inleverreferentie: loc3.referentie || loc1.referentie || '',
+    inleverreferentie: loc3.referentie || '',
     inleverBestemming: '',
 
     rederij:         rederijNaam,
