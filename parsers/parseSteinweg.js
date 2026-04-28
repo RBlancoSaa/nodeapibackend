@@ -3,6 +3,26 @@ import '../utils/fsPatch.js';
 import XLSX from 'xlsx';
 import { getTerminalInfoMetFallback, getContainerTypeCode, getKlantData } from '../utils/lookups/terminalLookup.js';
 
+function normLand(val) {
+  const s = (val || '').trim().toUpperCase();
+  if (!s) return 'NL';
+  if (s === 'NEDERLAND' || s === 'NETHERLANDS') return 'NL';
+  if (s === 'DUITSLAND' || s === 'GERMANY' || s === 'DEUTSCHLAND') return 'DE';
+  if (s === 'BELGIE' || s === 'BELGIË' || s === 'BELGIUM') return 'BE';
+  return s;
+}
+
+function cleanFloat(val) {
+  if (!val) return '';
+  return String(val).trim().replace(/\.0+$/, '');
+}
+
+function normPostcode(val) {
+  if (!val) return '';
+  // "3089KN" → "3089 KN"
+  return String(val).trim().replace(/^(\d{4})\s*([A-Z]{2})$/i, '$1 $2').toUpperCase();
+}
+
 function parseXlsxBuffer(buffer) {
   const wb = XLSX.read(buffer, { type: 'buffer', raw: false, bookVBA: false, bookFiles: false });
   const sheetName = wb.SheetNames.find(n => !/macro|vba/i.test(n)) || wb.SheetNames[0];
@@ -232,48 +252,48 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       if (c2) {
         const depotInfo = await getTerminalInfoMetFallback(c2.returnDepot || c2.destination);
         afzettenLoc = {
-          naam:         depotInfo.naam      || c2.returnDepot || '',
-          adres:        depotInfo.adres     || '',
-          postcode:     depotInfo.postcode  || '',
-          plaats:       depotInfo.plaats    || '',
-          land:         depotInfo.land      || 'NL',
-          portbase_code: depotInfo.portbase_code || '',
-          bicsCode:     depotInfo.bicsCode  || ''
+          naam:          depotInfo?.naam      || c2.returnDepot || '',
+          adres:         depotInfo?.adres     || '',
+          postcode:      normPostcode(depotInfo?.postcode  || ''),
+          plaats:        depotInfo?.plaats    || '',
+          land:          normLand(depotInfo?.land || 'NL'),
+          portbase_code: cleanFloat(depotInfo?.portbase_code || ''),
+          bicsCode:      cleanFloat(depotInfo?.bicsCode  || '')
         };
       }
 
       const locaties = [
         {
           volgorde: '0', actie: 'Opzetten',
-          naam:         ectInfo.naam     || r1.from,
-          adres:        ectInfo.adres    || '',
-          postcode:     ectInfo.postcode || '',
-          plaats:       ectInfo.plaats   || '',
-          land:         ectInfo.land     || 'NL',
+          naam:          ectInfo?.naam     || r1.from,
+          adres:         ectInfo?.adres    || '',
+          postcode:      normPostcode(ectInfo?.postcode || ''),
+          plaats:        ectInfo?.plaats   || '',
+          land:          normLand(ectInfo?.land || 'NL'),
           voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-          portbase_code: ectInfo.portbase_code || '',
-          bicsCode:     ectInfo.bicsCode || ''
+          portbase_code: cleanFloat(ectInfo?.portbase_code || ''),
+          bicsCode:      cleanFloat(ectInfo?.bicsCode || '')
         },
         {
           volgorde: '0', actie: 'Lossen',
-          naam:         steinwegInfo.naam     || r1.to,
-          adres:        steinwegInfo.adres    || '',
-          postcode:     steinwegInfo.postcode || '',
-          plaats:       steinwegInfo.plaats   || '',
-          land:         steinwegInfo.land     || 'NL',
-          portbase_code: steinwegInfo.portbase_code || '',
-          bicsCode:     steinwegInfo.bicsCode || ''
+          naam:          steinwegInfo?.naam     || r1.to,
+          adres:         steinwegInfo?.adres    || '',
+          postcode:      normPostcode(steinwegInfo?.postcode || ''),
+          plaats:        steinwegInfo?.plaats   || '',
+          land:          normLand(steinwegInfo?.land || 'NL'),
+          portbase_code: cleanFloat(steinwegInfo?.portbase_code || ''),
+          bicsCode:      cleanFloat(steinwegInfo?.bicsCode || '')
         },
         {
           volgorde: '0', actie: 'Afzetten',
-          naam:         afzettenLoc.naam,
-          adres:        afzettenLoc.adres,
-          postcode:     afzettenLoc.postcode,
-          plaats:       afzettenLoc.plaats,
-          land:         afzettenLoc.land,
+          naam:          afzettenLoc.naam,
+          adres:         afzettenLoc.adres,
+          postcode:      afzettenLoc.postcode,
+          plaats:        afzettenLoc.plaats,
+          land:          afzettenLoc.land,
           voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
           portbase_code: afzettenLoc.portbase_code,
-          bicsCode:     afzettenLoc.bicsCode
+          bicsCode:      afzettenLoc.bicsCode
         }
       ];
 
@@ -340,14 +360,14 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       const locaties = [
         {
           volgorde: '0', actie: 'Opzetten',
-          naam:     steinwegInfo.naam     || r2.from,
-          adres:    steinwegInfo.adres    || '',
-          postcode: steinwegInfo.postcode || '',
-          plaats:   steinwegInfo.plaats   || '',
-          land:     steinwegInfo.land     || 'NL',
+          naam:          steinwegInfo?.naam     || r2.from,
+          adres:         steinwegInfo?.adres    || '',
+          postcode:      normPostcode(steinwegInfo?.postcode || ''),
+          plaats:        steinwegInfo?.plaats   || '',
+          land:          normLand(steinwegInfo?.land || 'NL'),
           voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-          portbase_code: steinwegInfo.portbase_code || '',
-          bicsCode: steinwegInfo.bicsCode || ''
+          portbase_code: cleanFloat(steinwegInfo?.portbase_code || ''),
+          bicsCode:      cleanFloat(steinwegInfo?.bicsCode || '')
         },
         {
           volgorde: '0', actie: 'Lossen',
@@ -356,14 +376,14 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         },
         {
           volgorde: '0', actie: 'Afzetten',
-          naam:     depotInfo.naam     || c2.returnDepot || '',
-          adres:    depotInfo.adres    || '',
-          postcode: depotInfo.postcode || '',
-          plaats:   depotInfo.plaats   || '',
-          land:     depotInfo.land     || 'NL',
+          naam:          depotInfo?.naam     || c2.returnDepot || '',
+          adres:         depotInfo?.adres    || '',
+          postcode:      normPostcode(depotInfo?.postcode || ''),
+          plaats:        depotInfo?.plaats   || '',
+          land:          normLand(depotInfo?.land || 'NL'),
           voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-          portbase_code: depotInfo.portbase_code || '',
-          bicsCode: depotInfo.bicsCode || ''
+          portbase_code: cleanFloat(depotInfo?.portbase_code || ''),
+          bicsCode:      cleanFloat(depotInfo?.bicsCode || '')
         }
       ];
 
