@@ -607,12 +607,18 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
 
   if (cargoIndices.length > 1) {
     const maandenB = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-    const results = await Promise.all(cargoIndices.map(async (startIdx, i) => {
-      const endIdx = cargoIndices[i + 1] || pickupRegels.length;
-      const blok = pickupRegels.slice(startIdx, endIdx);
+    const results = [];
+
+    for (let i = 0; i < cargoIndices.length; i++) {
+      const startIdx = cargoIndices[i];
+      const endIdx   = cargoIndices[i + 1] || pickupRegels.length;
+      const blok     = pickupRegels.slice(startIdx, endIdx);
 
       const ctType = blok[0].match(/\d+\s*x\s*(.+)/i)?.[1]?.trim() || data.containertype;
       const ctCode = await getContainerTypeCode(ctType) || '0';
+
+      // Aantal containers uit "2 X 20' container" → 2
+      const qty = parseInt(blok[0].match(/^Cargo:\s*(\d+)\s*x/i)?.[1] || '1', 10);
 
       const dlMatch = blok.find(r => /^Date:/i.test(r))
         ?.match(/Date:\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{2}:\d{2}))?/i);
@@ -624,23 +630,31 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
         tijd  = dlMatch[4] ? `${dlMatch[4]}:00` : '';
       }
 
-      const ref    = blok.find(r => /^Reference/i.test(r))
-        ?.match(/Reference(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || data.laadreferentie;
+      // Referenties splitsen op " / " → één per container
+      const refLine = blok.find(r => /^Reference/i.test(r)) || '';
+      const refStr  = refLine.match(/Reference(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || '';
+      const refs    = refStr.split(/\s*\/\s*/).map(r => r.trim()).filter(Boolean);
+
       const remark = blok.find(r => /^Remark/i.test(r))
         ?.match(/Remark(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || '';
 
-      console.log(`📦 Container ${i + 1} (Format B): type=${ctType}, datum=${datum}, tijd=${tijd}, ref=${ref}`);
-      return {
-        ...data,
-        containertype: ctType,
-        containertypeCode: ctCode,
-        datum,
-        tijd,
-        laadreferentie: ref,
-        instructies: remark || data.instructies
-      };
-    }));
-    console.log(`✅ ${results.length} container(s) geparsed (Format B: Cargo-blokken)`);
+      // Eén resultaat per container (qty keer), met bijbehorende referentie
+      for (let j = 0; j < qty; j++) {
+        const ref = refs[j] || refs[0] || data.laadreferentie;
+        console.log(`📦 Container ${results.length + 1} (Format B blok ${i + 1}, ${j + 1}/${qty}): type=${ctType}, datum=${datum}, tijd=${tijd}, ref=${ref}`);
+        results.push({
+          ...data,
+          containertype:     ctType,
+          containertypeCode: ctCode,
+          datum,
+          tijd,
+          laadreferentie: ref,
+          instructies: remark || data.instructies
+        });
+      }
+    }
+
+    console.log(`✅ ${results.length} container(s) geparsed (Format B: Cargo-blokken uitgesplitst per stuk)`);
     return results;
   }
 
