@@ -24,7 +24,7 @@ export default async function handleJordex({ buffer, base64, filename }) {
   for (const container of containers) {
     try {
       const xml = await generateXmlFromJson(container);
-      const cntr = container.containernummer || 'onbekend';
+      const cntr = container.containernummer || container.laadreferentie || 'onbekend';
       const ref  = container.ritnummer || cntr;
       const easyFilename = `Order_${ref}_${cntr}_Jordex.easy`;
       const easyPath = path.join(os.tmpdir(), easyFilename);

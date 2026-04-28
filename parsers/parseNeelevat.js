@@ -98,13 +98,13 @@ export default async function parseNeelevat(buffer) {
   }
 
   // === Rederij ===
-  const rederijRaw = labelValue(/^Rederij:\s*/i);
+  const rederijRaw = labelValue(/^Rederij\s*:?\s*/i);
 
   // === Bootnaam ===
-  const bootnaam = labelValue(/^Bootnaam:\s*/i);
+  const bootnaam = labelValue(/^Bootnaam\s*:?\s*/i);
 
   // === Bestemming (inleverBestemming) ===
-  const bestemmingRaw = labelValue(/^Bestemming:\s*/i) || labelValue(/^Destination:\s*/i);
+  const bestemmingRaw = labelValue(/^Bestemming\s*:?\s*/i) || labelValue(/^Destination\s*:?\s*/i);
 
   // === Containertype ===
   const containerIdx = ls.findIndex(l => /^Container$/i.test(l));

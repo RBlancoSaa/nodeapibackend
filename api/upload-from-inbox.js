@@ -29,7 +29,7 @@ const handlers = {
   },
   b2l: {
     matchFile:    fn  => fn.includes('b2l'),
-    matchSender:  frm => /@b2l\.nl/i.test(frm) || /@b2lcargocare\.com/i.test(frm),
+    matchSender:  frm => /@b2l\.nl/i.test(frm) || /@b2lcargocare\.com/i.test(frm) || /@b2l-cargocare\.com/i.test(frm),
     handler: handleB2L
   },
   easyfresh: {
@@ -51,6 +51,12 @@ const handlers = {
     matchFile:    fn  => fn.includes('ritra'),
     matchSender:  frm => /@ritra\.nl/i.test(frm),
     handler: handleRitra
+  },
+  steinweg: {
+    matchFile:    fn  => /steinweg/i.test(fn) || /pickupnotice/i.test(fn),
+    matchSender:  frm => /@steinweg\.com/i.test(frm) || /@nl\.steinweg\.com/i.test(frm),
+    matchSubject: sub => /steinweg/i.test(sub),
+    handler: handleSteinweg
   }
 };
 
