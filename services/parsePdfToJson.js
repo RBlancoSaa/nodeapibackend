@@ -10,6 +10,7 @@ import parseDFDS from '../parsers/parseDFDS.js';
 import parseEasyfresh from '../parsers/parseEasyfresh.js';
 import parseKWE from '../parsers/parseKWE.js';
 import parseRitra from '../parsers/parseRitra.js';
+import parseSteder from '../parsers/parseSteder.js';
 
 function cleanTekst(input) {
   if (typeof input !== 'string') return input;
@@ -85,6 +86,11 @@ if (
   if (text.includes('Ritra')) {
     console.log('🔍 Ritra PDF herkend');
     return [await parseRitra(buffer, 'ritra')];
+  }
+
+  if (/steder/i.test(text)) {
+    console.log('🔍 Steder PDF herkend');
+    return [await parseSteder(buffer)];
   }
 
   console.warn('⚠️ Onbekende klant; geen parser uitgevoerd');

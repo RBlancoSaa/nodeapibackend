@@ -12,6 +12,7 @@ import handleKWE from '../handlers/handleKWE.js';
 import handleNeelevat from '../handlers/handleNeelevat.js';
 import handleRitra from '../handlers/handleRitra.js';
 import handleSteinweg from '../handlers/handleSteinweg.js';
+import handleSteder from '../handlers/handleSteder.js';
 import handleReservering from '../handlers/handleReservering.js';
 
 // Elke klant heeft: matchFile, optioneel matchSender + matchSubject, en handler
@@ -57,6 +58,12 @@ const handlers = {
     matchSender:  frm => /@steinweg\.com/i.test(frm) || /@nl\.steinweg\.com/i.test(frm),
     matchSubject: sub => /steinweg/i.test(sub),
     handler: handleSteinweg
+  },
+  steder: {
+    matchFile:    fn  => /steder/i.test(fn),
+    matchSender:  frm => /@stedergroup\.com/i.test(frm) || /@steder\.nl/i.test(frm),
+    matchSubject: sub => /steder/i.test(sub),
+    handler: handleSteder
   }
 };
 
