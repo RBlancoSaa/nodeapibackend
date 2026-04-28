@@ -611,6 +611,17 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
     const maandenB = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
     const results = [];
 
+    // Gedeelde referenties vóór de eerste Cargo-regel (bijv. "Reference(s): R1 / R2 / ... / R8")
+    const headerRegels   = pickupRegels.slice(0, cargoIndices[0]);
+    const headerRefLine  = headerRegels.find(r => /^Reference/i.test(r)) || '';
+    const headerRefStr   = headerRefLine.match(/Reference(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || '';
+    const globalRefs     = headerRefStr
+      ? headerRefStr.split(/\s*\/\s*/).map(r => r.trim()).filter(Boolean)
+      : [];
+    console.log(`📦 Jordex Format B: ${cargoIndices.length} blokken, globalRefs: [${globalRefs.join(', ')}]`);
+
+    let globalContainerIdx = 0; // teller over alle containers heen (voor globalRefs indexering)
+
     for (let i = 0; i < cargoIndices.length; i++) {
       const startIdx = cargoIndices[i];
       const endIdx   = cargoIndices[i + 1] || pickupRegels.length;
@@ -632,18 +643,24 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
         tijd  = dlMatch[4] ? `${dlMatch[4]}:00` : '';
       }
 
-      // Referenties splitsen op " / " → één per container
+      // Referenties: per blok (elk blok eigen Reference-regel) óf globaal verdeeld
       const refLine = blok.find(r => /^Reference/i.test(r)) || '';
       const refStr  = refLine.match(/Reference(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || '';
-      const refs    = refStr.split(/\s*\/\s*/).map(r => r.trim()).filter(Boolean);
+      const blokRefs = refStr.split(/\s*\/\s*/).map(r => r.trim()).filter(Boolean);
 
       const remark = blok.find(r => /^Remark/i.test(r))
         ?.match(/Remark(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || '';
 
       // Eén resultaat per container (qty keer), met bijbehorende referentie
       for (let j = 0; j < qty; j++) {
-        const ref = refs[j] || refs[0] || data.laadreferentie;
-        console.log(`📦 Container ${results.length + 1} (Format B blok ${i + 1}, ${j + 1}/${qty}): type=${ctType}, datum=${datum}, tijd=${tijd}, ref=${ref}`);
+        // Voorkeur: per-blok ref → globale refs op basis van positie → fallback op eerste
+        const ref = blokRefs[j]
+          || blokRefs[0]
+          || globalRefs[globalContainerIdx]
+          || globalRefs[0]
+          || data.laadreferentie;
+        console.log(`📦 Container ${results.length + 1} (blok ${i + 1}, ${j + 1}/${qty}): type=${ctType}, datum=${datum}, tijd=${tijd}, ref=${ref} (blokRef="${blokRefs[j]||''}" globalRef="${globalRefs[globalContainerIdx]||''}")`);
+        globalContainerIdx++;
         results.push({
           ...data,
           containertype:     ctType,
