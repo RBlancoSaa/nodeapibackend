@@ -37,7 +37,7 @@ async function uploadToQueue(filename, content) {
   if (error) throw new Error(`Queue upload mislukt voor ${filename}: ${error.message}`);
 }
 
-export default async function handleSteinweg({ route1Buffer, route2Buffer, emailBody, emailSubject, emailSource }) {
+export default async function handleSteinweg({ route1Buffer, route2Buffer, route1Filename, route2Filename, emailBody, emailSubject, emailSource }) {
   const containers = await parseSteinweg({ route1Buffer, route2Buffer, emailBody, emailSubject });
 
   if (!containers || containers.length === 0) {
@@ -48,7 +48,6 @@ export default async function handleSteinweg({ route1Buffer, route2Buffer, email
   const useGmail = hasGmail();
   console.log(`📦 ${containers.length} Steinweg container(s) | ${useGmail ? 'Gmail OAuth2 (direct)' : 'queue'}`);
 
-  // Sla originele email op als .eml bijlage
   const ordernummer = containers[0]?.ritnummer || `steinweg_${Date.now()}`;
   const elmFilename = `${ordernummer}.eml`;
   let elmPath = null;
@@ -64,38 +63,45 @@ export default async function handleSteinweg({ route1Buffer, route2Buffer, email
     }
   }
 
+  // Bouw alle .easy bestanden
   const easyBestanden = [];
+  const easyAttachments = [];
+
   for (const container of containers) {
     try {
-      const xml = await generateXmlFromJson(container);
+      const xml  = await generateXmlFromJson(container);
       const cntr = container.containernummer || 'onbekend';
       const ref  = container.ritnummer || cntr;
-      const easyFilename = `Order_${ref}_${cntr}_Steinweg.easy`;
+      // Route 1 = Lossen, Route 2 = Retour (leeg)
+      const suffix = container.locaties?.[2]?.naam ? 'Retour' : 'Lossen';
+      const easyFilename = `Order_${ref}_${cntr}_Steinweg_${suffix}.easy`;
       const easyBuf      = Buffer.from(xml, 'utf-8');
       const easyPath     = path.join(os.tmpdir(), easyFilename);
       fs.writeFileSync(easyPath, easyBuf);
-
-      if (useGmail) {
-        const attachments = [{ filename: easyFilename, path: easyPath }];
-        if (elmPath && fs.existsSync(elmPath)) {
-          attachments.push({ filename: elmFilename, path: elmPath });
-        }
-        await sendSteinwegEmail({ ritnummer: ref, attachments });
-        console.log(`📧 Verstuurd: ${easyFilename}`);
-      } else {
+      if (!useGmail) {
         await uploadToQueue(easyFilename, easyBuf);
-        const meta = {
-          ritnummer: ref, easyFilename,
-          elmFilename: emailSource ? elmFilename : null,
-          queuedAt: new Date().toISOString()
-        };
+        const meta = { ritnummer: ref, easyFilename, elmFilename: emailSource ? elmFilename : null, queuedAt: new Date().toISOString() };
         await uploadToQueue(`${easyFilename}.meta.json`, Buffer.from(JSON.stringify(meta)));
         console.log(`📬 In queue: ${easyFilename}`);
       }
       easyBestanden.push(easyFilename);
+      easyAttachments.push({ filename: easyFilename, path: easyPath });
     } catch (err) {
       console.error(`❌ Fout bij ${container.containernummer}:`, err.message);
     }
+  }
+
+  // Stuur één email met alle .easy + originele Excel + eml
+  if (useGmail && easyAttachments.length > 0) {
+    const attachments = [...easyAttachments];
+    if (elmPath && fs.existsSync(elmPath)) {
+      attachments.push({ filename: elmFilename, path: elmPath });
+    }
+    if (route1Buffer) attachments.push({ filename: route1Filename || 'Steinweg-Route1.xlsx', content: route1Buffer });
+    if (route2Buffer) attachments.push({ filename: route2Filename || 'Steinweg-Route2.xlsx', content: route2Buffer });
+
+    await sendSteinwegEmail({ ritnummer: ordernummer, attachments });
+    console.log(`📧 Verstuurd: ${easyAttachments.length} .easy + ${route1Buffer ? 1 : 0} + ${route2Buffer ? 1 : 0} xlsx`);
   }
 
   console.log(`✅ ${easyBestanden.length}/${containers.length} Steinweg containers verwerkt`);

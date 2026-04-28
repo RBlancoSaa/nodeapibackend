@@ -75,11 +75,14 @@ export default async function parseB2L(buffer) {
   const kgMatch = weightLine?.match(/([\d.,]+)\s*KGS?/i);
   const gewicht = kgMatch ? String(Math.round(parseFloat(kgMatch[1].replace(',', '.')))) : '0';
 
+  // === Detecteer formaat: export (PLACE OF LOADING) vs import (PLACE OF DELIVERY/UNLOADING) ===
+  const isImport = !ls.some(l => /PLACE OF LOADING/i.test(l)) &&
+                   ls.some(l => /PLACE OF (DELIVERY|UNLOADING|DISCHARGE)|DELIVERY ADDRESS/i.test(l));
+  console.log(`🔀 B2L formaat: ${isImport ? 'IMPORT (lossen)' : 'EXPORT (laden)'}`);
+
   // === Referenties ===
-  const opzettenRefLine = ls.find(l => /EMPTY PICK-UP TERMINAL/i.test(l));
-  const opzettenRef     = valAfterLabel(ls.find(l => /^QTERMINALS|Qterminals/i.test(l)) || opzettenRefLine, 'REFERENCE') || '';
-  // Simplify: extract from next line after EMPTY PICK-UP TERMINAL
-  const epuIdx = ls.findIndex(l => /EMPTY PICK-UP TERMINAL/i.test(l));
+  // Export: EMPTY PICK-UP TERMINAL | Import: FULL PICK-UP TERMINAL
+  const epuIdx = ls.findIndex(l => /EMPTY PICK-UP TERMINAL|FULL PICK-UP TERMINAL|PICK-?UP TERMINAL/i.test(l));
   const referentie = epuIdx >= 0
     ? (ls[epuIdx + 1] || '').replace(/.*REFERENCE[:\s]*/i, '').trim()
     : '';
@@ -92,31 +95,62 @@ export default async function parseB2L(buffer) {
   const etsRaw      = etsLine?.match(/ETS[:\s]*(\d{1,2}-[A-Za-z]{3}-\d{4})/i)?.[1] || '';
   const etsDatum    = parseDatumEN(etsRaw);
 
-  // === Locaties ===
-  // Opzetten: EMPTY PICK-UP TERMINAL
-  const epuLine   = ls[epuIdx + 1] || ''; // "QTERMINALS KRAMER CITYREFERENCE:YMTRTM0031329"
-  const opzettenNaam = epuLine.replace(/REFERENCE.*/i, '').trim();
-  const opzettenAdres = ls[epuIdx + 2] || '';
+  // === Locaties — export vs import ===
+  let opzettenNaam = '', opzettenAdres = '', opzettenAdresPCPlaats = '';
+  let klantNaam = '', klantAdres = '', klantPCPlaats = '', klantLand = '';
+  let laadActie = 'Laden';
+  let afzettenNaam = '', afzettenAdres = '', afzettenPCPlaats = '';
 
-  // Laden: PLACE OF LOADING
-  const polIdx    = ls.findIndex(l => /PLACE OF LOADING/i.test(l));
-  const polLine   = ls[polIdx + 1] || ''; // "REHO DODEWAARD BVREFERENCE:TBA"
-  const klantNaam = polLine.replace(/REFERENCE.*/i, '').trim();
-  const klantAdres = ls[polIdx + 2] || '';
-  const klantPCPlaats = ls[polIdx + 3] || '';
-  const klantLand = ls[polIdx + 4] || '';
+  if (!isImport) {
+    // ── Export: Opzetten=lege pickup, Laden=klant, Afzetten=volle aflevering ──
+    const epuLine = ls[epuIdx + 1] || '';
+    opzettenNaam    = epuLine.replace(/REFERENCE.*/i, '').trim();
+    opzettenAdres   = ls[epuIdx + 2] || '';
 
-  // Parse "6541 CS NIJMEGEN"
-  const pcMatch = klantPCPlaats.match(/^(\d{4}\s?[A-Z]{2})\s+(.+)/i);
+    const polIdx = ls.findIndex(l => /PLACE OF LOADING/i.test(l));
+    const polLine = ls[polIdx + 1] || '';
+    klantNaam     = polLine.replace(/REFERENCE.*/i, '').trim();
+    klantAdres    = ls[polIdx + 2] || '';
+    klantPCPlaats = ls[polIdx + 3] || '';
+    klantLand     = ls[polIdx + 4] || '';
+    laadActie     = 'Laden';
+
+    const fdtIdx = ls.findIndex(l => /FULL DELIVERY TERMINAL/i.test(l));
+    const fdtLine = ls[fdtIdx + 1] || '';
+    afzettenNaam    = fdtLine.replace(/REFERENCE.*/i, '').trim();
+    afzettenAdres   = ls[fdtIdx + 2] || '';
+    afzettenPCPlaats = ls[fdtIdx + 3] || '';
+  } else {
+    // ── Import: Opzetten=volle pickup terminal, Lossen=klant, Afzetten=lege return ──
+    const fpuLine = ls[epuIdx + 1] || '';
+    opzettenNaam    = fpuLine.replace(/REFERENCE.*/i, '').trim();
+    opzettenAdres   = ls[epuIdx + 2] || '';
+
+    const podIdx = ls.findIndex(l => /PLACE OF (DELIVERY|UNLOADING|DISCHARGE)|DELIVERY ADDRESS/i.test(l));
+    const podLine = ls[podIdx + 1] || '';
+    klantNaam     = podLine.replace(/REFERENCE.*/i, '').trim();
+    klantAdres    = ls[podIdx + 2] || '';
+    klantPCPlaats = ls[podIdx + 3] || '';
+    klantLand     = ls[podIdx + 4] || '';
+    laadActie     = 'Lossen';
+
+    const erdIdx = ls.findIndex(l => /EMPTY (RETURN|DELIVERY) TERMINAL|EMPTY DEPOT/i.test(l));
+    if (erdIdx >= 0) {
+      const erdLine = ls[erdIdx + 1] || '';
+      afzettenNaam    = erdLine.replace(/REFERENCE.*/i, '').trim();
+      afzettenAdres   = ls[erdIdx + 2] || '';
+      afzettenPCPlaats = ls[erdIdx + 3] || '';
+    }
+  }
+
+  // Container nummer uit PDF tekst (bijv. HLBU3904412 of BSIU3317531)
+  const containerNummerPDF = ls.find(l => /[A-Z]{4}\d{7}/.test(l))
+    ?.match(/([A-Z]{4}\d{7})/)?.[1] || '';
+
+  // Parse postcode + plaats uit "6541 CS NIJMEGEN"
+  const pcMatch   = klantPCPlaats.match(/^(\d{4}\s?[A-Z]{2})\s+(.+)/i);
   const klantPC   = pcMatch?.[1]?.replace(/(\d{4})([A-Z]{2})/, '$1 $2') || klantPCPlaats;
   const klantPlaats = pcMatch?.[2] || '';
-
-  // Afzetten: FULL DELIVERY TERMINAL
-  const fdtIdx    = ls.findIndex(l => /FULL DELIVERY TERMINAL/i.test(l));
-  const fdtLine   = ls[fdtIdx + 1] || ''; // "ECT DELTA TERMINALREFERENCE:YMTRTM0031329"
-  const afzettenNaam = fdtLine.replace(/REFERENCE.*/i, '').trim();
-  const afzettenAdres = ls[fdtIdx + 2] || '';
-  const afzettenPCPlaats = ls[fdtIdx + 3] || '';
 
   // Terminal lookups
   const [opzettenInfo, afzettenInfo, klant] = await Promise.all([
@@ -153,7 +187,7 @@ export default async function parseB2L(buffer) {
         bicsCode:      cleanFloat(opzettenInfo?.bicsCode      || '')
       },
       {
-        volgorde: '0', actie: 'Laden',
+        volgorde: '0', actie: laadActie,
         naam:     klantNaam,
         adres:    klantAdres,
         postcode: klantPC,
@@ -190,7 +224,7 @@ export default async function parseB2L(buffer) {
       opdrachtgeverBTW:      klant.btw      || '',
       opdrachtgeverKVK:      klant.kvk      || '57',
 
-      containernummer: '',
+      containernummer: containerNummerPDF || '',
       containertype,
       containertypeCode: ctCode || '0',
 
@@ -214,7 +248,7 @@ export default async function parseB2L(buffer) {
       cbm: '0',
 
       adr: 'Onwaar',
-      ladenOfLossen: 'Laden',
+      ladenOfLossen: isImport ? 'Lossen' : 'Laden',
       instructies,
       tar: '', documentatie: '', tarra: '0', brix: '0',
 

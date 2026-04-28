@@ -644,8 +644,16 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
       }
 
       // Referenties: per blok (elk blok eigen Reference-regel) óf globaal verdeeld
-      const refLine = blok.find(r => /^Reference/i.test(r)) || '';
-      const refStr  = refLine.match(/Reference(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || '';
+      const refLineIdx = blok.findIndex(r => /^Reference/i.test(r));
+      const refLine    = refLineIdx >= 0 ? blok[refLineIdx] : '';
+      let   refStr     = refLine.match(/Reference(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || '';
+      // Multi-line ref: "Reference(s): R1 /" gevolgd door "R2" op de volgende blokregel
+      if (refStr.endsWith('/') && refLineIdx + 1 < blok.length) {
+        const nextLine = (blok[refLineIdx + 1] || '').trim();
+        if (nextLine && !/^(Date:|Remark|Cargo:)/i.test(nextLine)) {
+          refStr = refStr + nextLine;
+        }
+      }
       const blokRefs = refStr.split(/\s*\/\s*/).map(r => r.trim()).filter(Boolean);
 
       const remark = blok.find(r => /^Remark/i.test(r))

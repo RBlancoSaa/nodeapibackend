@@ -224,6 +224,7 @@ export async function getContainerTypeCode(input) {
 
   const mappingKey = input.toLowerCase().replace(/[\s\-'"]/g, '');
   if (mappingKey === '40fthc') return '45G1';
+  if (mappingKey === '45fthc' || mappingKey === '45fthighcube' || mappingKey === 'l5g1') return '45G1';
 
   let normalizedInput = mappingKey;
   if (/^20\s*ft|20ft/.test(input.toLowerCase())) normalizedInput = '20ft';

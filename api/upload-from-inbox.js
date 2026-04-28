@@ -251,11 +251,13 @@ export default async function handler(req, res) {
           const fallbackAtt = !route1Att && !route2Att ? xlsxAtts[0] : null;
           try {
             const bestanden = await handleSteinweg({
-              route1Buffer: route1Att?.content  || fallbackAtt?.content || null,
-              route2Buffer: route2Att?.content  || null,
-              emailBody:    mail.bodyText  || '',
-              emailSubject: mail.subject   || '',
-              emailSource:  mail.source    || null
+              route1Buffer:   route1Att?.content  || fallbackAtt?.content || null,
+              route1Filename: route1Att?.filename || fallbackAtt?.filename || null,
+              route2Buffer:   route2Att?.content  || null,
+              route2Filename: route2Att?.filename || null,
+              emailBody:      mail.bodyText  || '',
+              emailSubject:   mail.subject   || '',
+              emailSource:    mail.source    || null
             });
             addLog(mail, 'transport', 'steinweg', bestanden ?? [], 'verwerkt');
           } catch (err) {
