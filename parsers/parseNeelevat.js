@@ -87,13 +87,24 @@ export default async function parseNeelevat(buffer) {
   const containerNrLine = ls.find(l => /[A-Z]{3}U\d{7}/i.test(l)) || '';
   const containernummer = (containerNrLine.match(/([A-Z]{3}U\d{7})/i)?.[1] || '').toUpperCase();
 
+  // Helper: haal waarde op achter een label — of op de volgende regel als de waarde ontbreekt
+  function labelValue(regex) {
+    const idx = ls.findIndex(l => regex.test(l));
+    if (idx < 0) return '';
+    const inline = ls[idx].replace(regex, '').trim();
+    if (inline) return inline;
+    // Waarde staat op volgende regel
+    return (ls[idx + 1] || '').trim();
+  }
+
   // === Rederij ===
-  const rederijRaw = (ls.find(l => /^Rederij:\s*/i.test(l)) || '')
-    .replace(/^Rederij:\s*/i, '').trim();
+  const rederijRaw = labelValue(/^Rederij:\s*/i);
 
   // === Bootnaam ===
-  const bootnaam = (ls.find(l => /^Bootnaam:\s*/i.test(l)) || '')
-    .replace(/^Bootnaam:\s*/i, '').trim();
+  const bootnaam = labelValue(/^Bootnaam:\s*/i);
+
+  // === Bestemming (inleverBestemming) ===
+  const bestemmingRaw = labelValue(/^Bestemming:\s*/i) || labelValue(/^Destination:\s*/i);
 
   // === Containertype ===
   const containerIdx = ls.findIndex(l => /^Container$/i.test(l));
@@ -224,7 +235,7 @@ export default async function parseNeelevat(buffer) {
     referentie:        loc1.referentie || '',
     laadreferentie:    loc2.referentie || '',
     inleverreferentie: loc3.referentie || '',
-    inleverBestemming: '',
+    inleverBestemming: bestemmingRaw  || '',
 
     rederij:         rederijNaam,
     bootnaam:        '',
