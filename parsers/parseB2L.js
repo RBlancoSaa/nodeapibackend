@@ -138,15 +138,15 @@ export default async function parseB2L(buffer) {
     const locaties = [
       {
         volgorde: '0', actie: 'Opzetten',
-        naam:     opzettenInfo.naam     || opzettenNaam,
-        adres:    opzettenInfo.adres    || opzettenAdres,
-        postcode: opzettenInfo.postcode || '',
-        plaats:   opzettenInfo.plaats   || '',
-        land:     opzettenInfo.land     || 'NL',
-        voorgemeld: opzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+        naam:     opzettenInfo?.naam     || opzettenNaam,
+        adres:    opzettenInfo?.adres    || opzettenAdres,
+        postcode: opzettenInfo?.postcode || '',
+        plaats:   opzettenInfo?.plaats   || '',
+        land:     opzettenInfo?.land     || 'NL',
+        voorgemeld: opzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
         aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-        portbase_code: opzettenInfo.portbase_code || '',
-        bicsCode:      opzettenInfo.bicsCode      || ''
+        portbase_code: String(opzettenInfo?.portbase_code || '').replace(/\.0+$/, ''),
+        bicsCode:      String(opzettenInfo?.bicsCode      || '').replace(/\.0+$/, '')
       },
       {
         volgorde: '0', actie: 'Laden',
@@ -158,15 +158,15 @@ export default async function parseB2L(buffer) {
       },
       {
         volgorde: '0', actie: 'Afzetten',
-        naam:     afzettenInfo.naam     || afzettenNaam,
-        adres:    afzettenInfo.adres    || afzettenAdres,
-        postcode: afzettenInfo.postcode || afzettenPCPlaats.match(/\d{4}\s?[A-Z]{2}/i)?.[0] || '',
-        plaats:   afzettenInfo.plaats   || afzettenPCPlaats.replace(/^\d{4}\s?[A-Z]{2},?\s*/i, '').split(',')[0].trim(),
-        land:     afzettenInfo.land     || 'NL',
-        voorgemeld: afzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+        naam:     afzettenInfo?.naam     || afzettenNaam,
+        adres:    afzettenInfo?.adres    || afzettenAdres,
+        postcode: afzettenInfo?.postcode || afzettenPCPlaats.match(/\d{4}\s?[A-Z]{2}/i)?.[0] || '',
+        plaats:   afzettenInfo?.plaats   || afzettenPCPlaats.replace(/^\d{4}\s?[A-Z]{2},?\s*/i, '').split(',')[0].trim(),
+        land:     afzettenInfo?.land     || 'NL',
+        voorgemeld: afzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
         aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-        portbase_code: afzettenInfo.portbase_code || '',
-        bicsCode:      afzettenInfo.bicsCode      || ''
+        portbase_code: String(afzettenInfo?.portbase_code || '').replace(/\.0+$/, ''),
+        bicsCode:      String(afzettenInfo?.bicsCode      || '').replace(/\.0+$/, '')
       }
     ];
 
