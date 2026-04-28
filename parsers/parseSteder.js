@@ -101,11 +101,15 @@ export default async function parseSteder(buffer) {
   const bootnaamRaw  = labelValue(/^Bootnaam\s*:?\s*/i) || labelValue(/^Vessel\s*:?\s*/i) || labelValue(/^Schip\s*:?\s*/i);
   const bestemmingRaw = labelValue(/^Bestemming\s*:?\s*/i) || labelValue(/^Destination\s*:?\s*/i);
 
-  // === Containertype ===
+  // === Containertype + colli uit containerregel ===
   const containerIdx = ls.findIndex(l => /^Container$/i.test(l));
   let containerRaw = '';
+  let colliUitContainer = '0';
   if (containerIdx >= 0) {
-    containerRaw = (ls[containerIdx + 1] || '')
+    const containerLine = ls[containerIdx + 1] || '';
+    const qtyM = containerLine.match(/^:\s*(\d+)\s*x/i);
+    if (qtyM) colliUitContainer = qtyM[1];
+    containerRaw = containerLine
       .replace(/^:\s*\d+\s*x\s*/i, '')
       .replace(/[()]/g, '')
       .trim();
@@ -130,7 +134,14 @@ export default async function parseSteder(buffer) {
       const line = ls[i];
       if (/^\d+\.\s+(Container|Load|Laden|Lossen)/i.test(line)) break;
       if (/^s\.t\.c\.$/i.test(line)) continue;
-      // "6 COLLI" of "6\nCOLLI" — los getal gevolgd door COLLI
+      // "Colli 1 = 425x90x130cm ..." — genummerde colli-items, pak hoogste nummer
+      const colliNrM = line.match(/^Colli\s+(\d+)\s*[=:\-]/i);
+      if (colliNrM) {
+        const n = parseInt(colliNrM[1]);
+        if (n > parseInt(colli || '0')) colli = String(n);
+        continue;
+      }
+      // "6 COLLI" — los getal gevolgd door COLLI
       const colliAlleen = line.match(/^(\d+)\s+colli/i);
       if (colliAlleen) { colli = colliAlleen[1]; continue; }
       // "12750.006  6  COLLI" — gewicht + aantal + COLLI
@@ -154,6 +165,8 @@ export default async function parseSteder(buffer) {
     }
     lading = ladingLines.join('; ');
   }
+  // Fallback: colli uit "1 x container" regel als lading-sectie geen colli had
+  if (colli === '0') colli = colliUitContainer;
 
   // === Locaties — probeer eerst Neelevat-stijl (1./2./3.), dan Ritra-stijl ===
   const sec1Idx = ls.findIndex(l => /^1\.\s+(Container|Depot|Terminal)/i.test(l));
