@@ -185,8 +185,8 @@ export default async function parseB2L(buffer) {
       opdrachtgeverPlaats:   'ROTTERDAM',
       opdrachtgeverTelefoon: '010-3070338',
       opdrachtgeverEmail:    'export@b2l-cargocare.com',
-      opdrachtgeverBTW:      '',
-      opdrachtgeverKVK:      '',
+      opdrachtgeverBTW:      'NL855659324B01',
+      opdrachtgeverKVK:      '57',
 
       containernummer: '',
       containertype,

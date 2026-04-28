@@ -98,10 +98,10 @@ export default async function parseNeelevat(buffer) {
   }
 
   // === Rederij ===
-  const rederijRaw = labelValue(/^Rederij\s*:?\s*/i);
+  const rederijRaw = labelValue(/^Rederij\s*:?\s*/i) || labelValue(/^Carrier\s*:?\s*/i) || labelValue(/^Shipping\s*line\s*:?\s*/i);
 
   // === Bootnaam ===
-  const bootnaam = labelValue(/^Bootnaam\s*:?\s*/i);
+  const bootnaamRaw = labelValue(/^Bootnaam\s*:?\s*/i) || labelValue(/^Vessel\s*:?\s*/i) || labelValue(/^Schip\s*:?\s*/i);
 
   // === Bestemming (inleverBestemming) ===
   const bestemmingRaw = labelValue(/^Bestemming\s*:?\s*/i) || labelValue(/^Destination\s*:?\s*/i);
@@ -166,7 +166,8 @@ export default async function parseNeelevat(buffer) {
   if (!opzettenInfo) console.log(`⚠️ Opzet-terminal niet in lijst: "${loc1.naam}"`);
   if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${loc3.naam}"`);
   const ctCode     = await getContainerTypeCode(containertypeDisplay) || '0';
-  const rederijNaam = (await getRederijNaam(rederijRaw)) || rederijRaw;
+  // Alleen lookup als er iets gevonden is — anders leeg laten (niet '0' doorgeven)
+  const rederijNaam = rederijRaw ? ((await getRederijNaam(rederijRaw)) || rederijRaw) : '';
 
   const datum = loc1.datum || loc2.datum || '';
 
@@ -237,10 +238,10 @@ export default async function parseNeelevat(buffer) {
     inleverreferentie: loc3.referentie || '',
     inleverBestemming: bestemmingRaw  || '',
 
-    rederij:         rederijNaam,
+    rederij:         '',
     bootnaam:        '',
     inleverRederij:  rederijNaam,
-    inleverBootnaam: bootnaam,
+    inleverBootnaam: bootnaamRaw,
 
     zegel:          '',
     colli:          '0',

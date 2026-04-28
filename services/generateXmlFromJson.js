@@ -207,7 +207,7 @@ const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Opdrachtgever_TelefoonNummer>${c(data.opdrachtgeverTelefoon)}</Opdrachtgever_TelefoonNummer>
 <Opdrachtgever_Email>${c(data.opdrachtgeverEmail)}</Opdrachtgever_Email>
 <Opdrachtgever_BTW>${c(data.opdrachtgeverBTW)}</Opdrachtgever_BTW>
-<Opdrachtgever_KVK>${c(data.opdrachtgeverKVK)}</Opdrachtgever_KVK>
+<Opdrachtgever_KVK>${c(data.opdrachtgeverKVK) || '0'}</Opdrachtgever_KVK>
 </Opdrachtgever>
 <Container>
 <Ritnr>${c(data.ritnummer)}</Ritnr>

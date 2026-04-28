@@ -53,7 +53,7 @@ export default function parseReservering({ subject, bodyText, from, date }) {
     opdrachtgeverTelefoon: '',
     opdrachtgeverEmail: '',
     opdrachtgeverBTW: '',
-    opdrachtgeverKVK: '',
+    opdrachtgeverKVK: '1',
 
     containernummer: '',
     containertype: '20ft',
