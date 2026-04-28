@@ -40,10 +40,13 @@ function extractSection(ls, startIdx) {
   const naam = ls[i] || '';
   i++;
 
-  let datum = '', adres = '', postcode = '', plaats = '', referentie = '';
+  let datum = '', tijd = '', adres = '', postcode = '', plaats = '', referentie = '';
   for (let j = i; j < startIdx + 14 && j < ls.length; j++) {
     if (/^Datum\s*[\/\-]?\s*tijd\s*:?\s*$/i.test(ls[j])) {
-      datum = parseDatum(ls[j + 1] || '');
+      const datumTijdLine = ls[j + 1] || '';
+      datum = parseDatum(datumTijdLine);
+      const tijdM = datumTijdLine.match(/(\d{1,2}:\d{2})/);
+      if (tijdM) tijd = tijdM[1];
       const adresLine = ls[j + 2] || '';
       const refSplit  = adresLine.split(/\s*Referentie:\s*/i);
       adres      = refSplit[0].trim();
@@ -57,7 +60,7 @@ function extractSection(ls, startIdx) {
       break;
     }
   }
-  return { naam, datum, adres, postcode, plaats, referentie };
+  return { naam, datum, tijd, adres, postcode, plaats, referentie };
 }
 
 export default async function parseSteder(buffer) {
@@ -113,8 +116,6 @@ export default async function parseSteder(buffer) {
   }
   const containertypeDisplay = containerRaw
     .replace(/standaard/gi, 'standard')
-    .replace(/open\s*top/gi, '')        // "40 FT OPEN TOP CONTAINER" → "40 FT  CONTAINER"
-    .replace(/\s{2,}/g, ' ')
     .toLowerCase()
     .trim();
 
@@ -129,10 +130,13 @@ export default async function parseSteder(buffer) {
       const line = ls[i];
       if (/^\d+\.\s+(Container|Load|Laden|Lossen)/i.test(line)) break;
       if (/^s\.t\.c\.$/i.test(line)) continue;
-      // "12750.006  6  COLLI" or "12750.006  COLLI" — extract colli count and skip from lading
+      // "6 COLLI" of "6\nCOLLI" — los getal gevolgd door COLLI
+      const colliAlleen = line.match(/^(\d+)\s+colli/i);
+      if (colliAlleen) { colli = colliAlleen[1]; continue; }
+      // "12750.006  6  COLLI" — gewicht + aantal + COLLI
       const colliM = line.match(/^[\d.,]+\s+(\d+)\s+colli/i);
       if (colliM) { colli = colliM[1]; continue; }
-      if (/colli/i.test(line)) continue;   // bare "COLLI" line or "... COLLI" without count
+      if (/colli/i.test(line)) continue;   // resterende COLLI-regels overslaan
       if (/^\d+[.,]\d{2}$/.test(line)) {
         if (gewicht === '0') gewicht = String(Math.round(parseFloat(line.replace(',', '.'))));
         continue;
@@ -188,7 +192,9 @@ export default async function parseSteder(buffer) {
     console.log(`📍 Steder secties (Ritra-stijl): afhaal="${loc2.naam}" afzet="${loc3.naam}"`);
   }
 
-  const datum = loc1.datum || loc2.datum || '';
+  // Datum = klant-afspraak (sectie 2), niet terminal-datum (sectie 1)
+  const datum = loc2.datum || loc1.datum || '';
+  const tijd  = loc2.tijd  || loc1.tijd  || '';
 
   // === Terminal & klant lookups ===
   const [opzettenInfo, afzettenInfo, opdrachtgever] = await Promise.all([
@@ -262,7 +268,7 @@ export default async function parseSteder(buffer) {
     containertypeCode: ctCode,
 
     datum,
-    tijd: '',
+    tijd,
     referentie:        loc1.referentie || '',
     laadreferentie:    loc2.referentie || '',
     inleverreferentie: loc3.referentie || '',
