@@ -5,6 +5,7 @@ import {
   getTerminalInfoMetFallback,
   getContainerTypeCode,
   getRederijNaam,
+  getKlantData,
   normLand,
   cleanFloat
 } from '../utils/lookups/terminalLookup.js';
@@ -118,9 +119,10 @@ export default async function parseB2L(buffer) {
   const afzettenPCPlaats = ls[fdtIdx + 3] || '';
 
   // Terminal lookups
-  const [opzettenInfo, afzettenInfo] = await Promise.all([
+  const [opzettenInfo, afzettenInfo, klant] = await Promise.all([
     getTerminalInfoMetFallback(opzettenNaam),
-    getTerminalInfoMetFallback(afzettenNaam)
+    getTerminalInfoMetFallback(afzettenNaam),
+    getKlantData('b2l cargocare')
   ]);
   const ctCode      = await getContainerTypeCode(containertype);
   const rederijNaam = await getRederijNaam(rederijRaw.split(' ')[0]) || rederijRaw;
@@ -179,14 +181,14 @@ export default async function parseB2L(buffer) {
       klantpostcode: klantPC,
       klantplaats:  klantPlaats,
 
-      opdrachtgeverNaam:     'B2L CARGOCARE B.V.',
-      opdrachtgeverAdres:    'WEENA 70',
-      opdrachtgeverPostcode: '3012 CM',
-      opdrachtgeverPlaats:   'ROTTERDAM',
-      opdrachtgeverTelefoon: '010-3070338',
-      opdrachtgeverEmail:    'export@b2l-cargocare.com',
-      opdrachtgeverBTW:      'NL855659324B01',
-      opdrachtgeverKVK:      '57',
+      opdrachtgeverNaam:     klant.naam     || 'B2L CARGOCARE',
+      opdrachtgeverAdres:    klant.adres    || '',
+      opdrachtgeverPostcode: klant.postcode || '',
+      opdrachtgeverPlaats:   klant.plaats   || '',
+      opdrachtgeverTelefoon: klant.telefoon || '',
+      opdrachtgeverEmail:    klant.email    || '',
+      opdrachtgeverBTW:      klant.btw      || '',
+      opdrachtgeverKVK:      klant.kvk      || '57',
 
       containernummer: '',
       containertype,
