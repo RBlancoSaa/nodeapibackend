@@ -113,6 +113,8 @@ export default async function parseSteder(buffer) {
   }
   const containertypeDisplay = containerRaw
     .replace(/standaard/gi, 'standard')
+    .replace(/open\s*top/gi, '')        // "40 FT OPEN TOP CONTAINER" → "40 FT  CONTAINER"
+    .replace(/\s{2,}/g, ' ')
     .toLowerCase()
     .trim();
 
@@ -120,12 +122,17 @@ export default async function parseSteder(buffer) {
   const ladingHeaderIdx = ls.findIndex(l => /Lading\s*omschrijving|Cargo\s*description|KindColli/i.test(l));
   let lading = '';
   let gewicht = '0';
+  let colli = '0';
   if (ladingHeaderIdx >= 0) {
     const ladingLines = [];
     for (let i = ladingHeaderIdx + 1; i < Math.min(ladingHeaderIdx + 25, ls.length); i++) {
       const line = ls[i];
       if (/^\d+\.\s+(Container|Load|Laden|Lossen)/i.test(line)) break;
       if (/^s\.t\.c\.$/i.test(line)) continue;
+      // "12750.006  6  COLLI" or "12750.006  COLLI" — extract colli count and skip from lading
+      const colliM = line.match(/^[\d.,]+\s+(\d+)\s+colli/i);
+      if (colliM) { colli = colliM[1]; continue; }
+      if (/colli/i.test(line)) continue;   // bare "COLLI" line or "... COLLI" without count
       if (/^\d+[.,]\d{2}$/.test(line)) {
         if (gewicht === '0') gewicht = String(Math.round(parseFloat(line.replace(',', '.'))));
         continue;
@@ -267,7 +274,7 @@ export default async function parseSteder(buffer) {
     inleverBootnaam: ladenOfLossen === 'Laden'  ? bootnaamRaw : '',
 
     zegel:          '',
-    colli:          '0',
+    colli,
     lading,
     brutogewicht:   gewicht,
     geladenGewicht: gewicht,
