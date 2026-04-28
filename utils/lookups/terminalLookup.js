@@ -13,6 +13,27 @@ export function normalizeContainerOmschrijving(str) {
   return (str || '').toLowerCase().replace(/^(\d+)\s*x\s*/i, '').replace(/[^a-z0-9]/g, '').trim();
 }
 
+/** Normaliseert landcodes zodat EasyTrip altijd "NL"/"DE"/"BE" krijgt, nooit de uitgeschreven naam */
+export function normLand(val) {
+  const s = (val || '').trim().toUpperCase();
+  if (!s) return 'NL';
+  if (s === 'NEDERLAND' || s === 'NETHERLANDS') return 'NL';
+  if (s === 'DUITSLAND' || s === 'GERMANY' || s === 'DEUTSCHLAND') return 'DE';
+  if (s === 'BELGIE' || s === 'BELGIË' || s === 'BELGIUM') return 'BE';
+  return s;
+}
+
+/** Verwijdert trailing ".0" van numerieke velden uit Supabase (bijv. "8713755270896.0" → "8713755270896") */
+export function cleanFloat(val) {
+  if (!val) return '';
+  return String(val).trim().replace(/\.0+$/, '');
+}
+
+/** Zorgt voor spatie in postcode (bijv. "3089KN" → "3089 KN") */
+export function normPostcode(val) {
+  return String(val || '').trim().replace(/^(\d{4})\s*([A-Z]{2})$/i, '$1 $2').toUpperCase();
+}
+
 function normStr(s) {
   return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }

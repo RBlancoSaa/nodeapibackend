@@ -4,7 +4,9 @@ import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
   getContainerTypeCode,
-  getRederijNaam
+  getRederijNaam,
+  normLand,
+  cleanFloat
 } from '../utils/lookups/terminalLookup.js';
 
 function parseDatum(str) {
@@ -155,11 +157,11 @@ export default async function parseRitra(buffer) {
       adres:    opzettenInfo?.adres    || opzettenAdres,
       postcode: opzettenInfo?.postcode || pcData.postcode,
       plaats:   opzettenInfo?.plaats   || pcData.plaats,
-      land:     opzettenInfo?.land     || 'NL',
+      land:     normLand(opzettenInfo?.land || 'NL'),
       voorgemeld: opzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
       aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: String(opzettenInfo?.portbase_code || '').replace(/\.0+$/, ''),
-      bicsCode:      String(opzettenInfo?.bicsCode      || '').replace(/\.0+$/, '')
+      portbase_code: cleanFloat(opzettenInfo?.portbase_code || ''),
+      bicsCode:      cleanFloat(opzettenInfo?.bicsCode      || '')
     },
     {
       volgorde: '0', actie: 'Laden',
@@ -175,11 +177,11 @@ export default async function parseRitra(buffer) {
       adres:    afzettenInfo?.adres    || '',
       postcode: afzettenInfo?.postcode || '',
       plaats:   afzettenInfo?.plaats   || '',
-      land:     afzettenInfo?.land     || 'NL',
+      land:     normLand(afzettenInfo?.land || 'NL'),
       voorgemeld: afzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
       aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: String(afzettenInfo?.portbase_code || '').replace(/\.0+$/, ''),
-      bicsCode:      String(afzettenInfo?.bicsCode      || '').replace(/\.0+$/, '')
+      portbase_code: cleanFloat(afzettenInfo?.portbase_code || ''),
+      bicsCode:      cleanFloat(afzettenInfo?.bicsCode      || '')
     }
   ];
 

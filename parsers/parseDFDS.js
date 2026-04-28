@@ -3,7 +3,9 @@ import '../utils/fsPatch.js';
 import PDFParser from 'pdf2json';
 import {
   getTerminalInfoMetFallback,
-  getContainerTypeCode
+  getContainerTypeCode,
+  normLand,
+  cleanFloat
 } from '../utils/lookups/terminalLookup.js';
 
 function extractLinesPdf2Json(buffer) {
@@ -186,35 +188,35 @@ export default async function parseDFDS(buffer) {
   const locaties = [
     {
       volgorde: '0', actie: 'Opzetten',
-      naam:     pickupInfo.naam     || pickupLocNaam,
-      adres:    pickupInfo.adres    || pA.adres,
-      postcode: pickupInfo.postcode || pA.postcode,
-      plaats:   pickupInfo.plaats   || pA.plaats,
-      land:     pickupInfo.land     || 'NL',
+      naam:     pickupInfo?.naam     || pickupLocNaam,
+      adres:    pickupInfo?.adres    || pA.adres,
+      postcode: pickupInfo?.postcode || pA.postcode,
+      plaats:   pickupInfo?.plaats   || pA.plaats,
+      land:     normLand(pickupInfo?.land || 'NL'),
       voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: pickupInfo.portbase_code || '',
-      bicsCode:      pickupInfo.bicsCode      || ''
+      portbase_code: cleanFloat(pickupInfo?.portbase_code || ''),
+      bicsCode:      cleanFloat(pickupInfo?.bicsCode      || '')
     },
     {
       volgorde: '0', actie: 'Lossen',
-      naam:     lossenInfo.naam     || lossenLocNaam,
-      adres:    lossenInfo.adres    || lA.adres,
-      postcode: lossenInfo.postcode || lA.postcode,
-      plaats:   lossenInfo.plaats   || lA.plaats,
-      land:     lossenInfo.land     || 'NL',
-      portbase_code: lossenInfo.portbase_code || '',
-      bicsCode:      lossenInfo.bicsCode      || ''
+      naam:     lossenInfo?.naam     || lossenLocNaam,
+      adres:    lossenInfo?.adres    || lA.adres,
+      postcode: lossenInfo?.postcode || lA.postcode,
+      plaats:   lossenInfo?.plaats   || lA.plaats,
+      land:     normLand(lossenInfo?.land || 'NL'),
+      portbase_code: cleanFloat(lossenInfo?.portbase_code || ''),
+      bicsCode:      cleanFloat(lossenInfo?.bicsCode      || '')
     },
     {
       volgorde: '0', actie: 'Afzetten',
-      naam:     dropoffInfo.naam     || dropoffLocNaam,
-      adres:    dropoffInfo.adres    || dA.adres,
-      postcode: dropoffInfo.postcode || dA.postcode,
-      plaats:   dropoffInfo.plaats   || dA.plaats,
-      land:     dropoffInfo.land     || 'NL',
+      naam:     dropoffInfo?.naam     || dropoffLocNaam,
+      adres:    dropoffInfo?.adres    || dA.adres,
+      postcode: dropoffInfo?.postcode || dA.postcode,
+      plaats:   dropoffInfo?.plaats   || dA.plaats,
+      land:     normLand(dropoffInfo?.land || 'NL'),
       voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: dropoffInfo.portbase_code || '',
-      bicsCode:      dropoffInfo.bicsCode      || ''
+      portbase_code: cleanFloat(dropoffInfo?.portbase_code || ''),
+      bicsCode:      cleanFloat(dropoffInfo?.bicsCode      || '')
     }
   ];
 

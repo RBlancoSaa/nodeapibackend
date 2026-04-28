@@ -4,7 +4,9 @@ import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
   getContainerTypeCode,
-  getRederijNaam
+  getRederijNaam,
+  normLand,
+  cleanFloat
 } from '../utils/lookups/terminalLookup.js';
 
 const MONTHS_EN = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
@@ -142,11 +144,11 @@ export default async function parseB2L(buffer) {
         adres:    opzettenInfo?.adres    || opzettenAdres,
         postcode: opzettenInfo?.postcode || '',
         plaats:   opzettenInfo?.plaats   || '',
-        land:     opzettenInfo?.land     || 'NL',
+        land:     normLand(opzettenInfo?.land || 'NL'),
         voorgemeld: opzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
         aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-        portbase_code: String(opzettenInfo?.portbase_code || '').replace(/\.0+$/, ''),
-        bicsCode:      String(opzettenInfo?.bicsCode      || '').replace(/\.0+$/, '')
+        portbase_code: cleanFloat(opzettenInfo?.portbase_code || ''),
+        bicsCode:      cleanFloat(opzettenInfo?.bicsCode      || '')
       },
       {
         volgorde: '0', actie: 'Laden',
@@ -162,11 +164,11 @@ export default async function parseB2L(buffer) {
         adres:    afzettenInfo?.adres    || afzettenAdres,
         postcode: afzettenInfo?.postcode || afzettenPCPlaats.match(/\d{4}\s?[A-Z]{2}/i)?.[0] || '',
         plaats:   afzettenInfo?.plaats   || afzettenPCPlaats.replace(/^\d{4}\s?[A-Z]{2},?\s*/i, '').split(',')[0].trim(),
-        land:     afzettenInfo?.land     || 'NL',
+        land:     normLand(afzettenInfo?.land || 'NL'),
         voorgemeld: afzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
         aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-        portbase_code: String(afzettenInfo?.portbase_code || '').replace(/\.0+$/, ''),
-        bicsCode:      String(afzettenInfo?.bicsCode      || '').replace(/\.0+$/, '')
+        portbase_code: cleanFloat(afzettenInfo?.portbase_code || ''),
+        bicsCode:      cleanFloat(afzettenInfo?.bicsCode      || '')
       }
     ];
 

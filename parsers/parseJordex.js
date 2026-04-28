@@ -6,7 +6,9 @@ import {
   getRederijNaam,
   getContainerTypeCode,
   getTerminalInfoFallback,
-  getTerminalInfoMetFallback
+  getTerminalInfoMetFallback,
+  normLand,
+  cleanFloat
 } from '../utils/lookups/terminalLookup.js';
 
 
@@ -521,11 +523,11 @@ data.locaties = [
     adres:    pickupInfo?.adres    || puAdresRaw || '',
     postcode: pickupInfo?.postcode || puPCRaw    || '',
     plaats:   pickupInfo?.plaats   || puPlaatsRaw || '',
-    land:     pickupInfo?.land     || 'NL',
+    land:     normLand(pickupInfo?.land || 'NL'),
     voorgemeld:    pickupInfo ? (pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
     aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-    portbase_code: pickupInfo?.portbase_code || '',
-    bicsCode:      pickupInfo?.bicsCode      || ''
+    portbase_code: cleanFloat(pickupInfo?.portbase_code || ''),
+    bicsCode:      cleanFloat(pickupInfo?.bicsCode      || '')
   },
   {
     volgorde: '0',
@@ -543,11 +545,11 @@ data.locaties = [
     adres:    dropoffInfo?.adres    || doAdresRaw || '',
     postcode: dropoffInfo?.postcode || doPCRaw    || '',
     plaats:   dropoffInfo?.plaats   || doPlaatsRaw || '',
-    land:     dropoffInfo?.land     || 'NL',
+    land:     normLand(dropoffInfo?.land || 'NL'),
     voorgemeld:    dropoffInfo ? (dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
     aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-    portbase_code: dropoffInfo?.portbase_code || '',
-    bicsCode:      dropoffInfo?.bicsCode      || ''
+    portbase_code: cleanFloat(dropoffInfo?.portbase_code || ''),
+    bicsCode:      cleanFloat(dropoffInfo?.bicsCode      || '')
   }
 ];
 
