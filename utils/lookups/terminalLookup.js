@@ -302,18 +302,33 @@ export async function getAdresboekEntry(zoekNaam, type = null, zoekAdres = '') {
     const lijst = await getAdresboekLijst();
     const gefilterd = type ? lijst.filter(i => i.type?.toLowerCase() === type.toLowerCase()) : lijst;
 
-    const nZoek  = normStr(zoekNaam);
-    const wordsZoek = zoekNaam.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-    const straatZoek = straatNaam(zoekAdres);   // bijv. "nieuwesluisweg"
+    const nZoek      = normStr(zoekNaam);
+    const wordsZoek  = zoekNaam.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const straatZoek = straatNaam(zoekAdres);
+
+    // Als een zoekadres opgegeven is, mag een entry ALLEEN gevonden worden als het adres overeenkomt.
+    // Dit voorkomt dat bijv. "STEINWEG SPAKENBURGWEG" wint bij zoekopdracht met adres "GERBRANDYWEG".
+    // Een entry zonder adres in het adresboek wordt altijd afgewezen als zoekadres is opgegeven.
+    const adresVereist = straatZoek.length >= 4;
 
     let besteScore = 0;
     let besteEntry = null;
 
     for (const item of gefilterd) {
-      const nNaam = normStr(item.naam || '');
-      let score = 0;
+      const nNaam      = normStr(item.naam || '');
+      const straatItem = straatNaam(item.adres || '');
+
+      // ── Adres-gate: als adres opgegeven → entry MOET op straatnaam matchen ────
+      if (adresVereist) {
+        if (!straatItem) continue; // geen adres in adresboek → overslaan
+        const adresMatch = straatItem === straatZoek
+          || straatItem.includes(straatZoek)
+          || straatZoek.includes(straatItem);
+        if (!adresMatch) continue; // adres klopt niet → overslaan, ook al matcht naam perfect
+      }
 
       // ── Naam-score ──────────────────────────────────────────────────────────
+      let score = 0;
       if (nNaam === nZoek) {
         score = 100;
       } else if (nNaam.includes(nZoek) || nZoek.includes(nNaam)) {
@@ -321,31 +336,29 @@ export async function getAdresboekEntry(zoekNaam, type = null, zoekAdres = '') {
       } else {
         const wordsNaam = (item.naam || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
         const hits = wordsZoek.filter(w => wordsNaam.some(wn => wn.includes(w) || w.includes(wn)));
-        if (hits.length >= 2)                              score = 40 + hits.length * 15;
-        else if (hits.length === 1 && hits[0].length >= 5) score = 40;
+        if (hits.length >= 2)                               score = 40 + hits.length * 15;
+        else if (hits.length === 1 && hits[0].length >= 5)  score = 40;
       }
 
-      // ── Adres-bonus (meest betrouwbaar) ─────────────────────────────────────
-      if (straatZoek) {
-        const straatEntry = straatNaam(item.adres || '');
-        if (straatZoek && straatEntry) {
-          if (straatZoek === straatEntry)                                           score += 50;
-          else if (straatEntry.includes(straatZoek) || straatZoek.includes(straatEntry)) score += 25;
-        }
+      // ── Adres-bonus (tiebreaker als meerdere adres-matchende entries) ────────
+      if (straatZoek && straatItem) {
+        if (straatItem === straatZoek)                                            score += 50;
+        else if (straatItem.includes(straatZoek) || straatZoek.includes(straatItem)) score += 25;
       }
 
       if (score > besteScore) { besteScore = score; besteEntry = item; }
       if (besteScore >= 150) break; // perfecte naam + adres match
     }
 
-    // Minimumdrempel: score ≥ 55 vereist
-    // 40 = één woordmatch → te zwak (bijv. alle "Steinweg" entries zouden matchen)
-    // 55 = twee woordmatches of naam-contains → betrouwbaar
-    if (!besteEntry || besteScore < 55) {
+    // Minimumdrempel (alleen naam-score telt mee als adresVereist):
+    // Als adresVereist: drempel 1 → elke adres-match wordt geaccepteerd (naam is tiebreaker)
+    // Als geen adres: drempel 55 → naam moet duidelijk matchen
+    const drempel = adresVereist ? 1 : 55;
+    if (!besteEntry || besteScore < drempel) {
       console.log(`⚠️ Adresboek: geen match voor "${zoekNaam}"${zoekAdres ? ` @ ${zoekAdres}` : ''}${type ? ` [${type}]` : ''}`);
       return null;
     }
-    console.log(`📒 Adresboek: "${zoekNaam}" → ${besteEntry.naam} [${besteEntry.type}] (score ${besteScore})`);
+    console.log(`📒 Adresboek: "${zoekNaam}" → ${besteEntry.naam} [${besteEntry.type}] (score ${besteScore}) adres="${besteEntry.adres}"`);
     return besteEntry;
   } catch (e) {
     console.error('❌ getAdresboekEntry error:', e);

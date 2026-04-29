@@ -186,24 +186,26 @@ export default async function parseDFDS(buffer) {
   console.log('📍 Lossen:',  lossenLocNaam,  '|', lossenLocAdres);
   console.log('📍 Afzetten:', dropoffLocNaam, '|', dropoffLocAdres);
 
-  // Lossen adresboek lookup:
-  // 1. Gebruik lossenLocNaam uit de locatiesectie als naam
-  // 2. Adres: combineer lossenLocAdres (locatiesectie) en klantadres (PDF-header/factuuradres)
-  //    — klantadres bevat het volledige factuuradres (bijv. "PROFESSOR GERBRANDYWEG 17")
-  //    — dit is cruciaal voor locaties met meerdere vestigingen (bijv. 10 Steinweg-adressen)
+  // Lossen lookup volgorde (adres = primaire sleutel):
+  // 1. Adresboek: zoek op naam + adres — entry wordt ALLEEN geaccepteerd als adres overeenkomt
+  // 2. Terminal: zoek in op_afzetten.json op naam + adres
+  // 3. Fallback: gebruik raw PDF data (lossenLocNaam + klantadres/klantpostcode/klantplaats)
+  // Het klantadres (factuuradres uit PDF-header) is het meest betrouwbare adresgegeven.
   const lossenZoekNaam  = lossenLocNaam  || klantnaam;
   const lossenZoekAdres = lossenLocAdres || klantadres;
 
   const [pickupInfo, lossenAdresboek, lossenTerminal, dropoffInfo] = await Promise.all([
     getTerminalInfoMetFallback(pickupLocNaam),
-    getAdresboekEntry(lossenZoekNaam, null, lossenZoekAdres),  // klant in adresboek
-    getTerminalInfoMetFallback(lossenLocNaam, lossenZoekAdres),  // terminal + adres als tiebreaker
+    getAdresboekEntry(lossenZoekNaam, null, lossenZoekAdres),   // klant in adresboek (adres-gate actief)
+    getTerminalInfoMetFallback(lossenLocNaam, lossenZoekAdres), // terminal + adres als tiebreaker
     getTerminalInfoMetFallback(dropoffLocNaam)
   ]);
 
-  // Lossen: adresboek (klant) heeft voorrang boven terminaltabel.
-  // Fallback: terminal (bijv. Steinweg Botlek Terminal), dan raw PDF-data.
   const lossenInfo = lossenAdresboek || lossenTerminal || null;
+  if (!lossenInfo && lossenZoekNaam) {
+    console.log(`⚠️ DFDS lossen: "${lossenZoekNaam}" niet in adresboek of terminal — raw PDF data wordt gebruikt`);
+    console.log(`   naam="${lossenZoekNaam}" adres="${lossenZoekAdres}" postcode="${klantpostcode}" plaats="${klantplaats}"`);
+  }
 
   const pA = parseAdresRegel(pickupLocAdres);
   const lA = parseAdresRegel(lossenLocAdres);
@@ -223,10 +225,11 @@ export default async function parseDFDS(buffer) {
     },
     {
       volgorde: '0', actie: 'Lossen',
-      naam:     lossenInfo?.naam     || lossenLocNaam,
-      adres:    lossenInfo?.adres    || lA.adres,
-      postcode: lossenInfo?.postcode || lA.postcode,
-      plaats:   lossenInfo?.plaats   || lA.plaats,
+      // Als geen entry gevonden: gebruik exact wat in de PDF staat (naam + factuuradres)
+      naam:     lossenInfo?.naam     || lossenZoekNaam,
+      adres:    lossenInfo?.adres    || lA.adres    || klantadres,
+      postcode: lossenInfo?.postcode || lA.postcode || klantpostcode,
+      plaats:   lossenInfo?.plaats   || lA.plaats   || klantplaats,
       land:     normLand(lossenInfo?.land || 'NL'),
       portbase_code: cleanFloat(lossenInfo?.portbase_code || ''),
       bicsCode:      cleanFloat(lossenInfo?.bicsCode      || '')
