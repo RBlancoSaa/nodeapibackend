@@ -326,8 +326,10 @@ export async function getAdresboekEntry(zoekNaam, type = null, zoekAdres = '') {
       if (besteScore >= 150) break; // perfecte naam + adres match
     }
 
-    // Minimumdrempel: naam-only ≥40 of adres-only ≥50
-    if (!besteEntry || besteScore < 40) {
+    // Minimumdrempel: score ≥ 55 vereist
+    // 40 = één woordmatch → te zwak (bijv. alle "Steinweg" entries zouden matchen)
+    // 55 = twee woordmatches of naam-contains → betrouwbaar
+    if (!besteEntry || besteScore < 55) {
       console.log(`⚠️ Adresboek: geen match voor "${zoekNaam}"${zoekAdres ? ` @ ${zoekAdres}` : ''}${type ? ` [${type}]` : ''}`);
       return null;
     }
