@@ -258,6 +258,60 @@ export async function getContainerTypeCode(input) {
 
 // ─── Klantdata ────────────────────────────────────────────────────────────────
 
+/**
+ * Fuzzy klant-lookup op basis van woordoverlap in Bedrijfsnaam / zoekcode / alias.
+ * Geeft het best-matchende klantobject terug, of null als niets gevonden.
+ */
+export async function getKlantDataFuzzy(naam) {
+  try {
+    if (!naam) return null;
+    const res   = await fetch(`${SUPABASE_LIST_URL}/klanten.json`);
+    const lijst = await res.json();
+
+    const nZoek = naam.toLowerCase().replace(/[^a-z0-9\s]/g, '');
+    const wordsZoek = nZoek.split(/\s+/).filter(w => w.length > 2);
+
+    let besteScore = 0;
+    let besteKlant = null;
+
+    for (const item of lijst) {
+      const kandidaten = [item.Bedrijfsnaam, item.zoekcode, item.alias].filter(Boolean);
+      for (const k of kandidaten) {
+        const nK = k.toLowerCase().replace(/[^a-z0-9\s]/g, '');
+        // Exacte match
+        if (nK === nZoek) {
+          besteKlant = item; besteScore = 100; break;
+        }
+        // Woordoverlap
+        const wordsK = nK.split(/\s+/).filter(w => w.length > 2);
+        const hits = wordsZoek.filter(w => wordsK.some(wk => wk.includes(w) || w.includes(wk)));
+        const score = hits.length >= 2 ? hits.length * 30 : (hits.length === 1 && hits[0].length >= 5 ? 30 : 0);
+        if (score > besteScore) { besteScore = score; besteKlant = item; }
+      }
+      if (besteScore === 100) break;
+    }
+
+    if (!besteKlant || besteScore < 30) {
+      console.log(`⚠️ Geen klant-fuzzy match voor "${naam}"`);
+      return null;
+    }
+    console.log(`🔍 getKlantDataFuzzy("${naam}") → ${besteKlant.Bedrijfsnaam} (score ${besteScore})`);
+    return {
+      naam:     besteKlant.Bedrijfsnaam || naam,
+      adres:    besteKlant.Adres     || '',
+      postcode: besteKlant.Postcode  || '',
+      plaats:   besteKlant.Plaats    || '',
+      telefoon: besteKlant.Telefoon  || '',
+      email:    besteKlant.Email     || '',
+      btw:      besteKlant.BTW_nummer || '',
+      kvk:      besteKlant['Deb. nr'] || ''
+    };
+  } catch (e) {
+    console.error('❌ getKlantDataFuzzy error:', e);
+    return null;
+  }
+}
+
 export async function getKlantData(klantAlias) {
   try {
     const res   = await fetch(`${SUPABASE_LIST_URL}/klanten.json`);

@@ -3,6 +3,7 @@ import '../utils/fsPatch.js';
 import PDFParser from 'pdf2json';
 import {
   getTerminalInfoMetFallback,
+  getKlantDataFuzzy,
   getContainerTypeCode,
   normLand,
   cleanFloat
@@ -182,11 +183,15 @@ export default async function parseDFDS(buffer) {
   console.log('📍 Lossen:',  lossenLocNaam,  '|', lossenLocAdres);
   console.log('📍 Afzetten:', dropoffLocNaam, '|', dropoffLocAdres);
 
-  const [pickupInfo, lossenInfo, dropoffInfo] = await Promise.all([
+  const [pickupInfo, lossenKlant, lossenTerminal, dropoffInfo] = await Promise.all([
     getTerminalInfoMetFallback(pickupLocNaam),
-    getTerminalInfoMetFallback(lossenLocNaam),
+    getKlantDataFuzzy(lossenLocNaam),          // klant heeft voorrang voor Lossen
+    getTerminalInfoMetFallback(lossenLocNaam),  // fallback als geen klant gevonden
     getTerminalInfoMetFallback(dropoffLocNaam)
   ]);
+
+  // Lossen: klant heeft voorrang boven terminaltabel
+  const lossenInfo = lossenKlant || lossenTerminal;
 
   const pA = parseAdresRegel(pickupLocAdres);
   const lA = parseAdresRegel(lossenLocAdres);
