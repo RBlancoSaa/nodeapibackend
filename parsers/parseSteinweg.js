@@ -69,31 +69,39 @@ function parseDateFromSubject(subject) {
 /**
  * Normaliseert terminalnamen uit het Steinweg Excel-bestand naar de exacte namen
  * zoals ze in de terminal-lijst (op_afzetten.json) staan.
- * Hierdoor vindt enrichOrder altijd de juiste BICS/portbase-codes.
+ * Hierdoor vindt enrichOrder de juiste BICS/portbase-codes.
+ *
+ * LET OP: Steinweg-eigen adressen worden NIET genormaliseerd — de ruwe naam
+ * uit het Excel-bestand wordt doorgegeven zodat het juiste Steinweg-adres
+ * (Spakenburgweg, Parmentierplein, Beatrix, Botlek etc.) behouden blijft.
  */
 function canonicalTerminalNaam(naam) {
   const s = (naam || '').toLowerCase().replace(/[\s\-_\/.,]+/g, ' ').trim();
-  // ── Maasvlakte-terminals ──────────────────────────────────────────────
-  if (/ect delta|ect home port|delta ii|delta 2\b/.test(s))               return 'ECT Delta';
-  if (/euromax|emx/.test(s))                                              return 'Euromax';
-  if (/\brwg\b|rotterdam world gateway/.test(s))                          return 'RWG';
-  if (/apm[\s-]?2\b|apm.*maasvlakte\s*(ii|2)|apm.*mvii/.test(s))         return 'APM 2';
-  if (/hpd[\s-]?2\b|hpd2|hutchison/.test(s))                             return 'Apm / HUTCHISON PORTS DELTA 2';
-  if (/apm[\s-]?1\b/.test(s))                                             return 'Apm / HUTCHISON PORTS DELTA 2';
-  if (/\bwbt\b/.test(s))                                                  return 'WBT';
-  if (/\brst[\s-]?(?:noord|south|south|n\b|z\b)?/.test(s))              return 'Rst Zuid';
-  // ── Steinweg-locaties ─────────────────────────────────────────────────
-  if (/steinweg.*botlek/.test(s))                                         return 'STEINWEG BOTLEK TERMINAL BV';
-  if (/steinweg.*beatrix/.test(s))                                        return 'STEINWEG BEATRIX TERMINAL';
-  if (/steinweg/.test(s))                                                 return 'STEINWEG';
+  // ── Maasvlakte port-terminals ─────────────────────────────────────────
+  if (/ect delta|ect home port|delta ii/.test(s))                        return 'ECT Delta';
+  if (/euromax|emx/.test(s))                                             return 'Euromax';
+  if (/\brwg\b|rotterdam world gateway/.test(s))                         return 'RWG';
+  if (/apm[\s-]?2\b|apm.*maasvlakte\s*(ii|2)|apm.*mvii/.test(s))        return 'APM 2';
+  if (/hpd[\s-]?2\b|hpd2|hutchison|apm[\s-]?1\b/.test(s))              return 'Apm / HUTCHISON PORTS DELTA 2';
+  if (/\bwbt\b/.test(s))                                                 return 'WBT';
+  if (/\brst\b/.test(s))                                                 return 'Rst Zuid';
   // ── Return-depots (Route 2) ───────────────────────────────────────────
-  if (/dcs kramer|kramer.*delta|qterminals.*kramer/.test(s))              return 'DCS Kramer Group';
-  if (/medrepair|med repair/.test(s))                                     return 'MedRepair';
-  if (/van\s*doorn/.test(s))                                              return 'VAN DOORN';
-  if (/\buwt\b|\buct\b/.test(s))                                         return 'UWT';
-  if (/cetem/.test(s))                                                    return 'Cetem';
-  if (/moerdijk/.test(s))                                                 return 'Caru depot Moerdijk';
-  return naam; // onbekend → ruwe naam (enrichOrder logt een waarschuwing)
+  if (/dcs kramer|kramer.*delta|qterminals.*kramer/.test(s))             return 'DCS Kramer Group';
+  if (/medrepair|med repair/.test(s))                                    return 'MedRepair';
+  if (/van\s*doorn/.test(s))                                             return 'VAN DOORN';
+  if (/\buwt\b|\buct\b/.test(s))                                        return 'UWT';
+  if (/cetem/.test(s))                                                   return 'Cetem';
+  // ── Steinweg-vestigingen ─────────────────────────────────────────────
+  // Alleen bedrijfsreferenties matchen, GEEN generieke "steinweg"-straatnamen.
+  // Volgorde: specifiek → algemeen.
+  if (/steinweg.*botlek|gerbrandyweg/.test(s))                             return 'STEINWEG BOTLEK TERMINAL BV';
+  if (/steinweg.*beatrix|den hamweg.*port/.test(s))                        return 'STEINWEG BEATRIX TERMINAL';
+  // Duidelijke bedrijfsnaam-varianten (met "c. steinweg" of bekende locatie):
+  if (/^c[\s.]?\s*steinweg/.test(s))                                       return 'STEINWEG';
+  if (/steinweg\s*(handelsveem|parmentier|sluijsdijk|seine|spakenburgweg|waalhaven|heijplaat)/.test(s)) return 'STEINWEG';
+  // Generiek "steinweg" als zelfstandig woord aan het begin → firma-referentie
+  if (/^steinweg\b(?!straat|weg|laan|plein\s*\d)/.test(s))                return 'STEINWEG';
+  return naam;
 }
 
 function sizetypeToDescription(sizetype) {
