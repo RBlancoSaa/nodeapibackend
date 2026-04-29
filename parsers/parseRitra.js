@@ -4,6 +4,7 @@ import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
   getAdresboekEntry,
+  voegAdresboekEntryToe,
   getContainerTypeCode,
   getRederijNaam,
   normLand,
@@ -149,6 +150,9 @@ export default async function parseRitra(buffer) {
   ]);
   if (!opzettenInfo) console.log(`⚠️ Opzet-terminal niet in lijst: "${opzettenNaam}"`);
   if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${afzettenNaam}"`);
+  if (!ladenInfo && klantNaam && klantAdres) {
+    await voegAdresboekEntryToe({ naam: klantNaam, adres: klantAdres, postcode: '', plaats: klantPlaats || '', type: 'Klant', bron: 'Ritra auto' });
+  }
   const ctCode     = await getContainerTypeCode(containertype);
   const rederijNaam = await getRederijNaam(rederijCode) || '';
   if (rederijCode && !rederijNaam) console.warn(`⚠️ Ritra rederij "${rederijCode}" niet gevonden — veld leeggemaakt`);

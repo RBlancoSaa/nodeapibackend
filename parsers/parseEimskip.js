@@ -15,6 +15,7 @@ import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
   getAdresboekEntry,
+  voegAdresboekEntryToe,
   getRederijNaam
 } from '../utils/lookups/terminalLookup.js';
 
@@ -266,6 +267,10 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     opzetRaw  ? getTerminalInfoMetFallback(opzetRaw.naam, opzetRaw.adres) : Promise.resolve(null),
     afzetRaw  ? getTerminalInfoMetFallback(afzetRaw.naam, afzetRaw.adres) : Promise.resolve(null)
   ]);
+
+  if (!lossenInfo && lossenRaw?.naam && lossenRaw?.adres) {
+    await voegAdresboekEntryToe({ naam: lossenRaw.naam, adres: lossenRaw.adres, postcode: lossenRaw.postcode || '', plaats: lossenRaw.plaats || '', land: lossenRaw.land || 'BE', type: 'Klant', bron: 'Eimskip auto' });
+  }
 
   const klantnaam     = lossenInfo?.naam     || lossenRaw?.naam     || '';
   const klantadres    = lossenInfo?.adres    || lossenRaw?.adres    || '';

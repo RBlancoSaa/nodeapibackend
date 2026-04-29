@@ -288,6 +288,79 @@ async function getAdresboekLijst() {
 }
 
 /**
+ * Voegt automatisch een nieuwe entry toe aan adresboek.json als een locatie
+ * niet gevonden werd tijdens de lookup. De entry wordt opgeslagen in Supabase
+ * zodat volgende orders dezelfde locatie direct vinden.
+ *
+ * Regels:
+ * - Naam en adres zijn verplicht (anders niets toevoegen)
+ * - Dubbelen worden vermeden (zelfde naam + adres → overslaan)
+ * - Alle data komt uit de PDF — niets wordt verzonnen
+ *
+ * @param {{ naam, adres, postcode, plaats, land, email, type, bron }} entry
+ */
+export async function voegAdresboekEntryToe({ naam, adres, postcode = '', plaats = '', land = 'NL', email = '', type = 'Overige', bron = '' }) {
+  try {
+    if (!naam || naam.trim().length < 2) return;
+    if (!adres || adres.trim().length < 3) return;
+
+    const lijst = await getAdresboekLijst();
+
+    // Dubbel check: zelfde straat + naam al aanwezig?
+    const nNaam   = normStr(naam);
+    const straat  = straatNaam(adres);
+    const bestaat = lijst.some(i =>
+      normStr(i.naam) === nNaam && straatNaam(i.adres || '') === straat
+    );
+    if (bestaat) {
+      console.log(`📒 Adresboek: "${naam}" op "${adres}" bestaat al — niet toegevoegd`);
+      return;
+    }
+
+    const nieuw = {
+      naam:     naam.trim(),
+      adres:    adres.trim(),
+      postcode: (postcode || '').trim(),
+      plaats:   (plaats   || '').trim(),
+      land:     (land     || 'NL').trim(),
+      telefoon: '',
+      mobiel:   '',
+      email:    (email    || '').trim(),
+      type:     type || 'Overige'
+    };
+
+    lijst.push(nieuw);
+
+    // Supabase Storage PUT
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
+    const uploadUrl   = `${supabaseUrl}/storage/v1/object/referentielijsten/adresboek.json`;
+
+    const res = await fetch(uploadUrl, {
+      method:  'PUT',
+      headers: {
+        Authorization:  `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+        'x-upsert':     'true'
+      },
+      body: JSON.stringify(lijst, null, 2)
+    });
+
+    if (res.ok) {
+      console.log(`✅ Adresboek: nieuw "${naam}" @ "${adres}" automatisch toegevoegd${bron ? ` (bron: ${bron})` : ''}`);
+      // Cache verversen zodat volgende lookup de nieuwe entry ziet
+      _adresboekCache = lijst;
+      _adresboekCacheTime = Date.now();
+    } else {
+      const txt = await res.text();
+      console.error(`❌ Adresboek upload mislukt: ${res.status} ${txt}`);
+    }
+  } catch (e) {
+    console.error('❌ voegAdresboekEntryToe error:', e.message);
+  }
+}
+
+/**
  * Zoekt een adres in het centrale adresboek via naam + optioneel adres.
  * Het adres is het primaire kenmerk: een sterke adres-match compenseert een zwakkere naamovereenkomst.
  *

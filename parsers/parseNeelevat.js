@@ -4,6 +4,7 @@ import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
   getAdresboekEntry,
+  voegAdresboekEntryToe,
   getContainerTypeCode,
   getRederijNaam,
   getKlantData
@@ -167,6 +168,9 @@ export default async function parseNeelevat(buffer) {
   ]);
   if (!opzettenInfo) console.log(`⚠️ Opzet-terminal niet in lijst: "${loc1.naam}"`);
   if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${loc3.naam}"`);
+  if (!ladenInfo && loc2.naam && loc2.adres) {
+    await voegAdresboekEntryToe({ naam: loc2.naam, adres: loc2.adres, postcode: loc2.postcode || '', plaats: loc2.plaats || '', type: 'Klant', bron: 'Neelevat auto' });
+  }
   const ctCode     = await getContainerTypeCode(containertypeDisplay) || '0';
   // Alleen lookup als er iets gevonden is — anders leeg laten (niet '0' doorgeven)
   const rederijNaam = rederijRaw ? ((await getRederijNaam(rederijRaw)) || '') : '';

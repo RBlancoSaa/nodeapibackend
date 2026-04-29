@@ -6,6 +6,7 @@ import {
   getAdresboekEntry,
   getContainerTypeCode,
   getRederijNaam,
+  voegAdresboekEntryToe,
   normLand,
   cleanFloat
 } from '../utils/lookups/terminalLookup.js';
@@ -202,9 +203,16 @@ export default async function parseDFDS(buffer) {
   ]);
 
   const lossenInfo = lossenAdresboek || lossenTerminal || null;
-  if (!lossenInfo && lossenZoekNaam) {
-    console.log(`⚠️ DFDS lossen: "${lossenZoekNaam}" niet in adresboek of terminal — raw PDF data wordt gebruikt`);
-    console.log(`   naam="${lossenZoekNaam}" adres="${lossenZoekAdres}" postcode="${klantpostcode}" plaats="${klantplaats}"`);
+  if (!lossenInfo && lossenZoekNaam && (lossenZoekAdres || klantadres)) {
+    console.log(`⚠️ DFDS lossen: "${lossenZoekNaam}" niet gevonden — raw PDF data + auto-toevoegen aan adresboek`);
+    await voegAdresboekEntryToe({
+      naam:     lossenZoekNaam,
+      adres:    lossenZoekAdres || klantadres,
+      postcode: klantpostcode,
+      plaats:   klantplaats,
+      type:     'Klant',
+      bron:     'DFDS auto'
+    });
   }
 
   const pA = parseAdresRegel(pickupLocAdres);

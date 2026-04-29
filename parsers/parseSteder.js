@@ -4,6 +4,7 @@ import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
   getAdresboekEntry,
+  voegAdresboekEntryToe,
   getContainerTypeCode,
   getRederijNaam,
   getKlantData
@@ -219,7 +220,9 @@ export default async function parseSteder(buffer) {
   ]);
   if (!opzettenInfo) console.log(`⚠️ Opzet-terminal niet in lijst: "${loc1.naam}"`);
   if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${loc3.naam}"`);
-
+  if (!ladenInfo && loc2.naam && loc2.adres) {
+    await voegAdresboekEntryToe({ naam: loc2.naam, adres: loc2.adres, postcode: loc2.postcode || '', plaats: loc2.plaats || '', type: 'Klant', bron: 'Steder auto' });
+  }
   const ctCode      = await getContainerTypeCode(containertypeDisplay) || '0';
   const rederijNaam = (await getRederijNaam(rederijRaw)) || '';
   if (rederijRaw && !rederijNaam) console.warn(`⚠️ Steder rederij "${rederijRaw}" niet gevonden — veld leeggemaakt`);

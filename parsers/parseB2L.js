@@ -4,6 +4,7 @@ import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
   getAdresboekEntry,
+  voegAdresboekEntryToe,
   getContainerTypeCode,
   getRederijNaam,
   getKlantData,
@@ -217,6 +218,10 @@ export default async function parseB2L(buffer) {
     getAdresboekEntry(klantNaam, null, klantAdres)
   ]);
   const ctCode = await getContainerTypeCode(containertype);
+
+  if (!klantInfo && klantNaam && klantAdres) {
+    await voegAdresboekEntryToe({ naam: klantNaam, adres: klantAdres, postcode: klantPC, plaats: klantPlaats, type: 'Klant', bron: 'B2L auto' });
+  }
 
   // Rederij MOET uit de lijst komen — nooit raw doorsturen
   const rederijNaam = await getRederijNaam(rederijRaw) || await getRederijNaam(rederijRaw.split(/\s+/)[0]) || '';

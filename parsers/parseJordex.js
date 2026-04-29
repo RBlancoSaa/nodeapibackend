@@ -8,6 +8,7 @@ import {
   getTerminalInfoFallback,
   getTerminalInfoMetFallback,
   getAdresboekEntry,
+  voegAdresboekEntryToe,
   normLand,
   cleanFloat
 } from '../utils/lookups/terminalLookup.js';
@@ -496,6 +497,15 @@ if (/[A-Za-z].*\d/.test(doAdresCandidate) || /^\d+\b/.test(doAdresCandidate)) {
   ]);
   if (!pickupInfo)  console.log(`⚠️ Opzet-terminal niet in lijst: "${puKey}"`);
   if (!dropoffInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${doKey}"`);
+  if (!klantAdresboek && klantNaam && adres) {
+    await voegAdresboekEntryToe({ naam: klantNaam, adres, postcode: postcode || '', plaats: plaats || '', type: 'Klant', bron: 'Jordex auto' });
+  }
+  for (let i = 0; i < extraStopBlokken.length; i++) {
+    const es = extraStopBlokken[i];
+    if (!extraStopInfos[i] && es.naam && es.adres) {
+      await voegAdresboekEntryToe({ naam: es.naam, adres: es.adres, postcode: es.postcode || '', plaats: es.plaats || '', type: 'Klant', bron: 'Jordex extra stop auto' });
+    }
+  }
 
 // Klantgegevens uit de Pick-up sectie: vier regels erna
 const klantregels = regels
