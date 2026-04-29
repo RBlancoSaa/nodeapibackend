@@ -260,11 +260,15 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       // Tariefberekening voor volle container
       const fin = berekenVolTarief(r1.from, r1.to, containerTypeStr);
 
-      // Omrijder: Opzetten (terminal) → Afzetten (Steinweg), geen Lossen tussenstop
+      // Omrijder: Opzetten (terminal) → Lossen (OMRIJDER) → Afzetten (Steinweg)
       const locaties = [
         {
           volgorde: '0', actie: 'Opzetten',
           naam: r1.from, adres: '', postcode: '', plaats: '', land: 'NL'
+        },
+        {
+          volgorde: '0', actie: 'Lossen',
+          naam: 'OMRIJDER', adres: '', postcode: '', plaats: '', land: 'NL'
         },
         {
           volgorde: '0', actie: 'Afzetten',
@@ -306,7 +310,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         inleverreferentie: steinwegRef,           // referentie bij Steinweg afzetten
         inleverBestemming: '',
         adr:           c1.imo && c1.imo !== '' ? 'Waar' : 'Onwaar',
-        ladenOfLossen: 'Omrijder',
+        ladenOfLossen: 'Lossen',
         instructies,
         tar: '', documentatie: '', tarra: '0', brix: '0',
         // Financieel
@@ -346,11 +350,15 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         isPaired
       );
 
-      // Omrijder: Opzetten (Steinweg) → Afzetten (depot), geen Lossen tussenstop
+      // Omrijder: Opzetten (Steinweg) → Lossen (OMRIJDER) → Afzetten (return depot)
       const locaties = [
         {
           volgorde: '0', actie: 'Opzetten',
           naam: r2.from, adres: '', postcode: '', plaats: '', land: 'NL'
+        },
+        {
+          volgorde: '0', actie: 'Lossen',
+          naam: 'OMRIJDER', adres: '', postcode: '', plaats: '', land: 'NL'
         },
         {
           volgorde: '0', actie: 'Afzetten',
@@ -389,7 +397,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         inleverreferentie: c2.reDeliveryRef || '',  // referentie bij depot afzetten
         inleverBestemming: c2.returnDepot   || '',
         adr: 'Onwaar',
-        ladenOfLossen: 'Omrijder',
+        ladenOfLossen: 'Lossen',
         instructies,
         tar: '', documentatie: '', tarra: '0', brix: '0',
         // Financieel
