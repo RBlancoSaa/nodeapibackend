@@ -303,6 +303,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         {
           volgorde: '0', actie: 'Opzetten',
           naam: canonicalTerminalNaam(r1.from), adres: '', postcode: '', plaats: '', land: 'NL'
+          // geen _noTerminalLookup → terminal-lijst lookup voor portbase_code/bicsCode
         },
         {
           volgorde: '0', actie: 'Lossen',
@@ -310,7 +311,9 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         },
         {
           volgorde: '0', actie: 'Afzetten',
-          naam: canonicalTerminalNaam(r1.to), adres: '', postcode: '', plaats: '', land: 'NL'
+          // Steinweg eigen vestiging — GEEN haventerminal, adres NIET overschrijven
+          naam: canonicalTerminalNaam(r1.to), adres: '', postcode: '', plaats: '', land: 'NL',
+          _noTerminalLookup: true
         }
       ];
 
@@ -392,7 +395,9 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       const locaties = [
         {
           volgorde: '0', actie: 'Opzetten',
-          naam: canonicalTerminalNaam(r2.from), adres: '', postcode: '', plaats: '', land: 'NL'
+          // Steinweg eigen vestiging — GEEN haventerminal, adres NIET overschrijven
+          naam: canonicalTerminalNaam(r2.from), adres: '', postcode: '', plaats: '', land: 'NL',
+          _noTerminalLookup: true
         },
         {
           volgorde: '0', actie: 'Lossen',
@@ -400,6 +405,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         },
         {
           volgorde: '0', actie: 'Afzetten',
+          // Return depot → terminal-lijst lookup voor portbase_code/bicsCode
           naam: canonicalTerminalNaam(c2.returnDepot || c2.destination || ''),
           adres: '', postcode: '', plaats: '', land: 'NL'
         }

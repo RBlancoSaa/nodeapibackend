@@ -67,25 +67,37 @@ export async function enrichOrder(order, { bron = '' } = {}) {
 
     if (isTerminal) {
       // ── Terminal (Opzetten / Afzetten) ────────────────────────────────
-      const info = await getTerminalInfoMetFallback(loc.naam, loc.adres);
-      if (info) {
-        loc.naam          = info.naam;
-        loc.adres         = info.adres         || loc.adres    || '';
-        loc.postcode      = info.postcode       || loc.postcode || '';
-        loc.plaats        = info.plaats         || loc.plaats   || '';
-        loc.land          = normLand(info.land  || loc.land     || 'NL');
-        loc.voorgemeld    = info.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar';
-        loc.portbase_code = cleanFloat(info.portbase_code || '');
-        loc.bicsCode      = cleanFloat(info.bicsCode      || '');
-      } else {
-        // Niet in lijst: bewaar ruwe PDF-data + meld in bijzonderheden
-        loc.portbase_code = loc.portbase_code || '';
-        loc.bicsCode      = loc.bicsCode      || '';
-        loc.voorgemeld    = loc.voorgemeld    || 'Onwaar';
+
+      // _noTerminalLookup: locatie is een Opzetten/Afzetten voor de klant zelf
+      // (bijv. Steinweg eigen vestiging), GEEN haventerminal.
+      // Sla de terminal-lijst lookup over zodat naam/adres niet overschreven worden.
+      if (loc._noTerminalLookup) {
+        delete loc._noTerminalLookup;
+        loc.portbase_code = '';
+        loc.bicsCode      = '';
+        loc.voorgemeld    = 'Onwaar';
         loc.land          = normLand(loc.land || 'NL');
-        if (loc.naam) {
-          onbekendeMeldingen.push(`${loc.actie}-terminal niet in lijst: ${loc.naam}`);
-          console.log(`⚠️ ${tag} ${loc.actie}-terminal niet gevonden: "${loc.naam}"`);
+      } else {
+        const info = await getTerminalInfoMetFallback(loc.naam, loc.adres);
+        if (info) {
+          loc.naam          = info.naam;
+          loc.adres         = info.adres         || loc.adres    || '';
+          loc.postcode      = info.postcode       || loc.postcode || '';
+          loc.plaats        = info.plaats         || loc.plaats   || '';
+          loc.land          = normLand(info.land  || loc.land     || 'NL');
+          loc.voorgemeld    = info.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar';
+          loc.portbase_code = cleanFloat(info.portbase_code || '');
+          loc.bicsCode      = cleanFloat(info.bicsCode      || '');
+        } else {
+          // Niet in lijst: bewaar ruwe PDF-data + meld in bijzonderheden
+          loc.portbase_code = loc.portbase_code || '';
+          loc.bicsCode      = loc.bicsCode      || '';
+          loc.voorgemeld    = loc.voorgemeld    || 'Onwaar';
+          loc.land          = normLand(loc.land || 'NL');
+          if (loc.naam) {
+            onbekendeMeldingen.push(`${loc.actie}-terminal niet in lijst: ${loc.naam}`);
+            console.log(`⚠️ ${tag} ${loc.actie}-terminal niet gevonden: "${loc.naam}"`);
+          }
         }
       }
     } else {
@@ -127,7 +139,11 @@ export async function enrichOrder(order, { bron = '' } = {}) {
 
   // Synchroniseer klantnaam/klantadres/etc vanuit de eerste Laden/Lossen locatie
   // (nadat enrichment de naam mogelijk heeft bijgewerkt vanuit het adresboek)
-  const klantLoc = order.locaties?.find(l => !TERMINAL_ACTIES.has((l.actie || '').toLowerCase()));
+  // Zoek eerste niet-terminal locatie; sla OMRIJDER-placeholder over
+  const klantLoc = order.locaties?.find(l =>
+    !TERMINAL_ACTIES.has((l.actie || '').toLowerCase()) &&
+    (l.naam || '').toUpperCase() !== 'OMRIJDER'
+  );
   if (klantLoc) {
     if (order.klantnaam     !== undefined) order.klantnaam     = klantLoc.naam     || order.klantnaam;
     if (order.klantadres    !== undefined) order.klantadres    = klantLoc.adres    || order.klantadres;
