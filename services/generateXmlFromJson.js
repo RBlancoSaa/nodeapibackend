@@ -143,7 +143,10 @@ if (officiëleRederij && officiëleRederij !== '0') {
   data.rederij = officiëleRederij;
   data.inleverRederij = officiëleRederij;
 } else {
-  console.warn('⚠️ Rederij niet herkend:', baseRederij);
+  // ❌ Rederij MOET uit de lijst komen — zelf invullen verboden (voormelding werkt anders niet)
+  console.warn('⚠️ Rederij niet herkend, veld leeggemaakt:', baseRederij);
+  data.rederij = '';
+  data.inleverRederij = '';
 }
 console.log('🧾 InleverRederij in data:', data.inleverRederij);
 console.log('🧾 Rederij in data:', data.rederij);

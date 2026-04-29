@@ -15,7 +15,7 @@ import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
   getAdresboekEntry,
-  getKlantData
+  getRederijNaam
 } from '../utils/lookups/terminalLookup.js';
 
 // ISO container type → EasyTrip omschrijving
@@ -255,8 +255,13 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
   const lossenZoekNaam  = lossenRaw?.naam  || '';
   const lossenZoekAdres = lossenRaw?.adres || '';
 
-  const [opdrachtgever, lossenInfo, opzettenInfo, afzettenInfo] = await Promise.all([
-    getKlantData('eimskip'),
+  // Rederij MOET uit de lijst komen — zelf invullen verboden
+  const rederijLookup = rederij ? ((await getRederijNaam(rederij)) || '') : '';
+  if (rederij && !rederijLookup) {
+    console.warn(`⚠️ Rederij "${rederij}" niet gevonden in lijst — veld wordt leeg`);
+  }
+
+  const [lossenInfo, opzettenInfo, afzettenInfo] = await Promise.all([
     lossenRaw ? getAdresboekEntry(lossenZoekNaam, null, lossenZoekAdres) : Promise.resolve(null),
     opzetRaw  ? getTerminalInfoMetFallback(opzetRaw.naam, opzetRaw.adres) : Promise.resolve(null),
     afzetRaw  ? getTerminalInfoMetFallback(afzetRaw.naam, afzetRaw.adres) : Promise.resolve(null)
@@ -325,14 +330,16 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     klantplaats,
     klantland,
 
-    opdrachtgeverNaam:     opdrachtgever?.naam     || 'EIMSKIP JAC. MEISNER',
-    opdrachtgeverAdres:    opdrachtgever?.adres    || '',
-    opdrachtgeverPostcode: opdrachtgever?.postcode || '',
-    opdrachtgeverPlaats:   opdrachtgever?.plaats   || '',
-    opdrachtgeverTelefoon: opdrachtgever?.telefoon || '',
-    opdrachtgeverEmail:    opdrachtgever?.email    || '',
-    opdrachtgeverBTW:      opdrachtgever?.btw      || '',
-    opdrachtgeverKVK:      opdrachtgever?.kvk      || '',
+    // Opdrachtgever: Eimskip Jac. Meisner Customs & Warehousing B.V.
+    // Voeg toe in klanten.json voor volledige KVK/BTW/adres-gegevens
+    opdrachtgeverNaam:     'EIMSKIP JAC. MEISNER CUSTOMS & WAREHOUSING B.V.',
+    opdrachtgeverAdres:    '',
+    opdrachtgeverPostcode: '',
+    opdrachtgeverPlaats:   '',
+    opdrachtgeverTelefoon: '+31 10 269 1514',
+    opdrachtgeverEmail:    '',
+    opdrachtgeverBTW:      '',
+    opdrachtgeverKVK:      '',
 
     containernummer,
     containertype:          containertypeOms,
@@ -346,9 +353,9 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     inleverreferentie: '',
     inleverBestemming: '',
 
-    rederij,
+    rederij:         rederijLookup,
     bootnaam,
-    inleverRederij:  rederij,
+    inleverRederij:  rederijLookup,
     inleverBootnaam: bootnaam,
 
     zegel,
