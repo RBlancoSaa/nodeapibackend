@@ -3,7 +3,7 @@ import '../utils/fsPatch.js'; // ✅ Eerst patchen!
 import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
-import { getRederijNaam } from '../utils/lookups/terminalLookup.js';
+// Rederij lookup is volledig overgenomen door enrichOrder.js
 
 
 const SUPABASE_LIST_URL = (process.env.SUPABASE_LIST_PUBLIC_URL || '').replace(/\/$/, '');
@@ -122,34 +122,11 @@ export async function generateXmlFromJson(data) {
     if (!data[veld] || data[veld] === '') console.warn(`⚠️ Ontbrekend opdrachtgeverveld: ${veld}`);
   }
   const zeroFallback = (val) => (val === undefined || val === '' || val === null ? '0' : val);
-  const [rederijen, containers] = await Promise.all([
-    fetchList('rederijen'),
-    fetchList('containers')
-  ]);
-  console.log('🔎 Containers geladen:', containers.length, containers.map(c => c.label));
-  console.log('🔎 Norm:', normalizeContainerOmschrijving("40ft HC")); // Verwacht: "40fthc"
-  console.log('🔎 Norm altLabels:', containers[0].altLabels.map(normalizeContainerOmschrijving));
+  const containers = await fetchList('containers');
 
-  let baseRederij = '';
-if (typeof data.rederij === 'string') {
-  const parts = data.rederij.trim().split(' - ').filter(Boolean);
-  baseRederij = parts.length > 1 ? parts[1].trim() : parts[0].trim();
-  baseRederij = baseRederij.replace(/[^a-zA-Z\s]/g, '').trim(); // 🔧 verwijderd alle streepjes, tekens enz.
-}
-
-const officiëleRederij = await getRederijNaam(baseRederij);
-
-if (officiëleRederij) {
-  data.rederij = officiëleRederij;
-  data.inleverRederij = officiëleRederij;
-} else {
-  // ❌ Rederij MOET uit de lijst komen — zelf invullen verboden (voormelding werkt anders niet)
-  console.warn('⚠️ Rederij niet herkend, veld leeggemaakt:', baseRederij);
-  data.rederij = '';
-  data.inleverRederij = '';
-}
-console.log('🧾 InleverRederij in data:', data.inleverRederij);
-console.log('🧾 Rederij in data:', data.rederij);
+  // Rederij is al opgezocht door enrichOrder — hier alleen loggen
+  console.log('🧾 Rederij in data:', data.rederij);
+  console.log('🧾 InleverRederij in data:', data.inleverRederij);
 
   // 🧊 Temperatuur strippen
   const cleanTemperature = (val) => {
@@ -194,8 +171,6 @@ if (!data.actie || data.actie === '0') {
   else data.actie = 'Laden';
 }
 
-console.log('🧾 InleverRederij in data:', data.inleverRederij);
-console.log('🧾 Rederij in data:', data.rederij);
 console.log('📄 Start XML-generatie');
 
 const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
