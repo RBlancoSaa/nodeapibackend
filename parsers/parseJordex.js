@@ -65,9 +65,35 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     return '';
   };
   // ✅ 100% correcte extractie uit alleen het "Pick-up" blok (klant)
-    const pickupBlokMatch = text.match(/Pick-up\s*\n([\s\S]+?)(?=\n(?:Drop-off terminal|Pick-up terminal|Extra Information|$))/i);
+  // Stop bij "Extra stop" zodat bijladen-secties niet als aparte container worden meegeteld
+    const pickupBlokMatch = text.match(/Pick-up\s*\n([\s\S]+?)(?=\n(?:Extra\s+stop|Drop-off terminal|Pick-up terminal|Extra Information|$))/i);
     const pickupBlok = pickupBlokMatch?.[1] || '';
     const pickupRegels = pickupBlok.split('\n').map(r => r.trim()).filter(Boolean);
+
+  // Extra stop secties (bijladen — meerdere laadadressen voor dezelfde container)
+  const extraStopBlokken = [];
+  for (const m of text.matchAll(/Extra\s+stop\s*\n([\s\S]+?)(?=\n(?:Extra\s+stop|Drop-off terminal|Pick-up\s+terminal|$))/gi)) {
+    const esRegels = m[1].split('\n').map(r => r.trim()).filter(Boolean);
+    const esAdresIdx = esRegels.findIndex(r => /^Address:/i.test(r));
+    const esPcIdx    = esRegels.findIndex(r => /^\d{4}\s*[A-Z]{2}\b/i.test(r));
+    let esNaam = '', esAdres = '', esPostcode = '', esPlaats = '';
+    if (esAdresIdx >= 0 && esPcIdx > esAdresIdx) {
+      const esStraatIdx = esPcIdx - 1;
+      const esSlice = esRegels.slice(esAdresIdx, esStraatIdx > esAdresIdx ? esStraatIdx : esAdresIdx + 1);
+      esNaam     = esSlice.map((r, i) => i === 0 ? r.replace(/^Address:/i, '').trim() : r.trim()).join(' ').trim();
+      esAdres    = esStraatIdx > esAdresIdx ? (esRegels[esStraatIdx] || '') : '';
+      esPostcode = esRegels[esPcIdx]     || '';
+      esPlaats   = esRegels[esPcIdx + 1] || '';
+    } else if (esAdresIdx >= 0) {
+      esNaam     = esRegels[esAdresIdx].replace(/^Address:/i, '').trim();
+      esAdres    = esRegels[esAdresIdx + 1] || '';
+      esPostcode = esRegels[esAdresIdx + 2] || '';
+      esPlaats   = esRegels[esAdresIdx + 3] || '';
+    }
+    extraStopBlokken.push({ naam: esNaam, adres: esAdres, postcode: esPostcode, plaats: esPlaats });
+    console.log(`📍 Extra stop gevonden: ${esNaam} | ${esAdres} | ${esPostcode} ${esPlaats}`);
+  }
+  console.log(`📍 ${extraStopBlokken.length} extra stop(s) gevonden`);
 
   // 👤 Klantgegevens – postcode als anker zodat meerregelige bedrijfsnamen correct worden samengevoegd
   const adresLineIdx = pickupRegels.findIndex(r => r.startsWith('Address:'));
@@ -462,10 +488,11 @@ if (/[A-Za-z].*\d/.test(doAdresCandidate) || /^\d+\b/.test(doAdresCandidate)) {
 }
 
 // 🧠 Terminal lookup — alleen uit lijst, nooit invullen
-  const [pickupInfo, dropoffInfo, klantAdresboek] = await Promise.all([
+  const [pickupInfo, dropoffInfo, klantAdresboek, ...extraStopInfos] = await Promise.all([
     getTerminalInfoMetFallback(puKey),
     getTerminalInfoMetFallback(doKey),
-    getAdresboekEntry(klantNaam, null, adres)
+    getAdresboekEntry(klantNaam, null, adres),
+    ...extraStopBlokken.map(es => getAdresboekEntry(es.naam, null, es.adres))
   ]);
   if (!pickupInfo)  console.log(`⚠️ Opzet-terminal niet in lijst: "${puKey}"`);
   if (!dropoffInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${doKey}"`);
@@ -543,6 +570,7 @@ if (onbekendeMeldingen.length) {
 
 // 🔁 Locatiestructuur — alleen data uit lijst of direct uit PDF, nooit invullen
 data.locaties = [
+  // [0] Opzetten
   {
     volgorde: '0',
     actie: 'Opzetten',
@@ -556,6 +584,7 @@ data.locaties = [
     portbase_code: cleanFloat(pickupInfo?.portbase_code || ''),
     bicsCode:      cleanFloat(pickupInfo?.bicsCode      || '')
   },
+  // [1] Laden/Lossen (primaire locatie uit Pick-up sectie)
   {
     volgorde: '0',
     actie:    data.isLossenOpdracht ? 'Lossen' : 'Laden',
@@ -565,6 +594,20 @@ data.locaties = [
     plaats:   data.klantplaats   || '',
     land: 'NL'
   },
+  // [2..N-2] Extra stops (bijladen — worden ingevoegd vóór Afzetten)
+  ...extraStopBlokken.map((es, idx) => {
+    const esInfo = extraStopInfos[idx];
+    return {
+      volgorde: '0',
+      actie:    'Laden',
+      naam:     esInfo?.naam     || es.naam,
+      adres:    esInfo?.adres    || es.adres,
+      postcode: esInfo?.postcode || es.postcode,
+      plaats:   esInfo?.plaats   || es.plaats,
+      land:     esInfo?.land     || 'NL'
+    };
+  }),
+  // [-1] Afzetten
   {
     volgorde: '0',
     actie: 'Afzetten',
@@ -579,6 +622,9 @@ data.locaties = [
     bicsCode:      cleanFloat(dropoffInfo?.bicsCode      || '')
   }
 ];
+if (extraStopBlokken.length > 0) {
+  console.log(`📍 Locatiestructuur: ${data.locaties.length} stops (${data.locaties.map(l => l.actie).join(' → ')})`);
+}
 
   if (!data.referentie || data.referentie === '0') {
     console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
