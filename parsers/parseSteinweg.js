@@ -66,6 +66,36 @@ function parseDateFromSubject(subject) {
   return '';
 }
 
+/**
+ * Normaliseert terminalnamen uit het Steinweg Excel-bestand naar de exacte namen
+ * zoals ze in de terminal-lijst (op_afzetten.json) staan.
+ * Hierdoor vindt enrichOrder altijd de juiste BICS/portbase-codes.
+ */
+function canonicalTerminalNaam(naam) {
+  const s = (naam || '').toLowerCase().replace(/[\s\-_\/.,]+/g, ' ').trim();
+  // ── Maasvlakte-terminals ──────────────────────────────────────────────
+  if (/ect delta|ect home port|delta ii|delta 2\b/.test(s))               return 'ECT Delta';
+  if (/euromax|emx/.test(s))                                              return 'Euromax';
+  if (/\brwg\b|rotterdam world gateway/.test(s))                          return 'RWG';
+  if (/apm[\s-]?2\b|apm.*maasvlakte\s*(ii|2)|apm.*mvii/.test(s))         return 'APM 2';
+  if (/hpd[\s-]?2\b|hpd2|hutchison/.test(s))                             return 'Apm / HUTCHISON PORTS DELTA 2';
+  if (/apm[\s-]?1\b/.test(s))                                             return 'Apm / HUTCHISON PORTS DELTA 2';
+  if (/\bwbt\b/.test(s))                                                  return 'WBT';
+  if (/\brst[\s-]?(?:noord|south|south|n\b|z\b)?/.test(s))              return 'Rst Zuid';
+  // ── Steinweg-locaties ─────────────────────────────────────────────────
+  if (/steinweg.*botlek/.test(s))                                         return 'STEINWEG BOTLEK TERMINAL BV';
+  if (/steinweg.*beatrix/.test(s))                                        return 'STEINWEG BEATRIX TERMINAL';
+  if (/steinweg/.test(s))                                                 return 'STEINWEG';
+  // ── Return-depots (Route 2) ───────────────────────────────────────────
+  if (/dcs kramer|kramer.*delta|qterminals.*kramer/.test(s))              return 'DCS Kramer Group';
+  if (/medrepair|med repair/.test(s))                                     return 'MedRepair';
+  if (/van\s*doorn/.test(s))                                              return 'VAN DOORN';
+  if (/\buwt\b|\buct\b/.test(s))                                         return 'UWT';
+  if (/cetem/.test(s))                                                    return 'Cetem';
+  if (/moerdijk/.test(s))                                                 return 'Caru depot Moerdijk';
+  return naam; // onbekend → ruwe naam (enrichOrder logt een waarschuwing)
+}
+
 function sizetypeToDescription(sizetype) {
   const s = String(sizetype || '').replace(/\s/g, '');
   if (/^22/.test(s)) return '20ft';
@@ -264,7 +294,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       const locaties = [
         {
           volgorde: '0', actie: 'Opzetten',
-          naam: r1.from, adres: '', postcode: '', plaats: '', land: 'NL'
+          naam: canonicalTerminalNaam(r1.from), adres: '', postcode: '', plaats: '', land: 'NL'
         },
         {
           volgorde: '0', actie: 'Lossen',
@@ -272,7 +302,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         },
         {
           volgorde: '0', actie: 'Afzetten',
-          naam: r1.to, adres: '', postcode: '', plaats: '', land: 'NL'
+          naam: canonicalTerminalNaam(r1.to), adres: '', postcode: '', plaats: '', land: 'NL'
         }
       ];
 
@@ -354,7 +384,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       const locaties = [
         {
           volgorde: '0', actie: 'Opzetten',
-          naam: r2.from, adres: '', postcode: '', plaats: '', land: 'NL'
+          naam: canonicalTerminalNaam(r2.from), adres: '', postcode: '', plaats: '', land: 'NL'
         },
         {
           volgorde: '0', actie: 'Lossen',
@@ -362,7 +392,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         },
         {
           volgorde: '0', actie: 'Afzetten',
-          naam: c2.returnDepot || c2.destination || '',
+          naam: canonicalTerminalNaam(c2.returnDepot || c2.destination || ''),
           adres: '', postcode: '', plaats: '', land: 'NL'
         }
       ];

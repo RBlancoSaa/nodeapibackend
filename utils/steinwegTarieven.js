@@ -13,12 +13,14 @@
  */
 export function normTerminalKey(naam) {
   const s = (naam || '').toLowerCase().replace(/[\s\-_\/]+/g, ' ').trim();
-  if (/ect delta|delta ii|hpd 2|hpd2/.test(s)) return 'ect_delta';
-  if (/euromax|emx/.test(s))                    return 'emx';
-  if (/\brwg\b/.test(s))                        return 'rwg';
-  if (/apm 2|apm2|apm.*ii|apmii/.test(s))       return 'apm2';
-  if (/\bwbt\b/.test(s))                        return 'wbt';
-  if (/\brst\b/.test(s))                        return 'rst';
+  // ECT Delta, HPD2, APM1/Hutchison = zelfde toeslag (deltaChart 28,50)
+  if (/ect delta|delta ii|hpd[\s-]?2|hutchison/.test(s)) return 'ect_delta';
+  if (/apm[\s-]?1\b/.test(s))                            return 'ect_delta';
+  if (/euromax|emx/.test(s))                              return 'emx';
+  if (/\brwg\b/.test(s))                                  return 'rwg';
+  if (/apm[\s-]?2\b|apm.*ii|apmii/.test(s))              return 'apm2';
+  if (/\bwbt\b/.test(s))                                  return 'wbt';
+  if (/\brst\b/.test(s))                                  return 'rst';
   return null;
 }
 
