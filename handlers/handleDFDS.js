@@ -11,7 +11,7 @@ export default async function handleDFDS({ buffer, base64, filename }) {
   console.log(`📦 Verwerken van DFDS-bestand: ${filename}`);
 
   const result = await parseDFDS(buffer);
-  const containers = result?.containers || [];
+  const containers = Array.isArray(result) ? result : (result?.containers || []);
 
   if (containers.length === 0) {
     console.warn('⚠️ Geen DFDS containers geparsed');

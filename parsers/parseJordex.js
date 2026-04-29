@@ -141,9 +141,16 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
           if (vM) {
             const vNum = parseInt(vM[1], 10) || 0;
             if (vNum > 100) {
-              // Merged colli+volume: e.g. "8025" → colli=80, volume=25
-              colli = String(Math.floor(vNum / 100));
-              volume = String(vNum % 100);
+              const numStr = String(vNum);
+              if (numStr.length === 6) {
+                // 3+3 split voor 6-cijferig getal: "176050" → colli=176, volume=050=50
+                volume = String(parseInt(numStr.slice(-3)));
+                colli  = String(parseInt(numStr.slice(0, 3)));
+              } else {
+                // 2-cijfer volume: "8025" → colli=80, volume=25
+                colli  = String(Math.floor(vNum / 100));
+                volume = String(vNum % 100);
+              }
             } else {
               volume = String(vNum);
               // Colli: number immediately before volume in afterNrStr (spaced columns)
@@ -181,6 +188,8 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
       for (let i = tabelHdrIdx + 1; i < Math.min(tabelHdrIdx + 30, regels.length); i++) {
         const dl = regels[i];
         if (!dl || /^(Pick|Drop|Extra\s+Info|Date:|Ref)/i.test(dl)) break;
+        // Stop bij Jordex bedrijfsfooter
+        if (/^(Jordex\s+Shipping|P\.O\.\s+Box|IBAN\s+EUR|Appendix:|Chamber\s+of\s+Commerce)/i.test(dl)) break;
         const gwm = dl.match(/GROSS\s+WEIGHT\s*[:\s]+(\d[\d.,]*)\s*KG/i);
         if (gwm) { gewicht = String(Math.round(parseFloat(gwm[1].replace(',', '.')))); continue; }
         if (/[\d.,]+\s*m[³3]/i.test(dl)) {
@@ -252,7 +261,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
         if (!dl) continue;
         if (/[\d.,]+\s*m[³3]/i.test(dl) || /[\d.,]+\s*kg/i.test(dl)) continue;
         if (/^\d+([.,]\d+)?$/.test(dl)) continue;
-        if (/^(Date:|Ref|Pick|Drop|Carrier|Vessel|Extra\s+Info)/i.test(dl)) break;
+        if (/^(Date:|Ref|Pick|Drop|Carrier|Vessel|Extra\s+Info|Jordex\s+Shipping|P\.O\.\s+Box|IBAN\s+EUR)/i.test(dl)) break;
         if (dl.length > 3) { lading = dl; break; }
       }
     }
@@ -296,6 +305,13 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const nu = new Date();
     laadDatum = `${nu.getDate()}-${nu.getMonth() + 1}-${nu.getFullYear()}`;
     bijzonderheid = 'DATUM STAAT VERKEERD';
+  }
+
+  // Remark(s) uit pickupRegels → toevoegen aan instructies
+  const remarkPickupLine = pickupRegels.find(r => /^Remark/i.test(r));
+  const remarkPickup = remarkPickupLine?.match(/Remark(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || '';
+  if (remarkPickup) {
+    bijzonderheid = [bijzonderheid, remarkPickup].filter(Boolean).join(' | ');
   }
   // 🔗 Referentie
     const refLine = pickupRegels.find(r => /Reference/.test(r)) || '';
@@ -370,8 +386,8 @@ const data = {
     inleverRederij: logResult('inleverRederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
       inleverBestemming: logResult('inleverBestemming', (() => {
         const raw = multiExtract([/Final destination[:\t ]+(.+)/i, /Arrival[:\t ]+(.+)/i]);
-        // Strip leading date like "12 Jun 2026 " from arrival lines
-        return raw?.replace(/^\d{1,2}\s+\w+\s+\d{4}\s+/i, '').trim() || '';
+        // Strip leading date + optioneel tijdstip zoals "20 May 2026 23:00 " van arrival-regels
+        return raw?.replace(/^\d{1,2}\s+\w+\s+\d{4}(?:\s+\d{2}:\d{2})?\s+/i, '').trim() || '';
       })()),
 
 // Terminalextractie: werkelijke naam staat onder “Address:” in de sectie

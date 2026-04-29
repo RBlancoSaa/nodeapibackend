@@ -126,7 +126,7 @@ export default async function parseDFDS(buffer) {
     const r = regels[i];
     if (/^[A-Z]{3}U\d{7}\s+.+Pickup/i.test(r)) {
       const cntr     = r.match(/([A-Z]{3}U\d{7})/i)?.[1] || '';
-      const typeM    = r.match(/[A-Z]{3}U\d{7}\s+(.+?)\s+-\s+([\d,]+)\s*m/i);
+      const typeM    = r.match(/[A-Z]{3}U\d{7}\s+(.+?)\s+-\s+([\d.,]+)\s*m/i);
       const pickupDt = r.match(/(\d{2}-\d{2}-\d{4})/)?.[1] || '';
       const pickupRef = r.match(/Pickup\s+(\S+)\s+\d{2}-\d{2}-\d{4}/i)?.[1] || '';
       const lossenR  = regels[i + 1] || '';
