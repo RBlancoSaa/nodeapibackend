@@ -79,8 +79,16 @@ function berekenScore(zoek, terminal) {
 
   // Exacte naam
   if (nNaam && nNaam === nZoek) return 100;
-  // Naam bevat zoekterm of omgekeerd (bijv. "united waalhaven" ↔ "unitedwaalhaventerminalsb")
-  if (nNaam && (nNaam.includes(nZoek) || nZoek.includes(nNaam))) score = Math.max(score, 80);
+  // Naam bevat zoekterm of omgekeerd
+  // Maar een kort entry-naam die in een lange zoekterm zit is een ZWAKKE match:
+  // "STEINWEG" scoort 80 bij zoek "C. STEINWEG BOTLEK TERMINAL BV" — dat is te hoog.
+  // Drempel: entry-naam < 50% van zoekterm lengte → containsscore = 55 (onder threshold 65)
+  if (nNaam && (nNaam.includes(nZoek) || nZoek.includes(nNaam))) {
+    const containsScore = (nZoek.includes(nNaam) && nNaam.length < nZoek.length * 0.5)
+      ? 55   // korte/generieke naam in lange zoekterm = zwakke match
+      : 80;  // gelijkwaardige of langere namen = sterke match
+    score = Math.max(score, containsScore);
+  }
 
   // Woordoverlap (woorden > 3 tekens)
   const wordsZ = zoek.toLowerCase().split(/\s+/).filter(w => w.length > 3);

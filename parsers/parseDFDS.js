@@ -191,15 +191,16 @@ export default async function parseDFDS(buffer) {
   const lossenZoekNaam  = lossenLocNaam  || klantnaam;
   const lossenZoekAdres = lossenLocAdres || klantadres;
 
-  const [pickupInfo, lossenAdresboek, dropoffInfo] = await Promise.all([
+  const [pickupInfo, lossenAdresboek, lossenTerminal, dropoffInfo] = await Promise.all([
     getTerminalInfoMetFallback(pickupLocNaam),
-    getAdresboekEntry(lossenZoekNaam, null, lossenZoekAdres),
+    getAdresboekEntry(lossenZoekNaam, null, lossenZoekAdres),  // klant in adresboek
+    getTerminalInfoMetFallback(lossenLocNaam),                  // terminal in op_afzetten
     getTerminalInfoMetFallback(dropoffLocNaam)
   ]);
 
-  // Lossen is een KLANT, geen terminal — nooit terug naar op_afzetten.json.
-  // Adresboek heeft voorrang; anders gebruik raw PDF-data (lA) als fallback.
-  const lossenInfo = lossenAdresboek || null;
+  // Lossen: adresboek (klant) heeft voorrang boven terminaltabel.
+  // Fallback: terminal (bijv. Steinweg Botlek Terminal), dan raw PDF-data.
+  const lossenInfo = lossenAdresboek || lossenTerminal || null;
 
   const pA = parseAdresRegel(pickupLocAdres);
   const lA = parseAdresRegel(lossenLocAdres);
