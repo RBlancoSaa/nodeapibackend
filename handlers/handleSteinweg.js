@@ -73,8 +73,12 @@ export default async function handleSteinweg({ route1Buffer, route2Buffer, route
       const xml  = await generateXmlFromJson(container);
       const cntr = container.containernummer || 'onbekend';
       const ref  = container.ritnummer || cntr;
-      // Route 1 = Lossen, Route 2 = Retour (leeg)
-      const suffix = container.locaties?.[2]?.naam ? 'Retour' : 'Lossen';
+      // Route 1 (vol): ladenOfLossen='Lossen' → suffix 'Lossen'
+      // Route 2 (leeg): alle locaties zijn Opzetten/Afzetten zonder Lossen → suffix 'Retour'
+      // Onderscheid: Route 2 heeft geen brutogewicht (0) en afzetlocatie is returnDepot (geen Steinweg)
+      const lastLoc = container.locaties?.[container.locaties.length - 1];
+      const isRetour = !container.brutogewicht || container.brutogewicht === '0';
+      const suffix = isRetour ? 'Retour' : 'Lossen';
       const easyFilename = `Order_${ref}_${cntr}_Steinweg_${suffix}.easy`;
       const easyBuf      = Buffer.from(xml, 'utf-8');
       const easyPath     = path.join(os.tmpdir(), easyFilename);

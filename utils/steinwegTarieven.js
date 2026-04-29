@@ -85,13 +85,13 @@ function isCongestieTerminal(key) {
 const VOL = {
   ect_delta: {
     benelux:   { ft20: 100, ft40: 100 },
-    waalhaven: { ft20: 140, ft40: 140 },
+    waalhaven: { ft20: 160, ft40: 160 },
     botlek:    { ft20: 120, ft40: 120 },
     seine:     { ft20: 120, ft40: 120 },
   },
   apm2_rwg: {
     benelux:   { ft20: 100, ft40: 100 },
-    waalhaven: { ft20: 140, ft40: 140 },
+    waalhaven: { ft20: 160, ft40: 160 },
     botlek:    { ft20: 120, ft40: 120 },
     seine:     { ft20: 120, ft40: 120 },
   },
@@ -212,7 +212,6 @@ const LEEG = {
  */
 export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr) {
   const terminalKeyVol = normTerminalKeyVol(terminalNaam);
-  const terminalKey    = normTerminalKey(terminalNaam);
   const zone           = detectZone(bestemmingNaam) || 'waalhaven'; // default Waalhaven
   const ft             = sizeStr.startsWith('20') ? 'ft20' : 'ft40';
 
@@ -220,33 +219,31 @@ export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr) {
   if (terminalKeyVol && VOL[terminalKeyVol]?.[zone]) {
     tarief = VOL[terminalKeyVol][zone][ft] ?? 0;
   }
-  console.log(`💰 Vol tarief: "${terminalNaam}" (${terminalKeyVol}) → zone="${zone}" ${ft} → €${tarief}`);
-
-  // Congestie: €20 per container (nooit gehalveerd voor volle containers)
-  const blanco1Chart = isCongestieTerminal(terminalKey) ? 20 : 0;
-
-  // Terminal-specifieke toeslag
+  // Terminal-specifieke toeslag (altijd vol bedrag — Route 1 containers rijden nooit gepaard)
+  const termKeyVol = normTerminalKey(terminalNaam);
   let deltaChart   = 0;
   let euromaxChart = 0;
   let blanco2Chart = 0;
   let blanco2Text  = '';
 
-  if (terminalKey === 'ect_delta') {
+  if (termKeyVol === 'ect_delta') {
     deltaChart = 28.50;
-  } else if (terminalKey === 'emx') {
+  } else if (termKeyVol === 'emx') {
     euromaxChart = 28.50;
-  } else if (terminalKey === 'rwg') {
+  } else if (termKeyVol === 'rwg') {
     blanco2Chart = 31;
     blanco2Text  = 'RWG toeslag';
   }
+
+  console.log(`💰 Vol tarief: "${terminalNaam}" (${terminalKeyVol}) → zone="${zone}" ${ft} → €${tarief} | delta=${deltaChart} emx=${euromaxChart} rwg=${blanco2Chart}`);
 
   return {
     tarief,
     dieselToeslagChart: 9,
     deltaChart,
     euromaxChart,
-    blanco1Chart,
-    blanco1Text: blanco1Chart > 0 ? 'congestie toeslag' : '',
+    blanco1Chart: 0,
+    blanco1Text:  '',
     blanco2Chart,
     blanco2Text,
   };
@@ -273,12 +270,9 @@ export function berekenLeegTarief(depotNaam, opzetNaam, sizeStr, isPaired) {
   }
   console.log(`💰 Leeg tarief: depot="${depotNaam}" (${depotKey}) zone="${zone}" ${ft} pair=${isPaired} → €${tarief}`);
 
-  // Congestie bij inlevering op zee-terminal als depot
-  const depotTerminalKey = normTerminalKey(depotNaam);
-  const congestieBasis   = isCongestieTerminal(depotTerminalKey) ? 20 : 0;
-  const blanco1Chart     = isPaired ? congestieBasis / 2 : congestieBasis;
-
   // Terminal-specifieke toeslag bij afzetdepot (gehalveerd bij setje)
+  // Geen congestie toeslag meer
+  const depotTerminalKey = normTerminalKey(depotNaam);
   let deltaChart   = 0;
   let euromaxChart = 0;
   let blanco2Chart = 0;
@@ -298,8 +292,8 @@ export function berekenLeegTarief(depotNaam, opzetNaam, sizeStr, isPaired) {
     dieselToeslagChart: 9,
     deltaChart,
     euromaxChart,
-    blanco1Chart,
-    blanco1Text: blanco1Chart > 0 ? 'congestie toeslag' : '',
+    blanco1Chart: 0,
+    blanco1Text:  '',
     blanco2Chart,
     blanco2Text,
   };

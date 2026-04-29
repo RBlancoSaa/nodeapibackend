@@ -179,8 +179,15 @@ function parseRoute2(buffer) {
   const colOf = label => hdr.findIndex(h => h.includes(label.toLowerCase()));
 
   const cCntr   = colOf('container');
-  const cRefDel = colOf('re-delivery ref');
-  const cDepot  = colOf('return depot');
+  const cRefDel = colOf('re-delivery ref') >= 0 ? colOf('re-delivery ref') : colOf('delivery ref');
+  // Return depot: probeer meerdere kolomnamen
+  const cDepot  = (() => {
+    for (const label of ['return depot', 're-delivery depot', 'depot', 'return location']) {
+      const idx = hdr.findIndex(h => h.includes(label));
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  })();
   const cDest   = colOf('destination');
   const cSize   = colOf('sizetype');
   const cShip   = colOf('shipping comp');
@@ -266,7 +273,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       ];
 
       results.push(await enrichOrder({
-        opdrachtgeverNaam:     klant?.naam     || 'STEINWEG',
+        opdrachtgeverNaam:     'STEINWEG',
         opdrachtgeverAdres:    klant?.adres    || '',
         opdrachtgeverPostcode: klant?.postcode || '',
         opdrachtgeverPlaats:   klant?.plaats   || '',
@@ -274,7 +281,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         opdrachtgeverEmail:    klant?.email    || '',
         opdrachtgeverBTW:      klant?.btw      || '',
         opdrachtgeverKVK:      klant?.kvk      || '',
-        klantnaam:     'OMRIJDER',
+        klantnaam:     'STEINWEG',
         klantadres:    '',
         klantpostcode: '',
         klantplaats:   '',
@@ -290,7 +297,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         colli:          '0',
         lading:         (c1.lading || '').toUpperCase(),
         brutogewicht:   gewicht,
-        geladenGewicht: gewicht,
+        geladenGewicht: '0',
         cbm:            '0',
         datum,
         tijd: '',
@@ -319,7 +326,8 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
   // ── Route 2: Opzetten (Steinweg) → Afzetten (return depot) — omrijder ───────
   // Altijd apart verwerken — ook als route 1 aanwezig is
   if (r2 && r2.containers.length > 0) {
-    const r2Datum = selectEarliestFutureDatum([r2.plannedLoading, r2.plannedDelivery]);
+    const r2Datum = selectEarliestFutureDatum([r2.plannedLoading, r2.plannedDelivery])
+      || parseDateFromSubject(emailSubject);
 
     // Bereken welke containers in een setje (pair) rijden
     const pairedSet = berekenPairs(r2.containers, c => sizetypeToDescription(c.sizetype || '2210'));
@@ -352,7 +360,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       ];
 
       results.push(await enrichOrder({
-        opdrachtgeverNaam:     klant?.naam     || 'STEINWEG',
+        opdrachtgeverNaam:     'STEINWEG',
         opdrachtgeverAdres:    klant?.adres    || '',
         opdrachtgeverPostcode: klant?.postcode || '',
         opdrachtgeverPlaats:   klant?.plaats   || '',
@@ -360,7 +368,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         opdrachtgeverEmail:    klant?.email    || '',
         opdrachtgeverBTW:      klant?.btw      || '',
         opdrachtgeverKVK:      klant?.kvk      || '',
-        klantnaam:     'OMRIJDER',
+        klantnaam:     'STEINWEG',
         klantadres:    '',
         klantpostcode: '',
         klantplaats:   '',
