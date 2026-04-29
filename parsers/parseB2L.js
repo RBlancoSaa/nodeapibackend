@@ -102,45 +102,62 @@ export default async function parseB2L(buffer) {
   let laadActie = 'Laden';
   let afzettenNaam = '', afzettenAdres = '', afzettenPCPlaats = '';
 
+  // Helper: sla sectielabels over en geef de eerste 'echte' bedrijfsnaam terug
+  // (B2L PDFs hebben soms "FULL PICK-UP TERMINAL" als sub-header na een sectielabel)
+  const SECTION_LABELS = /^(FULL|EMPTY)\s+(PICK-?UP|DELIVERY|RETURN)\s+TERMINAL|^PLACE\s+OF\s+(LOADING|DELIVERY|UNLOADING|DISCHARGE)|^DELIVERY\s+ADDRESS|^EMPTY\s+DEPOT/i;
+  function nextRealLine(arr, startIdx) {
+    for (let i = startIdx; i < arr.length; i++) {
+      const line = (arr[i] || '').replace(/REFERENCE[:\s].*/i, '').trim();
+      if (line && !SECTION_LABELS.test(line)) return { line, idx: i };
+    }
+    return { line: '', idx: startIdx };
+  }
+
   if (!isImport) {
     // ── Export: Opzetten=lege pickup, Laden=klant, Afzetten=volle aflevering ──
-    const epuLine = ls[epuIdx + 1] || '';
-    opzettenNaam    = epuLine.replace(/REFERENCE.*/i, '').trim();
-    opzettenAdres   = ls[epuIdx + 2] || '';
+    const { line: epuLine, idx: epuNameIdx } = nextRealLine(ls, epuIdx + 1);
+    opzettenNaam  = epuLine;
+    opzettenAdres = ls[epuNameIdx + 1] || '';
 
     const polIdx = ls.findIndex(l => /PLACE OF LOADING/i.test(l));
-    const polLine = ls[polIdx + 1] || '';
-    klantNaam     = polLine.replace(/REFERENCE.*/i, '').trim();
-    klantAdres    = ls[polIdx + 2] || '';
-    klantPCPlaats = ls[polIdx + 3] || '';
-    klantLand     = ls[polIdx + 4] || '';
-    laadActie     = 'Laden';
+    if (polIdx >= 0) {
+      const { line: polLine, idx: polNameIdx } = nextRealLine(ls, polIdx + 1);
+      klantNaam     = polLine;
+      klantAdres    = ls[polNameIdx + 1] || '';
+      klantPCPlaats = ls[polNameIdx + 2] || '';
+      klantLand     = ls[polNameIdx + 3] || '';
+    }
+    laadActie = 'Laden';
 
     const fdtIdx = ls.findIndex(l => /FULL DELIVERY TERMINAL/i.test(l));
-    const fdtLine = ls[fdtIdx + 1] || '';
-    afzettenNaam    = fdtLine.replace(/REFERENCE.*/i, '').trim();
-    afzettenAdres   = ls[fdtIdx + 2] || '';
-    afzettenPCPlaats = ls[fdtIdx + 3] || '';
+    if (fdtIdx >= 0) {
+      const { line: fdtLine, idx: fdtNameIdx } = nextRealLine(ls, fdtIdx + 1);
+      afzettenNaam     = fdtLine;
+      afzettenAdres    = ls[fdtNameIdx + 1] || '';
+      afzettenPCPlaats = ls[fdtNameIdx + 2] || '';
+    }
   } else {
     // ── Import: Opzetten=volle pickup terminal, Lossen=klant, Afzetten=lege return ──
-    const fpuLine = ls[epuIdx + 1] || '';
-    opzettenNaam    = fpuLine.replace(/REFERENCE.*/i, '').trim();
-    opzettenAdres   = ls[epuIdx + 2] || '';
+    const { line: fpuLine, idx: fpuNameIdx } = nextRealLine(ls, epuIdx + 1);
+    opzettenNaam  = fpuLine;
+    opzettenAdres = ls[fpuNameIdx + 1] || '';
 
     const podIdx = ls.findIndex(l => /PLACE OF (DELIVERY|UNLOADING|DISCHARGE)|DELIVERY ADDRESS/i.test(l));
-    const podLine = ls[podIdx + 1] || '';
-    klantNaam     = podLine.replace(/REFERENCE.*/i, '').trim();
-    klantAdres    = ls[podIdx + 2] || '';
-    klantPCPlaats = ls[podIdx + 3] || '';
-    klantLand     = ls[podIdx + 4] || '';
-    laadActie     = 'Lossen';
+    if (podIdx >= 0) {
+      const { line: podLine, idx: podNameIdx } = nextRealLine(ls, podIdx + 1);
+      klantNaam     = podLine;
+      klantAdres    = ls[podNameIdx + 1] || '';
+      klantPCPlaats = ls[podNameIdx + 2] || '';
+      klantLand     = ls[podNameIdx + 3] || '';
+    }
+    laadActie = 'Lossen';
 
     const erdIdx = ls.findIndex(l => /EMPTY (RETURN|DELIVERY) TERMINAL|EMPTY DEPOT/i.test(l));
     if (erdIdx >= 0) {
-      const erdLine = ls[erdIdx + 1] || '';
-      afzettenNaam    = erdLine.replace(/REFERENCE.*/i, '').trim();
-      afzettenAdres   = ls[erdIdx + 2] || '';
-      afzettenPCPlaats = ls[erdIdx + 3] || '';
+      const { line: erdLine, idx: erdNameIdx } = nextRealLine(ls, erdIdx + 1);
+      afzettenNaam     = erdLine;
+      afzettenAdres    = ls[erdNameIdx + 1] || '';
+      afzettenPCPlaats = ls[erdNameIdx + 2] || '';
     }
   }
 
@@ -161,7 +178,8 @@ export default async function parseB2L(buffer) {
     getAdresboekEntry(klantNaam, null, klantAdres)
   ]);
   const ctCode      = await getContainerTypeCode(containertype);
-  const rederijNaam = await getRederijNaam(rederijRaw.split(' ')[0]) || rederijRaw;
+  // Rederij MOET uit de lijst komen — nooit raw doorsturen
+  const rederijNaam = await getRederijNaam(rederijRaw.split(' ')[0]) || '';
 
   const instructies = ls
     .slice(ls.findIndex(l => /SPECIAL INSTRUCTIONS/i.test(l)) + 1,
@@ -237,9 +255,9 @@ export default async function parseB2L(buffer) {
       inleverreferentie: referentie,
       inleverBestemming: '',
 
-      rederij:        rederijNaam || rederijRaw,
+      rederij:        rederijNaam,
       bootnaam,
-      inleverRederij: rederijNaam || rederijRaw,
+      inleverRederij: rederijNaam,
       inleverBootnaam: bootnaam,
 
       zegel: '',
