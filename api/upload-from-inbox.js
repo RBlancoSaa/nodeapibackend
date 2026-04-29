@@ -220,8 +220,8 @@ export default async function handler(req, res) {
                 mailSubject: mail.subject,
                 mailFrom:    mail.from
               });
-              addLog(mail, 'transport', klant, bestanden ?? [], 'verwerkt');
-              verwerkteContainers++;
+              addLog(mail, 'transport', klant, bestanden ?? [], bestanden?.length ? 'verwerkt' : 'overgeslagen');
+              if (bestanden?.length) verwerkteContainers++;
             } catch (err) {
               console.error(`❌ Handler ${klant} fout:`, err.message);
               addLog(mail, 'transport', klant, [], 'fout', err.message);

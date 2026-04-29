@@ -6,8 +6,14 @@ export default async function handleEimskip({ buffer, base64, filename, mailSubj
   console.warn(`⚠️ Eimskip email ontvangen maar parser nog niet geïmplementeerd`);
   console.log(`📧 Van: ${mailFrom || fromEmail}`);
   console.log(`📧 Onderwerp: ${mailSubject}`);
-  console.log(`📄 Bestand: ${filename || '(geen bijlage)'}`);
-  if (bodyText) console.log(`📝 Body (eerste 500): ${bodyText.slice(0, 500)}`);
+
+  if (filename) {
+    console.log(`📄 PDF-bijlage: ${filename} (${buffer ? Math.round(buffer.length / 1024) + ' KB' : 'geen buffer'})`);
+  }
+
+  if (bodyText) {
+    console.log(`📝 Email body (eerste 1000 tekens):\n${bodyText.slice(0, 1000)}`);
+  }
 
   await logOpdracht({
     bron: 'Eimskip',
@@ -15,7 +21,7 @@ export default async function handleEimskip({ buffer, base64, filename, mailSubj
     bestandsnaam: filename || mailSubject || '',
     container: {},
     status: 'FOUT',
-    foutmelding: 'Parser nog niet geïmplementeerd — email body gelogd in console'
+    foutmelding: 'Parser nog niet geïmplementeerd — email body/PDF gelogd in console'
   });
 
   return [];
