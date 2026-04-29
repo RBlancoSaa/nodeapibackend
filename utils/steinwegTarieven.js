@@ -236,7 +236,7 @@ export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr) {
   } else if (terminalKey === 'emx') {
     euromaxChart = 28.50;
   } else if (terminalKey === 'rwg') {
-    blanco2Chart = 30;
+    blanco2Chart = 31;
     blanco2Text  = 'RWG toeslag';
   }
 
@@ -289,7 +289,7 @@ export function berekenLeegTarief(depotNaam, opzetNaam, sizeStr, isPaired) {
   } else if (depotTerminalKey === 'emx') {
     euromaxChart = isPaired ? 28.50 / 2 : 28.50;
   } else if (depotTerminalKey === 'rwg') {
-    blanco2Chart = isPaired ? 30 / 2 : 30;
+    blanco2Chart = isPaired ? 15.50 : 31;
     blanco2Text  = 'RWG toeslag';
   }
 
