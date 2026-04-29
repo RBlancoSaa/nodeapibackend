@@ -256,6 +256,72 @@ export async function getContainerTypeCode(input) {
   return '0';
 }
 
+// ─── Adresboek (centrale lookup voor klanten, charters, lossen/laden) ────────
+
+let _adresboekCache = null;
+let _adresboekCacheTime = 0;
+
+async function getAdresboekLijst() {
+  const nu = Date.now();
+  if (_adresboekCache && nu - _adresboekCacheTime < 30_000) return _adresboekCache;
+  try {
+    const res = await fetch(`${SUPABASE_LIST_URL}/adresboek.json`);
+    _adresboekCache = await res.json();
+    _adresboekCacheTime = nu;
+  } catch (e) {
+    console.error('❌ adresboek.json ophalen mislukt:', e.message);
+    _adresboekCache = [];
+  }
+  return _adresboekCache;
+}
+
+/**
+ * Zoekt een adres in het centrale adresboek via exacte of fuzzy naam-match.
+ * @param {string} zoekNaam  - Naam zoals die in de PDF/mail staat
+ * @param {string} [type]    - Optioneel: filter op Type ('Klant', 'Charter', …)
+ * @returns {{ naam, adres, postcode, plaats, telefoon, mobiel, email, type }|null}
+ */
+export async function getAdresboekEntry(zoekNaam, type = null) {
+  try {
+    if (!zoekNaam || zoekNaam.trim().length < 2) return null;
+    const lijst = await getAdresboekLijst();
+    const gefilterd = type ? lijst.filter(i => i.type?.toLowerCase() === type.toLowerCase()) : lijst;
+
+    const nZoek = normStr(zoekNaam);
+    const wordsZoek = zoekNaam.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+
+    let besteScore = 0;
+    let besteEntry = null;
+
+    for (const item of gefilterd) {
+      const nNaam = normStr(item.naam || '');
+      let score = 0;
+
+      if (nNaam === nZoek)                                          { score = 100; }
+      else if (nNaam.includes(nZoek) || nZoek.includes(nNaam))     { score = 80; }
+      else {
+        const wordsNaam = (item.naam || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        const hits = wordsZoek.filter(w => wordsNaam.some(wn => wn.includes(w) || w.includes(wn)));
+        if (hits.length >= 2)                    score = 40 + hits.length * 15;
+        else if (hits.length === 1 && hits[0].length >= 5) score = 40;
+      }
+
+      if (score > besteScore) { besteScore = score; besteEntry = item; }
+      if (besteScore === 100) break;
+    }
+
+    if (!besteEntry || besteScore < 40) {
+      console.log(`⚠️ Adresboek: geen match voor "${zoekNaam}"${type ? ` (type: ${type})` : ''}`);
+      return null;
+    }
+    console.log(`📒 Adresboek: "${zoekNaam}" → ${besteEntry.naam} [${besteEntry.type}] (score ${besteScore})`);
+    return besteEntry;
+  } catch (e) {
+    console.error('❌ getAdresboekEntry error:', e);
+    return null;
+  }
+}
+
 // ─── Klantdata ────────────────────────────────────────────────────────────────
 
 /**
