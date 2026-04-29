@@ -3,6 +3,7 @@ import '../utils/fsPatch.js';
 import XLSX from 'xlsx';
 import { getKlantData } from '../utils/lookups/terminalLookup.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
+import { berekenVolTarief, berekenLeegTarief, berekenPairs } from '../utils/steinwegTarieven.js';
 
 function normLand(val) {
   const s = (val || '').trim().toUpperCase();
@@ -240,6 +241,9 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       const containerTypeStr = sizetypeToDescription(c1.sizetype || '2210');
       const gewicht          = String(Math.round(parseFloat(c1.gewicht) || 0));
 
+      // Tariefberekening voor volle container
+      const fin = berekenVolTarief(r1.from, r1.to, containerTypeStr);
+
       // Ruwe locaties — enrichOrder doet alle lookups
       const locaties = [
         {
@@ -293,6 +297,15 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         ladenOfLossen: 'Lossen',
         instructies,
         tar: '', documentatie: '', tarra: '0', brix: '0',
+        // Financieel
+        tarief:              fin.tarief,
+        dieselToeslagChart:  fin.dieselToeslagChart,
+        deltaChart:          fin.deltaChart,
+        euromaxChart:        fin.euromaxChart,
+        blanco1Chart:        fin.blanco1Chart,
+        blanco1Text:         fin.blanco1Text,
+        blanco2Chart:        fin.blanco2Chart,
+        blanco2Text:         fin.blanco2Text,
         locaties
       }, { bron: 'Steinweg' }));
     }
@@ -303,9 +316,22 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
   if (r2 && r2.containers.length > 0) {
     const r2Datum = selectEarliestFutureDatum([r2.plannedLoading, r2.plannedDelivery]);
 
+    // Bereken welke containers in een setje (pair) rijden
+    const pairedSet = berekenPairs(r2.containers, c => sizetypeToDescription(c.sizetype || '2210'));
+    console.log(`🔗 Route 2 pairs (${pairedSet.size}/${r2.containers.length}):`, [...pairedSet]);
+
     for (const c2 of r2.containers) {
       const datum            = r2Datum;
       const containerTypeStr = sizetypeToDescription(c2.sizetype || '2210');
+      const isPaired         = pairedSet.has(c2.containernummer);
+
+      // Tariefberekening voor lege container
+      const fin = berekenLeegTarief(
+        c2.returnDepot || c2.destination || '',
+        r2.from,
+        containerTypeStr,
+        isPaired
+      );
 
       // Ruwe locaties — enrichOrder doet alle lookups
       const locaties = [
@@ -357,6 +383,15 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         ladenOfLossen: 'Lossen',
         instructies,
         tar: '', documentatie: '', tarra: '0', brix: '0',
+        // Financieel
+        tarief:              fin.tarief,
+        dieselToeslagChart:  fin.dieselToeslagChart,
+        deltaChart:          fin.deltaChart,
+        euromaxChart:        fin.euromaxChart,
+        blanco1Chart:        fin.blanco1Chart,
+        blanco1Text:         fin.blanco1Text,
+        blanco2Chart:        fin.blanco2Chart,
+        blanco2Text:         fin.blanco2Text,
         locaties
       }, { bron: 'Steinweg' }));
     }

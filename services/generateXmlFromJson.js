@@ -284,15 +284,15 @@ ${(() => {
 </Locatie>
 </Locaties>
 <Financieel>
-<Tarief>0</Tarief>
+<Tarief>${zeroFallback(data.tarief)}</Tarief>
 <BTW>0</BTW>
 <ADR_toeslag_Chart>0</ADR_toeslag_Chart>
 <ADR_bedrag_Chart>0</ADR_bedrag_Chart>
 <Botlek_Chart>0</Botlek_Chart>
 <Chassishuur_Bedrag_chart>0</Chassishuur_Bedrag_chart>
-<Delta_Chart>0</Delta_Chart>
-<Diesel_toeslag_Chart>0</Diesel_toeslag_Chart>
-<Euromax_Chart>0</Euromax_Chart>
+<Delta_Chart>${zeroFallback(data.deltaChart)}</Delta_Chart>
+<Diesel_toeslag_Chart>${zeroFallback(data.dieselToeslagChart)}</Diesel_toeslag_Chart>
+<Euromax_Chart>${zeroFallback(data.euromaxChart)}</Euromax_Chart>
 <ExtraStop_Chart>0</ExtraStop_Chart>
 <GasMeten_Chart>0</GasMeten_Chart>
 <Gen_Chart>0</Gen_Chart>
@@ -305,10 +305,10 @@ ${(() => {
 <MV2_Chart>0</MV2_Chart>
 <Scannen_Chart>0</Scannen_Chart>
 <Tol_Chart>0</Tol_Chart>
-<Blanco1_Chart>0</Blanco1_Chart>
-<Blanco1_Text></Blanco1_Text>
-<Blanco2_Chart>0</Blanco2_Chart>
-<Blanco2_Text></Blanco2_Text>
+<Blanco1_Chart>${zeroFallback(data.blanco1Chart)}</Blanco1_Chart>
+<Blanco1_Text>${c(data.blanco1Text || '')}</Blanco1_Text>
+<Blanco2_Chart>${zeroFallback(data.blanco2Chart)}</Blanco2_Chart>
+<Blanco2_Text>${c(data.blanco2Text || '')}</Blanco2_Text>
 </Financieel>
 </Dossier>
 </Dossiers>
