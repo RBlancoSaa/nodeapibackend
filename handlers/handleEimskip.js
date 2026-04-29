@@ -1,28 +1,82 @@
 // handlers/handleEimskip.js
-// Eimskip transportopdrachten — parser wordt gebouwd zodra email-formaat bekend is
+import '../utils/fsPatch.js';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import parseEimskip from '../parsers/parseEimskip.js';
+import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
+import { getGmailTransporter } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 
-export default async function handleEimskip({ buffer, base64, filename, mailSubject, mailFrom, bodyText, fromEmail = '' }) {
-  console.warn(`⚠️ Eimskip email ontvangen maar parser nog niet geïmplementeerd`);
-  console.log(`📧 Van: ${mailFrom || fromEmail}`);
-  console.log(`📧 Onderwerp: ${mailSubject}`);
+export default async function handleEimskip({
+  bodyText,
+  mailSubject,
+  mailFrom,
+  fromEmail = '',
+  pdfAttachments = []
+}) {
+  console.log(`📦 Eimskip verwerken: ${mailSubject}`);
+  console.log(`📎 PDF-bijlagen: ${pdfAttachments.map(a => a.filename).join(', ') || 'geen'}`);
 
-  if (filename) {
-    console.log(`📄 PDF-bijlage: ${filename} (${buffer ? Math.round(buffer.length / 1024) + ' KB' : 'geen buffer'})`);
+  const containers = await parseEimskip({ bodyText, mailSubject, pdfAttachments });
+
+  if (!containers || containers.length === 0) {
+    console.warn('⚠️ Geen Eimskip containers geparsed');
+    return [];
   }
 
-  if (bodyText) {
-    console.log(`📝 Email body (eerste 1000 tekens):\n${bodyText.slice(0, 1000)}`);
+  const { transporter, from } = await getGmailTransporter();
+  const to = process.env.RECIPIENT_EMAIL || 'opdrachten@tiarotransport.nl';
+  const easyBestanden = [];
+
+  for (const container of containers) {
+    try {
+      const xml = await generateXmlFromJson(container);
+      console.log('📄 Eimskip XML:\n' + xml);
+
+      const cntr          = container.containernummer || 'onbekend';
+      const ref           = container.ritnummer || cntr;
+      const easyFilename  = `Order_${ref}_${cntr}_Eimskip.easy`;
+      const easyPath      = path.join(os.tmpdir(), easyFilename);
+      fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
+
+      // Verstuur .easy + originele PDFs als bijlagen
+      const attachments = [{ filename: easyFilename, path: easyPath }];
+      for (const att of pdfAttachments) {
+        if (att.buffer) {
+          attachments.push({ filename: att.filename, content: att.buffer });
+        }
+      }
+
+      await transporter.sendMail({
+        from, to,
+        subject: `easytrip file - ${ref}`,
+        text:    `Eimskip levering: ${cntr} — ${container.datum} ${container.tijd}`,
+        attachments
+      });
+
+      console.log(`📧 Eimskip verstuurd: ${easyFilename}`);
+      easyBestanden.push(easyFilename);
+
+      await logOpdracht({
+        bron:          'Eimskip',
+        afzenderEmail: mailFrom || fromEmail,
+        bestandsnaam:  mailSubject || '',
+        container,
+        easyBestand:   easyFilename
+      });
+    } catch (err) {
+      console.error(`❌ Fout bij Eimskip container ${container.containernummer}:`, err.message);
+      await logOpdracht({
+        bron:          'Eimskip',
+        afzenderEmail: mailFrom || fromEmail,
+        bestandsnaam:  mailSubject || '',
+        container,
+        status:        'FOUT',
+        foutmelding:   err.message
+      });
+    }
   }
 
-  await logOpdracht({
-    bron: 'Eimskip',
-    afzenderEmail: mailFrom || fromEmail,
-    bestandsnaam: filename || mailSubject || '',
-    container: {},
-    status: 'FOUT',
-    foutmelding: 'Parser nog niet geïmplementeerd — email body/PDF gelogd in console'
-  });
-
-  return [];
+  return easyBestanden;
 }

@@ -71,6 +71,7 @@ const handlers = {
     matchFile:    fn  => /eimskip/i.test(fn),
     matchSender:  frm => /@eimskip\.com/i.test(frm) || /@eimskip\.is/i.test(frm),
     matchSubject: sub => /eimskip/i.test(sub) || /levering\s+container\s+[A-Z]{4}\d{7}/i.test(sub),
+    preferBody:   true,   // verwerk altijd via email body + stuur PDFs mee, niet per PDF apart
     handler: handleEimskip
   }
 };
@@ -205,51 +206,61 @@ export default async function handler(req, res) {
         // PDF-bijlagen
         const pdfAtts = mailAtts.filter(a => a.filename?.toLowerCase().endsWith('.pdf'));
 
+        // Sommige handlers (bijv. Eimskip) verwerken de email body als primaire bron
+        // en ontvangen de PDFs als bijlagen — ze worden NIET per PDF apart aangeroepen.
+        const bodyHandlerMatch = findHandlerForMail(mail);
+        const useBodyHandler   = !!(bodyHandlerMatch && bodyHandlerMatch[1].preferBody);
+
         let verwerkteContainers = 0;
 
-        for (const att of pdfAtts) {
-          const match = findHandler(att.filename, mail.from, mail.subject);
-          if (match) {
-            const [klant, { handler: h }] = match;
-            console.log(`🚚 Handler: ${klant.toUpperCase()} voor ${att.filename}`);
-            try {
-              const bestanden = await h({
-                buffer:      att.buffer,
-                base64:      att.base64,
-                filename:    att.filename,
-                mailSubject: mail.subject,
-                mailFrom:    mail.from
-              });
-              addLog(mail, 'transport', klant, bestanden ?? [], bestanden?.length ? 'verwerkt' : 'overgeslagen');
-              if (bestanden?.length) verwerkteContainers++;
-            } catch (err) {
-              console.error(`❌ Handler ${klant} fout:`, err.message);
-              addLog(mail, 'transport', klant, [], 'fout', err.message);
+        // ── PDF-loop (alleen als handler GEEN preferBody heeft) ──────────────
+        if (!useBodyHandler) {
+          for (const att of pdfAtts) {
+            const match = findHandler(att.filename, mail.from, mail.subject);
+            if (match) {
+              const [klant, { handler: h }] = match;
+              console.log(`🚚 Handler: ${klant.toUpperCase()} voor ${att.filename}`);
+              try {
+                const bestanden = await h({
+                  buffer:      att.buffer,
+                  base64:      att.base64,
+                  filename:    att.filename,
+                  mailSubject: mail.subject,
+                  mailFrom:    mail.from
+                });
+                addLog(mail, 'transport', klant, bestanden ?? [], bestanden?.length ? 'verwerkt' : 'overgeslagen');
+                if (bestanden?.length) verwerkteContainers++;
+              } catch (err) {
+                console.error(`❌ Handler ${klant} fout:`, err.message);
+                addLog(mail, 'transport', klant, [], 'fout', err.message);
+              }
+            } else {
+              console.log(`⏭️ Geen handler voor: ${att.filename}`);
+              addLog(mail, 'transport', null, [], 'overgeslagen');
             }
-          } else {
-            console.log(`⏭️ Geen handler voor: ${att.filename}`);
-            addLog(mail, 'transport', null, [], 'overgeslagen');
           }
         }
 
-        // Geen PDF-bijlagen maar toch transport — verwerk via email body
-        // (bijv. Eimskip, DFDS-email formaat, Jordex zonder bijlage)
-        if (pdfAtts.length === 0) {
-          const match = findHandlerForMail(mail);
+        // ── Email-body branch ────────────────────────────────────────────────
+        // Voor preferBody-handlers (bijv. Eimskip) of als er helemaal geen PDFs zijn
+        if (useBodyHandler || pdfAtts.length === 0) {
+          const match = useBodyHandler ? bodyHandlerMatch : findHandlerForMail(mail);
           if (match) {
             const [klant, { handler: h }] = match;
-            console.log(`🚚 Handler via afzender/onderwerp: ${klant.toUpperCase()} (geen PDF-bijlage, email body)`);
+            console.log(`🚚 Handler via afzender/onderwerp: ${klant.toUpperCase()}${useBodyHandler ? ' (preferBody)' : ' (geen PDF-bijlage)'}`);
             try {
               const bestanden = await h({
-                buffer:      null,
-                base64:      null,
-                filename:    null,
-                bodyText:    mail.bodyText || '',
-                mailSubject: mail.subject  || '',
-                mailFrom:    mail.from     || '',
-                fromEmail:   mail.from     || ''
+                buffer:         null,
+                base64:         null,
+                filename:       null,
+                bodyText:       mail.bodyText || '',
+                mailSubject:    mail.subject  || '',
+                mailFrom:       mail.from     || '',
+                fromEmail:      mail.from     || '',
+                pdfAttachments: useBodyHandler ? pdfAtts : []
               });
               addLog(mail, 'transport', klant, bestanden ?? [], bestanden?.length ? 'verwerkt' : 'overgeslagen');
+              if (bestanden?.length) verwerkteContainers++;
             } catch (err) {
               console.error(`❌ Handler ${klant} (body) fout:`, err.message);
               addLog(mail, 'transport', klant, [], 'fout', err.message);
