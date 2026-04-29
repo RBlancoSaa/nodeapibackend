@@ -1,7 +1,6 @@
 // api/dashboard.js
 // Volledig dashboard: opdrachten, email log, fouten en statistieken
 // Beveiligd met ?token=<CRON_SECRET>
-import '../utils/fsPatch.js';
 import { supabase } from '../services/supabaseClient.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -30,6 +29,7 @@ function typePill(t) {
 
 // ── Main handler ─────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  try {
   const token = req.query?.token || '';
   if (token !== (process.env.CRON_SECRET || '')) {
     res.status(401).send('Niet geautoriseerd');
@@ -579,4 +579,9 @@ function exportCsv() {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
   res.status(200).send(html);
+
+  } catch (err) {
+    console.error('❌ Dashboard crash:', err);
+    res.status(500).send(`<pre>Dashboard fout:\n${err?.stack || err?.message || String(err)}</pre>`);
+  }
 }
