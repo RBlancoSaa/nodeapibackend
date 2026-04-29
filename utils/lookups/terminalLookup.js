@@ -340,7 +340,11 @@ export async function getAdresboekEntry(zoekNaam, type = null, zoekAdres = '') {
         else if (hits.length === 1 && hits[0].length >= 5)  score = 40;
       }
 
-      // ── Adres-bonus (tiebreaker als meerdere adres-matchende entries) ────────
+      // Als adresVereist EN naam matcht niet → nooit teruggeven, ook al matcht het adres.
+      // Adres is vereist als gate; naam moet ook minimaal iets matchen.
+      if (adresVereist && score === 0) continue;
+
+      // ── Adres-bonus (tiebreaker als meerdere naam-matchende entries bij zelfde adres) ──
       if (straatZoek && straatItem) {
         if (straatItem === straatZoek)                                            score += 50;
         else if (straatItem.includes(straatZoek) || straatZoek.includes(straatItem)) score += 25;
@@ -350,10 +354,10 @@ export async function getAdresboekEntry(zoekNaam, type = null, zoekAdres = '') {
       if (besteScore >= 150) break; // perfecte naam + adres match
     }
 
-    // Minimumdrempel (alleen naam-score telt mee als adresVereist):
-    // Als adresVereist: drempel 1 → elke adres-match wordt geaccepteerd (naam is tiebreaker)
-    // Als geen adres: drempel 55 → naam moet duidelijk matchen
-    const drempel = adresVereist ? 1 : 55;
+    // Minimumdrempel:
+    // adresVereist: naam moet >= 40 scoren (één woordmatch) + adres matcht → betrouwbaar
+    // geen adres:   naam moet >= 55 scoren (twee woordmatches of naam-contains)
+    const drempel = adresVereist ? 40 : 55;
     if (!besteEntry || besteScore < drempel) {
       console.log(`⚠️ Adresboek: geen match voor "${zoekNaam}"${zoekAdres ? ` @ ${zoekAdres}` : ''}${type ? ` [${type}]` : ''}`);
       return null;
