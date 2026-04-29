@@ -7,6 +7,7 @@ import {
   getContainerTypeCode,
   getTerminalInfoFallback,
   getTerminalInfoMetFallback,
+  getAdresboekEntry,
   normLand,
   cleanFloat
 } from '../utils/lookups/terminalLookup.js';
@@ -461,8 +462,11 @@ if (/[A-Za-z].*\d/.test(doAdresCandidate) || /^\d+\b/.test(doAdresCandidate)) {
 }
 
 // 🧠 Terminal lookup — alleen uit lijst, nooit invullen
-  const pickupInfo  = await getTerminalInfoMetFallback(puKey);
-  const dropoffInfo = await getTerminalInfoMetFallback(doKey);
+  const [pickupInfo, dropoffInfo, klantAdresboek] = await Promise.all([
+    getTerminalInfoMetFallback(puKey),
+    getTerminalInfoMetFallback(doKey),
+    getAdresboekEntry(klantNaam, null, adres)
+  ]);
   if (!pickupInfo)  console.log(`⚠️ Opzet-terminal niet in lijst: "${puKey}"`);
   if (!dropoffInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${doKey}"`);
 
@@ -471,10 +475,10 @@ const klantregels = regels
   .slice(puIndex + 1, puIndex + 8)
   .filter(l => l && !/^Cargo:|^Reference/i.test(l))
   .slice(0, 4);                            
-data.klantnaam = klantNaam;
-data.klantadres = adres;
-data.klantpostcode = postcode;
-data.klantplaats = plaats;
+data.klantnaam    = klantAdresboek?.naam     || klantNaam;
+data.klantadres   = klantAdresboek?.adres    || adres;
+data.klantpostcode = klantAdresboek?.postcode || postcode;
+data.klantplaats  = klantAdresboek?.plaats   || plaats;
 console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
 
 
@@ -554,11 +558,11 @@ data.locaties = [
   },
   {
     volgorde: '0',
-    actie: data.isLossenOpdracht ? 'Lossen' : 'Laden',
-    naam:     data.klantnaam    || '',
-    adres:    data.klantadres   || '',
+    actie:    data.isLossenOpdracht ? 'Lossen' : 'Laden',
+    naam:     data.klantnaam     || '',
+    adres:    data.klantadres    || '',
     postcode: data.klantpostcode || '',
-    plaats:   data.klantplaats  || '',
+    plaats:   data.klantplaats   || '',
     land: 'NL'
   },
   {

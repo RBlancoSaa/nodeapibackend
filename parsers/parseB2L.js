@@ -3,6 +3,7 @@ import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
+  getAdresboekEntry,
   getContainerTypeCode,
   getRederijNaam,
   getKlantData,
@@ -153,10 +154,11 @@ export default async function parseB2L(buffer) {
   const klantPlaats = pcMatch?.[2] || '';
 
   // Terminal lookups
-  const [opzettenInfo, afzettenInfo, klant] = await Promise.all([
+  const [opzettenInfo, afzettenInfo, klant, klantInfo] = await Promise.all([
     getTerminalInfoMetFallback(opzettenNaam),
     getTerminalInfoMetFallback(afzettenNaam),
-    getKlantData('b2l cargocare')
+    getKlantData('b2l cargocare'),
+    getAdresboekEntry(klantNaam, null, klantAdres)
   ]);
   const ctCode      = await getContainerTypeCode(containertype);
   const rederijNaam = await getRederijNaam(rederijRaw.split(' ')[0]) || rederijRaw;
@@ -188,10 +190,10 @@ export default async function parseB2L(buffer) {
       },
       {
         volgorde: '0', actie: laadActie,
-        naam:     klantNaam,
-        adres:    klantAdres,
-        postcode: klantPC,
-        plaats:   klantPlaats,
+        naam:     klantInfo?.naam     || klantNaam,
+        adres:    klantInfo?.adres    || klantAdres,
+        postcode: klantInfo?.postcode || klantPC,
+        plaats:   klantInfo?.plaats   || klantPlaats,
         land:     klantLand === 'NETHERLANDS' ? 'NL' : (klantLand || 'NL')
       },
       {
@@ -210,10 +212,10 @@ export default async function parseB2L(buffer) {
 
     results.push({
       ritnummer,
-      klantnaam:    klantNaam,
-      klantadres:   klantAdres,
-      klantpostcode: klantPC,
-      klantplaats:  klantPlaats,
+      klantnaam:    klantInfo?.naam     || klantNaam,
+      klantadres:   klantInfo?.adres    || klantAdres,
+      klantpostcode: klantInfo?.postcode || klantPC,
+      klantplaats:  klantInfo?.plaats   || klantPlaats,
 
       opdrachtgeverNaam:     klant.naam     || 'B2L CARGOCARE',
       opdrachtgeverAdres:    klant.adres    || '',

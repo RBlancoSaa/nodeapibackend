@@ -3,6 +3,7 @@ import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
+  getAdresboekEntry,
   getContainerTypeCode,
   getRederijNaam,
   normLand,
@@ -141,9 +142,10 @@ export default async function parseRitra(buffer) {
   }
 
   // Terminal lookups
-  const [opzettenInfo, afzettenInfo] = await Promise.all([
+  const [opzettenInfo, afzettenInfo, ladenInfo] = await Promise.all([
     getTerminalInfoMetFallback(opzettenNaam),
-    getTerminalInfoMetFallback(afzettenNaam)
+    getTerminalInfoMetFallback(afzettenNaam),
+    getAdresboekEntry(klantNaam, null, klantAdres)
   ]);
   if (!opzettenInfo) console.log(`⚠️ Opzet-terminal niet in lijst: "${opzettenNaam}"`);
   if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${afzettenNaam}"`);
@@ -165,10 +167,10 @@ export default async function parseRitra(buffer) {
     },
     {
       volgorde: '0', actie: 'Laden',
-      naam:     klantNaam,
-      adres:    klantAdres,
-      postcode: klantPC,
-      plaats:   klantPlaats,
+      naam:     ladenInfo?.naam     || klantNaam,
+      adres:    ladenInfo?.adres    || klantAdres,
+      postcode: ladenInfo?.postcode || klantPC,
+      plaats:   ladenInfo?.plaats   || klantPlaats,
       land:     klantLand === 'NEDERLAND' ? 'NL' : (klantLand || 'NL')
     },
     {
@@ -187,10 +189,10 @@ export default async function parseRitra(buffer) {
 
   return [{
     ritnummer,
-    klantnaam:    klantNaam,
-    klantadres:   klantAdres,
-    klantpostcode: klantPC,
-    klantplaats:  klantPlaats,
+    klantnaam:    ladenInfo?.naam     || klantNaam,
+    klantadres:   ladenInfo?.adres    || klantAdres,
+    klantpostcode: ladenInfo?.postcode || klantPC,
+    klantplaats:  ladenInfo?.plaats   || klantPlaats,
 
     opdrachtgeverNaam:     'RITRA',
     opdrachtgeverAdres:    'ALBERT PLESMANWEG 61C',

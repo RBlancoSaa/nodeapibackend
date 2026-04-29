@@ -3,6 +3,7 @@ import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
+  getAdresboekEntry,
   getContainerTypeCode,
   getRederijNaam,
   getKlantData
@@ -210,10 +211,11 @@ export default async function parseSteder(buffer) {
   const tijd  = loc2.tijd  || loc1.tijd  || '';
 
   // === Terminal & klant lookups ===
-  const [opzettenInfo, afzettenInfo, opdrachtgever] = await Promise.all([
+  const [opzettenInfo, afzettenInfo, opdrachtgever, ladenInfo] = await Promise.all([
     getTerminalInfoMetFallback(loc1.naam || ''),
     getTerminalInfoMetFallback(loc3.naam || ''),
-    getKlantData('steder')
+    getKlantData('steder'),
+    getAdresboekEntry(loc2.naam || '', null, loc2.adres || '')
   ]);
   if (!opzettenInfo) console.log(`⚠️ Opzet-terminal niet in lijst: "${loc1.naam}"`);
   if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${loc3.naam}"`);
@@ -240,10 +242,10 @@ export default async function parseSteder(buffer) {
     },
     {
       volgorde: '0', actie: ladenOfLossen,
-      naam:     loc2.naam     || '',
-      adres:    loc2.adres    || '',
-      postcode: loc2.postcode || '',
-      plaats:   loc2.plaats   || '',
+      naam:     ladenInfo?.naam     || loc2.naam     || '',
+      adres:    ladenInfo?.adres    || loc2.adres    || '',
+      postcode: ladenInfo?.postcode || loc2.postcode || '',
+      plaats:   ladenInfo?.plaats   || loc2.plaats   || '',
       land:     'NL'
     },
     {
@@ -262,10 +264,10 @@ export default async function parseSteder(buffer) {
 
   return [{
     ritnummer,
-    klantnaam:     loc2.naam     || '',
-    klantadres:    loc2.adres    || '',
-    klantpostcode: loc2.postcode || '',
-    klantplaats:   loc2.plaats   || '',
+    klantnaam:     ladenInfo?.naam     || loc2.naam     || '',
+    klantadres:    ladenInfo?.adres    || loc2.adres    || '',
+    klantpostcode: ladenInfo?.postcode || loc2.postcode || '',
+    klantplaats:   ladenInfo?.plaats   || loc2.plaats   || '',
 
     opdrachtgeverNaam:     opdrachtgever?.naam     || 'STEDER',
     opdrachtgeverAdres:    opdrachtgever?.adres    || '',

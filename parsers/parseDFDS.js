@@ -185,8 +185,8 @@ export default async function parseDFDS(buffer) {
 
   const [pickupInfo, lossenAdresboek, lossenTerminal, dropoffInfo] = await Promise.all([
     getTerminalInfoMetFallback(pickupLocNaam),
-    getAdresboekEntry(lossenLocNaam),          // adresboek heeft voorrang voor Lossen
-    getTerminalInfoMetFallback(lossenLocNaam),  // fallback als niet in adresboek
+    getAdresboekEntry(lossenLocNaam, null, lossenLocAdres),  // adres uit PDF meegeven voor betere match
+    getTerminalInfoMetFallback(lossenLocNaam),               // fallback als niet in adresboek
     getTerminalInfoMetFallback(dropoffLocNaam)
   ]);
 

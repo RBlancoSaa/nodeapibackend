@@ -276,19 +276,23 @@ async function getAdresboekLijst() {
 }
 
 /**
- * Zoekt een adres in het centrale adresboek via exacte of fuzzy naam-match.
- * @param {string} zoekNaam  - Naam zoals die in de PDF/mail staat
- * @param {string} [type]    - Optioneel: filter op Type ('Klant', 'Charter', …)
+ * Zoekt een adres in het centrale adresboek via naam + optioneel adres.
+ * Het adres is het primaire kenmerk: een sterke adres-match compenseert een zwakkere naamovereenkomst.
+ *
+ * @param {string} zoekNaam   - Naam zoals die in de PDF/mail staat
+ * @param {string} [type]     - Optioneel: filter op Type ('Klant', 'Charter', …)
+ * @param {string} [zoekAdres]- Optioneel: straatadres uit PDF ter verificatie
  * @returns {{ naam, adres, postcode, plaats, telefoon, mobiel, email, type }|null}
  */
-export async function getAdresboekEntry(zoekNaam, type = null) {
+export async function getAdresboekEntry(zoekNaam, type = null, zoekAdres = '') {
   try {
     if (!zoekNaam || zoekNaam.trim().length < 2) return null;
     const lijst = await getAdresboekLijst();
     const gefilterd = type ? lijst.filter(i => i.type?.toLowerCase() === type.toLowerCase()) : lijst;
 
-    const nZoek = normStr(zoekNaam);
+    const nZoek  = normStr(zoekNaam);
     const wordsZoek = zoekNaam.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const straatZoek = straatNaam(zoekAdres);   // bijv. "nieuwesluisweg"
 
     let besteScore = 0;
     let besteEntry = null;
@@ -297,21 +301,34 @@ export async function getAdresboekEntry(zoekNaam, type = null) {
       const nNaam = normStr(item.naam || '');
       let score = 0;
 
-      if (nNaam === nZoek)                                          { score = 100; }
-      else if (nNaam.includes(nZoek) || nZoek.includes(nNaam))     { score = 80; }
-      else {
+      // ── Naam-score ──────────────────────────────────────────────────────────
+      if (nNaam === nZoek) {
+        score = 100;
+      } else if (nNaam.includes(nZoek) || nZoek.includes(nNaam)) {
+        score = 80;
+      } else {
         const wordsNaam = (item.naam || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
         const hits = wordsZoek.filter(w => wordsNaam.some(wn => wn.includes(w) || w.includes(wn)));
-        if (hits.length >= 2)                    score = 40 + hits.length * 15;
+        if (hits.length >= 2)                              score = 40 + hits.length * 15;
         else if (hits.length === 1 && hits[0].length >= 5) score = 40;
       }
 
+      // ── Adres-bonus (meest betrouwbaar) ─────────────────────────────────────
+      if (straatZoek) {
+        const straatEntry = straatNaam(item.adres || '');
+        if (straatZoek && straatEntry) {
+          if (straatZoek === straatEntry)                                           score += 50;
+          else if (straatEntry.includes(straatZoek) || straatZoek.includes(straatEntry)) score += 25;
+        }
+      }
+
       if (score > besteScore) { besteScore = score; besteEntry = item; }
-      if (besteScore === 100) break;
+      if (besteScore >= 150) break; // perfecte naam + adres match
     }
 
+    // Minimumdrempel: naam-only ≥40 of adres-only ≥50
     if (!besteEntry || besteScore < 40) {
-      console.log(`⚠️ Adresboek: geen match voor "${zoekNaam}"${type ? ` (type: ${type})` : ''}`);
+      console.log(`⚠️ Adresboek: geen match voor "${zoekNaam}"${zoekAdres ? ` @ ${zoekAdres}` : ''}${type ? ` [${type}]` : ''}`);
       return null;
     }
     console.log(`📒 Adresboek: "${zoekNaam}" → ${besteEntry.naam} [${besteEntry.type}] (score ${besteScore})`);
