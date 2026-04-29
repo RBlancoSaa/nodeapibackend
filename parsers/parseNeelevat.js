@@ -4,19 +4,6 @@ import pdfParse from 'pdf-parse';
 import { getKlantData, normLand, cleanFloat } from '../utils/lookups/terminalLookup.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
-function normLand(val) {
-  const s = (val || '').trim().toUpperCase();
-  if (!s) return 'NL';
-  if (s === 'NEDERLAND' || s === 'NETHERLANDS') return 'NL';
-  if (s === 'DUITSLAND' || s === 'GERMANY' || s === 'DEUTSCHLAND') return 'DE';
-  if (s === 'BELGIE' || s === 'BELGIË' || s === 'BELGIUM') return 'BE';
-  return s;
-}
-
-function cleanFloat(val) {
-  if (!val) return '';
-  return String(val).trim().replace(/\.0+$/, '');
-}
 
 function parseDatum(str) {
   const m = (str || '').match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
