@@ -1,19 +1,8 @@
 // parsers/parseJordex.js
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
-import {
-  getTerminalInfo,
-  getRederijNaam,
-  getContainerTypeCode,
-  getTerminalInfoFallback,
-  getTerminalInfoMetFallback,
-  getAdresboekEntry,
-  voegAdresboekEntryToe,
-  normLand,
-  cleanFloat
-} from '../utils/lookups/terminalLookup.js';
-
-
+import { normLand, cleanFloat } from '../utils/lookups/terminalLookup.js';
+import { enrichOrder } from '../utils/enrichOrder.js';
 
 function logResult(label, value) {
   console.log(`🔍 ${label}:`, value || '[LEEG]');
@@ -49,7 +38,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   const text = parsed.text;
   const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
   const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
-  
+
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
   const multiExtract = (patterns) => {
     for (const pattern of patterns) {
@@ -303,7 +292,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     }
   }
   console.log(`📦 Eindwaarden: volume=${volume}, gewicht=${gewicht}, lading=${lading}, colli=${colli}`);
-  
+
   // 📅 Datum & tijd — zoek in pickupRegels, anders in de volledige regels
   const dateLine = pickupRegels.find(r => /^Date[:\t ]/i.test(r))
     || regels.find(r => /^Date[:\t ]/i.test(r))
@@ -346,12 +335,18 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
     const laadreferentie = refLine.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i)?.[1]?.trim() || '';
 
     const fromMatch = text.match(/From:\s*(.*)/);
- 
+
         console.log('📅 Extractie uit pickupRegels:', pickupRegels);
         console.log('📅 dateLine:', dateLine);
         console.log('📅 dateMatchText:', dateMatchText, 'dateMatchNum:', dateMatchNum);
         console.log('📅 laadDatum:', laadDatum);
         console.log('📅 laadTijd:', laadTijd);
+
+  // Rederij: raw waarde, enrichOrder doet de lookup
+  const rederijRaw_full = multiExtract([/Carrier[:\t ]+(.+)/i]) || '';
+  const rederijRaw = rederijRaw_full.includes(' - ')
+    ? rederijRaw_full.split(' - ')[1].trim()
+    : rederijRaw_full.trim();
 
 const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
@@ -368,14 +363,18 @@ const data = {
     geladenGewicht: logResult('geladenGewicht', gewicht),
     lading: logResult('lading', lading),
     tarra: '0',
-    
 
     inleverreferentie: logResult('inleverreferentie', (() => {
       const sectie = text.match(/Drop[-\s]?off terminal([\s\S]+?)(?=Pick[-\s]?up terminal\b|$)/i)?.[1] || '';
       return sectie.match(/Reference\(s\):\s*(.+)/i)?.[1]?.trim() || '0';
       })()),
-    rederij: logResult('rederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
+
+    rederijRaw,          // enrichOrder doet de lookup
+    rederij:        '',
+    inleverRederij: '',
     bootnaam: logResult('bootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
+    inleverBootnaam: logResult('inleverBootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
+
     containernummer: logResult('containernummer', (() => {
       // ISO 6346: 3 owner letters + U + 7 digits, bijv. TEMU1234567
       const result = formatCContainerNr || multiExtract([
@@ -410,15 +409,14 @@ const data = {
     instructies: logResult('instructies', bijzonderheid),
     laadreferentie: logResult('laadreferentie', laadreferentie),
     containertype: logResult('containertype', containertype),
-    inleverBootnaam: logResult('inleverBootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
-    inleverRederij: logResult('inleverRederij', multiExtract([/Carrier[:\t ]+(.+)/i])),
-      inleverBestemming: logResult('inleverBestemming', (() => {
+    containertypeCode: '0',    // enrichOrder doet de lookup
+    inleverBestemming: logResult('inleverBestemming', (() => {
         const raw = multiExtract([/Final destination[:\t ]+(.+)/i, /Arrival[:\t ]+(.+)/i]);
         // Strip leading date + optioneel tijdstip zoals "20 May 2026 23:00 " van arrival-regels
         return raw?.replace(/^\d{1,2}\s+\w+\s+\d{4}(?:\s+\d{2}:\d{2})?\s+/i, '').trim() || '';
       })()),
 
-// Terminalextractie: werkelijke naam staat onder “Address:” in de sectie
+// Terminalextractie: werkelijke naam staat onder "Address:" in de sectie
    pickupTerminal: logResult('pickupTerminal', (() => {
       const sectie = text.match(/Pick[-\s]?up terminal([\s\S]+?)(?=Drop[-\s]?off terminal\b|$)/i)?.[1] || '';
       return sectie.match(/Address:\s*(.+)/i)?.[1].trim() || '';
@@ -443,13 +441,9 @@ const data = {
     opdrachtgeverEmail: 'TRANSPORT@JORDEX.COM',
     opdrachtgeverBTW: 'NL815340011B01',
     opdrachtgeverKVK: '24390991',
-
-    terminal: '0',
-    rederijCode: '0',
-    containertypeCode: '0'
   };
 
-// Verwijder “terminal” suffix zodat je sleutel mét en stemt met Supabase
+// Verwijder "terminal" suffix zodat je sleutel mét en stemt met Supabase
 // Terminalnamen uit eerste regel na de sectiekop (geen "Address:" prefix in terminalsecties)
 const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
 const doIndex = regels.findIndex(line => /^Drop[-\s]?off terminal$/i.test(line));
@@ -488,38 +482,11 @@ if (/[A-Za-z].*\d/.test(doAdresCandidate) || /^\d+\b/.test(doAdresCandidate)) {
   if (pcM) { doPCRaw = `${pcM[1]} ${pcM[2]}`; doPlaatsRaw = pcM[3].trim(); }
 }
 
-// 🧠 Terminal lookup — alleen uit lijst, nooit invullen
-  const [pickupInfo, dropoffInfo, klantAdresboek, ...extraStopInfos] = await Promise.all([
-    getTerminalInfoMetFallback(puKey),
-    getTerminalInfoMetFallback(doKey),
-    getAdresboekEntry(klantNaam, null, adres),
-    ...extraStopBlokken.map(es => getAdresboekEntry(es.naam, null, es.adres))
-  ]);
-  if (!pickupInfo)  console.log(`⚠️ Opzet-terminal niet in lijst: "${puKey}"`);
-  if (!dropoffInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${doKey}"`);
-  if (!klantAdresboek && klantNaam && adres) {
-    await voegAdresboekEntryToe({ naam: klantNaam, adres, postcode: postcode || '', plaats: plaats || '', type: 'Klant', bron: 'Jordex auto' });
-  }
-  for (let i = 0; i < extraStopBlokken.length; i++) {
-    const es = extraStopBlokken[i];
-    if (!extraStopInfos[i] && es.naam && es.adres) {
-      await voegAdresboekEntryToe({ naam: es.naam, adres: es.adres, postcode: es.postcode || '', plaats: es.plaats || '', type: 'Klant', bron: 'Jordex extra stop auto' });
-    }
-  }
-
-// Klantgegevens uit de Pick-up sectie: vier regels erna
-const klantregels = regels
-  .slice(puIndex + 1, puIndex + 8)
-  .filter(l => l && !/^Cargo:|^Reference/i.test(l))
-  .slice(0, 4);                            
-data.klantnaam    = klantAdresboek?.naam     || klantNaam;
-data.klantadres   = klantAdresboek?.adres    || adres;
-data.klantpostcode = klantAdresboek?.postcode || postcode;
-data.klantplaats  = klantAdresboek?.plaats   || plaats;
-console.log('🔍 Klantgegevens uit Pick-up blok:', klantregels);
-
-
-// 🧾 Debug loggen voor controle
+// Klantgegevens: raw waarden — enrichOrder synct na adresboek lookup
+data.klantnaam    = klantNaam;
+data.klantadres   = adres;
+data.klantpostcode = postcode;
+data.klantplaats  = plaats;
 console.log('🔍 Klantgegevens uit Pick-up blok:');
 console.log('👉 naam:', data.klantnaam);
 console.log('👉 adres:', data.klantadres);
@@ -549,100 +516,6 @@ if (data.imo !== '0' || data.unnr !== '0') {
   delete data.unnr;
   delete data.brix;
 }
-  
-try {
-  data.terminal = await getTerminalInfo(data.dropoffTerminal) || '0';
-  data.containertypeCode = await getContainerTypeCode(data.containertype) || '0';
-
-  const baseRederij = data.rederij.includes(' - ')
-    ? data.rederij.split(' - ')[1].trim()
-    : data.rederij.trim();
-
-  const officiëleRederij = await getRederijNaam(baseRederij);
-  console.log('🎯 MATCH uit rederijenlijst:', officiëleRederij);
-  if (officiëleRederij) {
-    data.rederij = officiëleRederij;
-    data.inleverRederij = officiëleRederij;
-  } else {
-    console.warn(`⚠️ Jordex rederij "${baseRederij}" niet gevonden — veld leeggemaakt`);
-    data.rederij = '';
-    data.inleverRederij = '';
-  }
-  
-} catch (e) {
-  console.warn('⚠️ Fout in terminal of rederij lookup:', e);
-}
- 
-
-// Bijzonderheden uitbreiden bij onbekende terminals
-const onbekendeMeldingen = [];
-if (!pickupInfo  && puNaamRaw)  onbekendeMeldingen.push(`Opzet-terminal niet in lijst: ${puNaamRaw}`);
-if (!dropoffInfo && doNaamRaw)  onbekendeMeldingen.push(`Afzet-terminal niet in lijst: ${doNaamRaw}`);
-if (onbekendeMeldingen.length) {
-  data.instructies = [data.instructies, ...onbekendeMeldingen].filter(Boolean).join(' | ');
-}
-
-// 🔁 Locatiestructuur — alleen data uit lijst of direct uit PDF, nooit invullen
-data.locaties = [
-  // [0] Opzetten
-  {
-    volgorde: '0',
-    actie: 'Opzetten',
-    naam:     pickupInfo?.naam     || puNaamRaw  || '',
-    adres:    pickupInfo?.adres    || puAdresRaw || '',
-    postcode: pickupInfo?.postcode || puPCRaw    || '',
-    plaats:   pickupInfo?.plaats   || puPlaatsRaw || '',
-    land:     normLand(pickupInfo?.land || 'NL'),
-    voorgemeld:    pickupInfo ? (pickupInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
-    aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-    portbase_code: cleanFloat(pickupInfo?.portbase_code || ''),
-    bicsCode:      cleanFloat(pickupInfo?.bicsCode      || '')
-  },
-  // [1] Laden/Lossen (primaire locatie uit Pick-up sectie)
-  {
-    volgorde: '0',
-    actie:    data.isLossenOpdracht ? 'Lossen' : 'Laden',
-    naam:     data.klantnaam     || '',
-    adres:    data.klantadres    || '',
-    postcode: data.klantpostcode || '',
-    plaats:   data.klantplaats   || '',
-    land: 'NL'
-  },
-  // [2..N-2] Extra stops (bijladen — worden ingevoegd vóór Afzetten)
-  ...extraStopBlokken.map((es, idx) => {
-    const esInfo = extraStopInfos[idx];
-    return {
-      volgorde: '0',
-      actie:    'Laden',
-      naam:     esInfo?.naam     || es.naam,
-      adres:    esInfo?.adres    || es.adres,
-      postcode: esInfo?.postcode || es.postcode,
-      plaats:   esInfo?.plaats   || es.plaats,
-      land:     esInfo?.land     || 'NL'
-    };
-  }),
-  // [-1] Afzetten
-  {
-    volgorde: '0',
-    actie: 'Afzetten',
-    naam:     dropoffInfo?.naam     || doNaamRaw  || '',
-    adres:    dropoffInfo?.adres    || doAdresRaw || '',
-    postcode: dropoffInfo?.postcode || doPCRaw    || '',
-    plaats:   dropoffInfo?.plaats   || doPlaatsRaw || '',
-    land:     normLand(dropoffInfo?.land || 'NL'),
-    voorgemeld:    dropoffInfo ? (dropoffInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
-    aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-    portbase_code: cleanFloat(dropoffInfo?.portbase_code || ''),
-    bicsCode:      cleanFloat(dropoffInfo?.bicsCode      || '')
-  }
-];
-if (extraStopBlokken.length > 0) {
-  console.log(`📍 Locatiestructuur: ${data.locaties.length} stops (${data.locaties.map(l => l.actie).join(' → ')})`);
-}
-
-  if (!data.referentie || data.referentie === '0') {
-    console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
-  }
 
 if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes('OE')) {
   const match = parsed.info.Title.match(/(O[EI]\d{7})/i);
@@ -651,13 +524,65 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
   }
 }
 
+  if (!data.referentie || data.referentie === '0') {
+    console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
+  }
+
+// 🔁 Ruwe locatiestructuur — enrichOrder doet alle lookups
+data.locaties = [
+  // [0] Opzetten
+  {
+    volgorde: '0',
+    actie: 'Opzetten',
+    naam:     puNaamRaw  || '',
+    adres:    puAdresRaw || '',
+    postcode: puPCRaw    || '',
+    plaats:   puPlaatsRaw || '',
+    land:     'NL'
+  },
+  // [1] Laden/Lossen (primaire locatie uit Pick-up sectie)
+  {
+    volgorde: '0',
+    actie:    data.ladenOfLossen,
+    naam:     klantNaam || '',
+    adres:    adres     || '',
+    postcode: postcode  || '',
+    plaats:   plaats    || '',
+    land: 'NL'
+  },
+  // [2..N-2] Extra stops (bijladen — worden ingevoegd vóór Afzetten)
+  ...extraStopBlokken.map(es => ({
+    volgorde: '0',
+    actie:    'Laden',
+    naam:     es.naam,
+    adres:    es.adres,
+    postcode: es.postcode,
+    plaats:   es.plaats,
+    land:     'NL'
+  })),
+  // [-1] Afzetten
+  {
+    volgorde: '0',
+    actie: 'Afzetten',
+    naam:     doNaamRaw   || '',
+    adres:    doAdresRaw  || '',
+    postcode: doPCRaw     || '',
+    plaats:   doPlaatsRaw || '',
+    land:     'NL'
+  }
+];
+if (extraStopBlokken.length > 0) {
+  console.log(`📍 Locatiestructuur: ${data.locaties.length} stops (${data.locaties.map(l => l.actie).join(' → ')})`);
+}
+
   console.log('📍 Volledige locatiestructuur gegenereerd:', data.locaties);
   console.log('✅ Eindwaarde opdrachtgever:', data.opdrachtgeverNaam);
-  console.log('🧪 DROP-OFF terminal:', dropoffInfo);
-  console.log('🧪 PICK-UP terminal:', pickupInfo);
 
-  // 📦 Per container een apart resultaat object
-  const parseContainerRegel = async (line, index) => {
+  // Helper: deep-copy locaties zodat enrichOrder elke container afzonderlijk kan muteren
+  const cloneLocaties = () => data.locaties.map(l => ({ ...l }));
+
+  // 📦 Per container een apart resultaat object (Format A)
+  const parseContainerRegel = (line, index) => {
     const vRaw = line.match(/([\d.,]+)\s*m³/i)?.[1] || '0';
     const vol = String(parseInt(vRaw, 10) || 0);
     const gRaw = line.match(/([\d.,]+)\s*kg/i)?.[1]?.replace(',', '.') || '0';
@@ -665,8 +590,7 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
     const lad = line.match(/\d+\s*kg\s*(.+)/i)?.[1]?.trim() || '';
     // Containertype = alles vóór de eerste aaneengesloten cijferreeks die eindigt op m³
     const ctType = line.replace(/\d+\s*m³.*$/i, '').replace(/\d+$/, '').trim() || data.containertype;
-    const ctCode = await getContainerTypeCode(ctType) || '0';
-    console.log(`📦 Container ${index + 1}: type=${ctType}, volume=${vol}, gewicht=${gew}, lading=${lad}, code=${ctCode}`);
+    console.log(`📦 Container ${index + 1}: type=${ctType}, volume=${vol}, gewicht=${gew}, lading=${lad}`);
     return {
       ...data,
       volume: vol,
@@ -677,15 +601,17 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
       lading: lad,
       colli: '0',
       containertype: ctType,
-      containertypeCode: ctCode
+      containertypeCode: '0',
+      locaties: cloneLocaties()
     };
   };
 
   // Format A: reefer tabelrijen met m³ + kg
   if (containerDataLines.length > 0) {
-    const results = await Promise.all(containerDataLines.map(parseContainerRegel));
-    console.log(`✅ ${results.length} container(s) geparsed (Format A: tabelrijen)`);
-    return results;
+    const rawResults = containerDataLines.map(parseContainerRegel);
+    const enriched = await Promise.all(rawResults.map(r => enrichOrder(r, { bron: 'Jordex' })));
+    console.log(`✅ ${enriched.length} container(s) geparsed (Format A: tabelrijen)`);
+    return enriched;
   }
 
   // Format B: meerdere Cargo:-blokken (droge containers / gevaarlijke goederen)
@@ -715,7 +641,6 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
       const blok     = pickupRegels.slice(startIdx, endIdx);
 
       const ctType = blok[0].match(/\d+\s*x\s*(.+)/i)?.[1]?.trim() || data.containertype;
-      const ctCode = await getContainerTypeCode(ctType) || '0';
 
       // Aantal containers uit "2 X 20' container" → 2
       const qty = parseInt(blok[0].match(/^Cargo:\s*(\d+)\s*x/i)?.[1] || '1', 10);
@@ -760,20 +685,22 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
         results.push({
           ...data,
           containertype:     ctType,
-          containertypeCode: ctCode,
+          containertypeCode: '0',
           datum,
           tijd,
           laadreferentie: ref,
-          instructies: remark || data.instructies
+          instructies: remark || data.instructies,
+          locaties: cloneLocaties()
         });
       }
     }
 
-    console.log(`✅ ${results.length} container(s) geparsed (Format B: Cargo-blokken uitgesplitst per stuk)`);
-    return results;
+    const enriched = await Promise.all(results.map(r => enrichOrder(r, { bron: 'Jordex' })));
+    console.log(`✅ ${enriched.length} container(s) geparsed (Format B: Cargo-blokken uitgesplitst per stuk)`);
+    return enriched;
   }
 
   // Fallback: 1 container met basisdata
   console.warn('⚠️ Geen meerdere containerregels gevonden, basisdata teruggeven');
-  return [data];
+  return [await enrichOrder(data, { bron: 'Jordex' })];
 }

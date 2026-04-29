@@ -1,14 +1,8 @@
 // parsers/parseNeelevat.js
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
-import {
-  getTerminalInfoMetFallback,
-  getAdresboekEntry,
-  voegAdresboekEntryToe,
-  getContainerTypeCode,
-  getRederijNaam,
-  getKlantData
-} from '../utils/lookups/terminalLookup.js';
+import { getKlantData, normLand, cleanFloat } from '../utils/lookups/terminalLookup.js';
+import { enrichOrder } from '../utils/enrichOrder.js';
 
 function normLand(val) {
   const s = (val || '').trim().toUpperCase();
@@ -159,71 +153,22 @@ export default async function parseNeelevat(buffer) {
 
   console.log(`🏭 Neelevat secties: sec1[${sec1Idx}] naam="${loc1.naam}" ref="${loc1.referentie}" | sec2[${sec2Idx}] naam="${loc2.naam}" ref="${loc2.referentie}" | sec3[${sec3Idx}] naam="${loc3.naam}" ref="${loc3.referentie}"`);
 
-  // === Terminal & klant lookups ===
-  const [opzettenInfo, afzettenInfo, opdrachtgever, ladenInfo] = await Promise.all([
-    getTerminalInfoMetFallback(loc1.naam || ''),
-    getTerminalInfoMetFallback(loc3.naam || ''),
-    getKlantData('neelevat'),
-    getAdresboekEntry(loc2.naam || '', null, loc2.adres || '')
-  ]);
-  if (!opzettenInfo) console.log(`⚠️ Opzet-terminal niet in lijst: "${loc1.naam}"`);
-  if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${loc3.naam}"`);
-  if (!ladenInfo && loc2.naam && loc2.adres) {
-    await voegAdresboekEntryToe({ naam: loc2.naam, adres: loc2.adres, postcode: loc2.postcode || '', plaats: loc2.plaats || '', type: 'Klant', bron: 'Neelevat auto' });
-  }
-  const ctCode     = await getContainerTypeCode(containertypeDisplay) || '0';
-  // Alleen lookup als er iets gevonden is — anders leeg laten (niet '0' doorgeven)
-  const rederijNaam = rederijRaw ? ((await getRederijNaam(rederijRaw)) || '') : '';
-  if (rederijRaw && !rederijNaam) console.warn(`⚠️ Neelevat rederij "${rederijRaw}" niet gevonden — veld leeggemaakt`);
-
+  const opdrachtgever = await getKlantData('neelevat');
   const datum = loc1.datum || loc2.datum || '';
 
-  // Bijzonderheden bij onbekende terminals
-  const onbekendeMeldingen = [];
-  if (!opzettenInfo && loc1.naam) onbekendeMeldingen.push(`Opzet-terminal niet in lijst: ${loc1.naam}`);
-  if (!afzettenInfo && loc3.naam) onbekendeMeldingen.push(`Afzet-terminal niet in lijst: ${loc3.naam}`);
-
+  // Ruwe locaties — enrichOrder doet alle lookups
   const locaties = [
-    {
-      volgorde: '0', actie: 'Opzetten',
-      naam:     opzettenInfo?.naam     || loc1.naam     || '',
-      adres:    opzettenInfo?.adres    || loc1.adres    || '',
-      postcode: opzettenInfo?.postcode || loc1.postcode || '',
-      plaats:   opzettenInfo?.plaats   || loc1.plaats   || '',
-      land:     normLand(opzettenInfo?.land || 'NL'),
-      voorgemeld:    opzettenInfo ? (opzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
-      aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: cleanFloat(opzettenInfo?.portbase_code || ''),
-      bicsCode:      cleanFloat(opzettenInfo?.bicsCode      || '')
-    },
-    {
-      volgorde: '0', actie: 'Laden',
-      naam:     ladenInfo?.naam     || loc2.naam     || '',
-      adres:    ladenInfo?.adres    || loc2.adres    || '',
-      postcode: ladenInfo?.postcode || loc2.postcode || '',
-      plaats:   ladenInfo?.plaats   || loc2.plaats   || '',
-      land:     'NL'
-    },
-    {
-      volgorde: '0', actie: 'Afzetten',
-      naam:     afzettenInfo?.naam     || loc3.naam     || '',
-      adres:    afzettenInfo?.adres    || loc3.adres    || '',
-      postcode: afzettenInfo?.postcode || loc3.postcode || '',
-      plaats:   afzettenInfo?.plaats   || loc3.plaats   || '',
-      land:     normLand(afzettenInfo?.land || 'NL'),
-      voorgemeld:    afzettenInfo ? (afzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
-      aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: cleanFloat(afzettenInfo?.portbase_code || ''),
-      bicsCode:      cleanFloat(afzettenInfo?.bicsCode      || '')
-    }
+    { volgorde: '0', actie: 'Opzetten', naam: loc1.naam || '', adres: loc1.adres || '', postcode: loc1.postcode || '', plaats: loc1.plaats || '', land: 'NL' },
+    { volgorde: '0', actie: 'Laden',    naam: loc2.naam || '', adres: loc2.adres || '', postcode: loc2.postcode || '', plaats: loc2.plaats || '', land: 'NL' },
+    { volgorde: '0', actie: 'Afzetten', naam: loc3.naam || '', adres: loc3.adres || '', postcode: loc3.postcode || '', plaats: loc3.plaats || '', land: 'NL' }
   ];
 
-  return [{
+  return [await enrichOrder({
     ritnummer,
-    klantnaam:     ladenInfo?.naam     || loc2.naam     || '',
-    klantadres:    ladenInfo?.adres    || loc2.adres    || '',
-    klantpostcode: ladenInfo?.postcode || loc2.postcode || '',
-    klantplaats:   ladenInfo?.plaats   || loc2.plaats   || '',
+    klantnaam:     loc2.naam     || '',
+    klantadres:    loc2.adres    || '',
+    klantpostcode: loc2.postcode || '',
+    klantplaats:   loc2.plaats   || '',
 
     opdrachtgeverNaam:     opdrachtgever?.naam     || 'NEELEVAT',
     opdrachtgeverAdres:    opdrachtgever?.adres    || '',
@@ -236,7 +181,6 @@ export default async function parseNeelevat(buffer) {
 
     containernummer,
     containertype:     containertypeDisplay,
-    containertypeCode: ctCode,
 
     datum,
     tijd: '',
@@ -245,9 +189,10 @@ export default async function parseNeelevat(buffer) {
     inleverreferentie: loc3.referentie || '',
     inleverBestemming: bestemmingRaw  || '',
 
+    rederijRaw,
     rederij:         '',
     bootnaam:        '',
-    inleverRederij:  rederijNaam,
+    inleverRederij:  '',
     inleverBootnaam: bootnaamRaw,
 
     zegel:          '',
@@ -259,9 +204,9 @@ export default async function parseNeelevat(buffer) {
 
     adr:           'Onwaar',
     ladenOfLossen: 'Laden',
-    instructies:   onbekendeMeldingen.join(' | '),
+    instructies:   '',
     tar: '', documentatie: '', tarra: '0', brix: '0',
 
     locaties
-  }];
+  }, { bron: 'Neelevat' })];
 }

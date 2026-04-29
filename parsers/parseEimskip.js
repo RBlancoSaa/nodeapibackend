@@ -12,12 +12,7 @@
 //   3. Terminal depot → Afzetten
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
-import {
-  getTerminalInfoMetFallback,
-  getAdresboekEntry,
-  voegAdresboekEntryToe,
-  getRederijNaam
-} from '../utils/lookups/terminalLookup.js';
+import { enrichOrder } from '../utils/enrichOrder.js';
 
 // ISO container type → EasyTrip omschrijving
 const ISO_TYPE = {
@@ -231,112 +226,67 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
   }
 
   // ── Bouw container data ────────────────────────────────────────────────
-  const containernummer = pdfData?.containernummer || subContainer;
-  const datum           = pdfData?.sec2?.datum     || subDatum;
-  const tijd            = pdfData?.sec2?.tijd      || subTijd;
-  const zegel           = pdfData?.zegel           || '';
-  const bootnaam        = pdfData?.bootnaam        || '';
-  const rederij         = pdfData?.rederij         || 'EIMSKIP';
-  const laadreferentie  = pdfData?.laadreferentie  || '';
-  const ritnummer       = pdfData?.ritnummer       || '';
-  const lading          = pdfData?.lading          || '';
-  const brutogewicht    = pdfData?.brutogewicht    || '0';
-  const colli           = pdfData?.colli           || '0';
+  const containernummer  = pdfData?.containernummer || subContainer;
+  const datum            = pdfData?.sec2?.datum     || subDatum;
+  const tijd             = pdfData?.sec2?.tijd      || subTijd;
+  const zegel            = pdfData?.zegel           || '';
+  const bootnaam         = pdfData?.bootnaam        || '';
+  const rederijRaw       = pdfData?.rederij         || 'EIMSKIP';
+  const laadreferentie   = pdfData?.laadreferentie  || '';
+  const ritnummer        = pdfData?.ritnummer       || '';
+  const lading           = pdfData?.lading          || '';
+  const brutogewicht     = pdfData?.brutogewicht    || '0';
+  const colli            = pdfData?.colli           || '0';
 
   // Containertype: van ISO code naar EasyTrip-omschrijving
-  const isoCode            = pdfData?.containertypeIso || '';
-  const containertypeOms   = (isoCode ? (ISO_TYPE[isoCode] || isoCode.toLowerCase()) : '');
-
-  // Locatie-data uit secties
-  const lossenRaw  = pdfData?.sec2  || extractAdresUitBody(bodyLines);
-  const opzetRaw   = pdfData?.sec1;
-  const afzetRaw   = pdfData?.sec3;
-
-  // ── Lookups ────────────────────────────────────────────────────────────
-  const lossenZoekNaam  = lossenRaw?.naam  || '';
-  const lossenZoekAdres = lossenRaw?.adres || '';
-
-  // Rederij MOET uit de lijst komen — zelf invullen verboden
-  const rederijLookup = rederij ? ((await getRederijNaam(rederij)) || '') : '';
-  if (rederij && !rederijLookup) {
-    console.warn(`⚠️ Rederij "${rederij}" niet gevonden in lijst — veld wordt leeg`);
-  }
-
-  const [lossenInfo, opzettenInfo, afzettenInfo] = await Promise.all([
-    lossenRaw ? getAdresboekEntry(lossenZoekNaam, null, lossenZoekAdres) : Promise.resolve(null),
-    opzetRaw  ? getTerminalInfoMetFallback(opzetRaw.naam, opzetRaw.adres) : Promise.resolve(null),
-    afzetRaw  ? getTerminalInfoMetFallback(afzetRaw.naam, afzetRaw.adres) : Promise.resolve(null)
-  ]);
-
-  if (!lossenInfo && lossenRaw?.naam && lossenRaw?.adres) {
-    await voegAdresboekEntryToe({ naam: lossenRaw.naam, adres: lossenRaw.adres, postcode: lossenRaw.postcode || '', plaats: lossenRaw.plaats || '', land: lossenRaw.land || 'BE', type: 'Klant', bron: 'Eimskip auto' });
-  }
-
-  const klantnaam     = lossenInfo?.naam     || lossenRaw?.naam     || '';
-  const klantadres    = lossenInfo?.adres    || lossenRaw?.adres    || '';
-  const klantpostcode = lossenInfo?.postcode || lossenRaw?.postcode || '';
-  const klantplaats   = lossenInfo?.plaats   || lossenRaw?.plaats   || '';
-  const klantland     = lossenInfo?.land     || lossenRaw?.land     || 'BE';
-
-  function cleanFloat(v) { return v ? String(v).replace(/\.0+$/, '') : ''; }
-
-  // ── Locaties ───────────────────────────────────────────────────────────
-  const locaties = [
-    // [0] Opzetten
-    {
-      volgorde: '0', actie: 'Opzetten',
-      naam:     opzettenInfo?.naam     || opzetRaw?.naam     || '',
-      adres:    opzettenInfo?.adres    || opzetRaw?.adres    || '',
-      postcode: opzettenInfo?.postcode || opzetRaw?.postcode || '',
-      plaats:   opzettenInfo?.plaats   || opzetRaw?.plaats   || '',
-      land:     opzettenInfo?.land     || normLand(opzetRaw?.land) || 'NL',
-      voorgemeld:    opzettenInfo ? (opzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
-      aankomst_verw: datum || '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: cleanFloat(opzettenInfo?.portbase_code || ''),
-      bicsCode:      cleanFloat(opzettenInfo?.bicsCode      || '')
-    },
-    // [1] Lossen
-    {
-      volgorde:      '0',
-      actie:         'Lossen',
-      naam:          klantnaam,
-      adres:         klantadres,
-      postcode:      klantpostcode,
-      plaats:        klantplaats,
-      land:          klantland,
-      aankomst_verw: datum || '',
-      tijslot_van:   tijd  || '',
-      tijslot_tm:    ''
-    },
-    // [2] Afzetten
-    {
-      volgorde: '0', actie: 'Afzetten',
-      naam:     afzettenInfo?.naam     || afzetRaw?.naam     || '',
-      adres:    afzettenInfo?.adres    || afzetRaw?.adres    || '',
-      postcode: afzettenInfo?.postcode || afzetRaw?.postcode || '',
-      plaats:   afzettenInfo?.plaats   || afzetRaw?.plaats   || '',
-      land:     afzettenInfo?.land     || normLand(afzetRaw?.land) || 'NL',
-      voorgemeld:    afzettenInfo ? (afzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
-      aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: cleanFloat(afzettenInfo?.portbase_code || ''),
-      bicsCode:      cleanFloat(afzettenInfo?.bicsCode      || '')
-    }
-  ];
+  const isoCode          = pdfData?.containertypeIso || '';
+  const containertypeOms = isoCode ? (ISO_TYPE[isoCode] || isoCode.toLowerCase()) : '';
 
   if (!containertypeOms) {
     console.warn(`⚠️ Containertype niet herkend. ISO code uit PDF: "${isoCode}"`);
   }
 
-  return [{
-    ritnummer,
-    klantnaam,
-    klantadres,
-    klantpostcode,
-    klantplaats,
-    klantland,
+  // Locatie-data uit secties
+  const lossenRaw = pdfData?.sec2 || extractAdresUitBody(bodyLines);
+  const opzetRaw  = pdfData?.sec1;
+  const afzetRaw  = pdfData?.sec3;
 
-    // Opdrachtgever: Eimskip Jac. Meisner Customs & Warehousing B.V.
-    // Voeg toe in klanten.json voor volledige KVK/BTW/adres-gegevens
+  // Ruwe locaties — enrichOrder doet alle lookups
+  const locaties = [
+    {
+      volgorde: '0', actie: 'Opzetten',
+      naam:     opzetRaw?.naam     || '',
+      adres:    opzetRaw?.adres    || '',
+      postcode: opzetRaw?.postcode || '',
+      plaats:   opzetRaw?.plaats   || '',
+      land:     normLand(opzetRaw?.land || 'NL')
+    },
+    {
+      volgorde: '0', actie: 'Lossen',
+      naam:     lossenRaw?.naam     || '',
+      adres:    lossenRaw?.adres    || '',
+      postcode: lossenRaw?.postcode || '',
+      plaats:   lossenRaw?.plaats   || '',
+      land:     normLand(lossenRaw?.land || 'BE')
+    },
+    {
+      volgorde: '0', actie: 'Afzetten',
+      naam:     afzetRaw?.naam     || '',
+      adres:    afzetRaw?.adres    || '',
+      postcode: afzetRaw?.postcode || '',
+      plaats:   afzetRaw?.plaats   || '',
+      land:     normLand(afzetRaw?.land || 'NL')
+    }
+  ];
+
+  return [await enrichOrder({
+    ritnummer,
+    klantnaam:     lossenRaw?.naam     || '',
+    klantadres:    lossenRaw?.adres    || '',
+    klantpostcode: lossenRaw?.postcode || '',
+    klantplaats:   lossenRaw?.plaats   || '',
+
+    // Opdrachtgever: voeg Eimskip toe in klanten.json voor volledige KVK/BTW/adres-gegevens
     opdrachtgeverNaam:     'EIMSKIP JAC. MEISNER CUSTOMS & WAREHOUSING B.V.',
     opdrachtgeverAdres:    '',
     opdrachtgeverPostcode: '',
@@ -347,9 +297,8 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     opdrachtgeverKVK:      '',
 
     containernummer,
-    containertype:          containertypeOms,
-    containertypeCode:      isoCode,
-    containertypeOmschrijving: containertypeOms,
+    containertype:    containertypeOms,
+    containertypeCode: isoCode,
 
     datum,
     tijd,
@@ -358,10 +307,11 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     inleverreferentie: '',
     inleverBestemming: '',
 
-    rederij:         rederijLookup,
+    rederijRaw,
+    rederij:         '',
     bootnaam,
-    inleverRederij:  rederijLookup,
     inleverBootnaam: bootnaam,
+    inleverRederij:  '',
 
     zegel,
     colli,
@@ -376,5 +326,5 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     tar: '', documentatie: '', tarra: '0', brix: '0',
 
     locaties
-  }];
+  }, { bron: 'Eimskip' })];
 }

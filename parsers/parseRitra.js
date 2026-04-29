@@ -1,15 +1,8 @@
 // parsers/parseRitra.js
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
-import {
-  getTerminalInfoMetFallback,
-  getAdresboekEntry,
-  voegAdresboekEntryToe,
-  getContainerTypeCode,
-  getRederijNaam,
-  normLand,
-  cleanFloat
-} from '../utils/lookups/terminalLookup.js';
+import { normLand, cleanFloat, getKlantData } from '../utils/lookups/terminalLookup.js';
+import { enrichOrder } from '../utils/enrichOrder.js';
 
 function parseDatum(str) {
   const m = (str || '').match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
@@ -142,62 +135,19 @@ export default async function parseRitra(buffer) {
     afzettenNaam = (ls.find(l => /ECT.*Terminal|Euromax/i.test(l)) || '').replace(/,.*/, '').trim();
   }
 
-  // Terminal lookups
-  const [opzettenInfo, afzettenInfo, ladenInfo] = await Promise.all([
-    getTerminalInfoMetFallback(opzettenNaam),
-    getTerminalInfoMetFallback(afzettenNaam),
-    getAdresboekEntry(klantNaam, null, klantAdres)
-  ]);
-  if (!opzettenInfo) console.log(`⚠️ Opzet-terminal niet in lijst: "${opzettenNaam}"`);
-  if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${afzettenNaam}"`);
-  if (!ladenInfo && klantNaam && klantAdres) {
-    await voegAdresboekEntryToe({ naam: klantNaam, adres: klantAdres, postcode: '', plaats: klantPlaats || '', type: 'Klant', bron: 'Ritra auto' });
-  }
-  const ctCode     = await getContainerTypeCode(containertype);
-  const rederijNaam = await getRederijNaam(rederijCode) || '';
-  if (rederijCode && !rederijNaam) console.warn(`⚠️ Ritra rederij "${rederijCode}" niet gevonden — veld leeggemaakt`);
-
+  // Ruwe locaties — enrichOrder doet alle lookups
   const locaties = [
-    {
-      volgorde: '0', actie: 'Opzetten',
-      naam:     opzettenInfo?.naam     || opzettenNaam,
-      adres:    opzettenInfo?.adres    || opzettenAdres,
-      postcode: opzettenInfo?.postcode || pcData.postcode,
-      plaats:   opzettenInfo?.plaats   || pcData.plaats,
-      land:     normLand(opzettenInfo?.land || 'NL'),
-      voorgemeld: opzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-      aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: cleanFloat(opzettenInfo?.portbase_code || ''),
-      bicsCode:      cleanFloat(opzettenInfo?.bicsCode      || '')
-    },
-    {
-      volgorde: '0', actie: 'Laden',
-      naam:     ladenInfo?.naam     || klantNaam,
-      adres:    ladenInfo?.adres    || klantAdres,
-      postcode: ladenInfo?.postcode || klantPC,
-      plaats:   ladenInfo?.plaats   || klantPlaats,
-      land:     klantLand === 'NEDERLAND' ? 'NL' : (klantLand || 'NL')
-    },
-    {
-      volgorde: '0', actie: 'Afzetten',
-      naam:     afzettenInfo?.naam     || afzettenNaam,
-      adres:    afzettenInfo?.adres    || '',
-      postcode: afzettenInfo?.postcode || '',
-      plaats:   afzettenInfo?.plaats   || '',
-      land:     normLand(afzettenInfo?.land || 'NL'),
-      voorgemeld: afzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-      aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: cleanFloat(afzettenInfo?.portbase_code || ''),
-      bicsCode:      cleanFloat(afzettenInfo?.bicsCode      || '')
-    }
+    { volgorde: '0', actie: 'Opzetten', naam: opzettenNaam, adres: opzettenAdres, postcode: pcData.postcode, plaats: pcData.plaats, land: 'NL' },
+    { volgorde: '0', actie: 'Laden',    naam: klantNaam, adres: klantAdres, postcode: klantPC, plaats: klantPlaats, land: normLand(klantLand || 'NL') },
+    { volgorde: '0', actie: 'Afzetten', naam: afzettenNaam, adres: '', postcode: '', plaats: '', land: 'NL' }
   ];
 
-  return [{
+  return [await enrichOrder({
     ritnummer,
-    klantnaam:    ladenInfo?.naam     || klantNaam,
-    klantadres:   ladenInfo?.adres    || klantAdres,
-    klantpostcode: ladenInfo?.postcode || klantPC,
-    klantplaats:  ladenInfo?.plaats   || klantPlaats,
+    klantnaam:    klantNaam,
+    klantadres:   klantAdres,
+    klantpostcode: klantPC,
+    klantplaats:  klantPlaats,
 
     opdrachtgeverNaam:     'RITRA',
     opdrachtgeverAdres:    'ALBERT PLESMANWEG 61C',
@@ -210,7 +160,6 @@ export default async function parseRitra(buffer) {
 
     containernummer,
     containertype,
-    containertypeCode: ctCode || '0',
 
     datum,
     tijd: '',
@@ -219,9 +168,10 @@ export default async function parseRitra(buffer) {
     inleverreferentie: '',
     inleverBestemming: '',
 
-    rederij:        rederijNaam,
+    rederijRaw:     rederijCode,
+    rederij:        '',
     bootnaam,
-    inleverRederij: rederijNaam,
+    inleverRederij: '',
     inleverBootnaam: bootnaam,
 
     zegel,
@@ -237,5 +187,5 @@ export default async function parseRitra(buffer) {
     tar: '', documentatie: '', tarra: '0', brix: '0',
 
     locaties
-  }];
+  }, { bron: 'Ritra' })];
 }

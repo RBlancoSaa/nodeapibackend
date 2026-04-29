@@ -1,7 +1,8 @@
 // 📁 parsers/parseSteinweg.js
 import '../utils/fsPatch.js';
 import XLSX from 'xlsx';
-import { getTerminalInfoMetFallback, getContainerTypeCode, getKlantData, getRederijNaam } from '../utils/lookups/terminalLookup.js';
+import { getKlantData } from '../utils/lookups/terminalLookup.js';
+import { enrichOrder } from '../utils/enrichOrder.js';
 
 function normLand(val) {
   const s = (val || '').trim().toUpperCase();
@@ -10,11 +11,6 @@ function normLand(val) {
   if (s === 'DUITSLAND' || s === 'GERMANY' || s === 'DEUTSCHLAND') return 'DE';
   if (s === 'BELGIE' || s === 'BELGIË' || s === 'BELGIUM') return 'BE';
   return s;
-}
-
-function cleanFloat(val) {
-  if (!val) return '';
-  return String(val).trim().replace(/\.0+$/, '');
 }
 
 function normPostcode(val) {
@@ -90,21 +86,6 @@ function selectEarliestFutureDatum(datums) {
     .filter(d => d.date >= today)
     .sort((a, b) => a.date - b.date);
   return parsed[0]?.str || datums.find(Boolean) || '';
-}
-
-function nextSaturday(fromDateStr) {
-  let base;
-  if (fromDateStr) {
-    const [dd, mm, yyyy] = String(fromDateStr).split('-').map(Number);
-    base = new Date(yyyy, mm - 1, dd);
-  } else {
-    base = new Date();
-  }
-  const daysUntilSat = ((6 - base.getDay()) + 7) % 7 || 7;
-  base.setDate(base.getDate() + daysUntilSat);
-  const dd = String(base.getDate()).padStart(2, '0');
-  const mm = String(base.getMonth() + 1).padStart(2, '0');
-  return `${dd}-${mm}-${base.getFullYear()}`;
 }
 
 function parseOrdernummer(rows) {
@@ -234,10 +215,8 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
   const r1 = route1Buffer ? parseRoute1(route1Buffer) : null;
   const r2 = route2Buffer ? parseRoute2(route2Buffer) : null;
 
-  const ordernummer  = r1?.ordernummer || r2?.ordernummer || '';
-  const rederijRaw   = r1?.rederij    || r2?.rederij    || '';
-  const rederij      = rederijRaw ? ((await getRederijNaam(rederijRaw)) || '') : '';
-  if (rederijRaw && !rederij) console.warn(`⚠️ Steinweg rederij "${rederijRaw}" niet gevonden — veld leeggemaakt`);
+  const ordernummer = r1?.ordernummer || r2?.ordernummer || '';
+  const rederijRaw  = r1?.rederij    || r2?.rederij    || '';
 
   const klant = await getKlantData('steinweg');
   const instructies = [emailSubject, emailBody]
@@ -253,40 +232,51 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
 
   // ── Route 1: Opzetten (terminal/from) → Lossen (Steinweg/to) ──────────────
   if (r1 && r1.containers.length > 0) {
-    const [ectInfo, steinwegInfo] = await Promise.all([
-      getTerminalInfoMetFallback(r1.from),
-      getTerminalInfoMetFallback(r1.to)
-    ]);
     const r1Datum = selectEarliestFutureDatum([r1.plannedLoading, r1.plannedDelivery])
       || parseDateFromSubject(emailSubject);
 
     for (const c1 of r1.containers) {
-      const datum          = r1Datum;
+      const datum            = r1Datum;
       const containerTypeStr = sizetypeToDescription(c1.sizetype || '2210');
-      const ctCode         = await getContainerTypeCode(containerTypeStr);
-      const gewicht        = String(Math.round(parseFloat(c1.gewicht) || 0));
+      const gewicht          = String(Math.round(parseFloat(c1.gewicht) || 0));
 
-      results.push({
-        opdrachtgeverNaam:     klant.naam     || 'STEINWEG',
-        opdrachtgeverAdres:    klant.adres    || '',
-        opdrachtgeverPostcode: klant.postcode || '',
-        opdrachtgeverPlaats:   klant.plaats   || '',
-        opdrachtgeverTelefoon: klant.telefoon || '',
-        opdrachtgeverEmail:    klant.email    || '',
-        opdrachtgeverBTW:      klant.btw      || '',
-        opdrachtgeverKVK:      klant.kvk      || '',
-        klantnaam:     klant.naam  || 'STEINWEG',
-        klantadres:    klant.adres || '',
-        klantpostcode: klant.postcode || '',
-        klantplaats:   klant.plaats   || '',
+      // Ruwe locaties — enrichOrder doet alle lookups
+      const locaties = [
+        {
+          volgorde: '0', actie: 'Opzetten',
+          naam: r1.from, adres: '', postcode: '', plaats: '', land: 'NL'
+        },
+        {
+          volgorde: '0', actie: 'Lossen',
+          naam: r1.to, adres: '', postcode: '', plaats: '', land: 'NL'
+        },
+        {
+          volgorde: '0', actie: 'Afzetten',
+          naam: '', adres: '', postcode: '', plaats: '', land: 'NL'
+        }
+      ];
+
+      results.push(await enrichOrder({
+        opdrachtgeverNaam:     klant?.naam     || 'STEINWEG',
+        opdrachtgeverAdres:    klant?.adres    || '',
+        opdrachtgeverPostcode: klant?.postcode || '',
+        opdrachtgeverPlaats:   klant?.plaats   || '',
+        opdrachtgeverTelefoon: klant?.telefoon || '',
+        opdrachtgeverEmail:    klant?.email    || '',
+        opdrachtgeverBTW:      klant?.btw      || '',
+        opdrachtgeverKVK:      klant?.kvk      || '',
+        klantnaam:     klant?.naam     || 'STEINWEG',
+        klantadres:    klant?.adres    || '',
+        klantpostcode: normPostcode(klant?.postcode || ''),
+        klantplaats:   klant?.plaats   || '',
         ritnummer:      ordernummer,
         bootnaam:       '',
-        rederij,
+        rederijRaw,
+        rederij:        '',
         inleverBootnaam: '',
-        inleverRederij:  rederij,
+        inleverRederij:  '',
         containernummer:   c1.containernummer,
         containertype:     containerTypeStr,
-        containertypeCode: ctCode || '0',
         zegel:          c1.zegel   || '',
         colli:          '0',
         lading:         (c1.lading || '').toUpperCase(),
@@ -303,72 +293,58 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         ladenOfLossen: 'Lossen',
         instructies,
         tar: '', documentatie: '', tarra: '0', brix: '0',
-        locaties: [
-          {
-            volgorde: '0', actie: 'Opzetten',
-            naam:          ectInfo?.naam     || r1.from,
-            adres:         ectInfo?.adres    || '',
-            postcode:      normPostcode(ectInfo?.postcode || ''),
-            plaats:        ectInfo?.plaats   || '',
-            land:          normLand(ectInfo?.land || 'NL'),
-            voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-            portbase_code: cleanFloat(ectInfo?.portbase_code || ''),
-            bicsCode:      cleanFloat(ectInfo?.bicsCode || '')
-          },
-          {
-            volgorde: '0', actie: 'Lossen',
-            naam:          steinwegInfo?.naam  || r1.to,
-            adres:         steinwegInfo?.adres || '',
-            postcode:      normPostcode(steinwegInfo?.postcode || ''),
-            plaats:        steinwegInfo?.plaats || '',
-            land:          normLand(steinwegInfo?.land || 'NL'),
-            portbase_code: cleanFloat(steinwegInfo?.portbase_code || ''),
-            bicsCode:      cleanFloat(steinwegInfo?.bicsCode || '')
-          },
-          {
-            volgorde: '0', actie: 'Afzetten',
-            naam: '', adres: '', postcode: '', plaats: '', land: 'NL',
-            voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-            portbase_code: '', bicsCode: ''
-          }
-        ]
-      });
+        locaties
+      }, { bron: 'Steinweg' }));
     }
   }
 
   // ── Route 2: Opzetten (Steinweg/from) → Afzetten (return depot) ─────────────
   // Altijd apart verwerken — ook als route 1 aanwezig is
   if (r2 && r2.containers.length > 0) {
-    const steinwegInfoR2 = await getTerminalInfoMetFallback(r2.from);
     const r2Datum = selectEarliestFutureDatum([r2.plannedLoading, r2.plannedDelivery]);
 
     for (const c2 of r2.containers) {
-      const datum          = r2Datum;
+      const datum            = r2Datum;
       const containerTypeStr = sizetypeToDescription(c2.sizetype || '2210');
-      const ctCode         = await getContainerTypeCode(containerTypeStr);
-      const depotInfo      = await getTerminalInfoMetFallback(c2.returnDepot || c2.destination);
 
-      results.push({
-        opdrachtgeverNaam:     klant.naam     || 'STEINWEG',
-        opdrachtgeverAdres:    klant.adres    || '',
-        opdrachtgeverPostcode: klant.postcode || '',
-        opdrachtgeverPlaats:   klant.plaats   || '',
-        opdrachtgeverTelefoon: klant.telefoon || '',
-        opdrachtgeverEmail:    klant.email    || '',
-        opdrachtgeverBTW:      klant.btw      || '',
-        opdrachtgeverKVK:      klant.kvk      || '',
-        klantnaam:     klant.naam  || 'STEINWEG',
-        klantadres:    klant.adres || '',
-        klantpostcode: klant.postcode || '',
-        klantplaats:   klant.plaats   || '',
+      // Ruwe locaties — enrichOrder doet alle lookups
+      const locaties = [
+        {
+          volgorde: '0', actie: 'Opzetten',
+          naam: r2.from, adres: '', postcode: '', plaats: '', land: 'NL'
+        },
+        {
+          volgorde: '0', actie: 'Lossen',
+          naam: '', adres: '', postcode: '', plaats: '', land: 'NL'
+        },
+        {
+          volgorde: '0', actie: 'Afzetten',
+          naam: c2.returnDepot || c2.destination || '',
+          adres: '', postcode: '', plaats: '', land: 'NL'
+        }
+      ];
+
+      results.push(await enrichOrder({
+        opdrachtgeverNaam:     klant?.naam     || 'STEINWEG',
+        opdrachtgeverAdres:    klant?.adres    || '',
+        opdrachtgeverPostcode: klant?.postcode || '',
+        opdrachtgeverPlaats:   klant?.plaats   || '',
+        opdrachtgeverTelefoon: klant?.telefoon || '',
+        opdrachtgeverEmail:    klant?.email    || '',
+        opdrachtgeverBTW:      klant?.btw      || '',
+        opdrachtgeverKVK:      klant?.kvk      || '',
+        klantnaam:     klant?.naam     || 'STEINWEG',
+        klantadres:    klant?.adres    || '',
+        klantpostcode: normPostcode(klant?.postcode || ''),
+        klantplaats:   klant?.plaats   || '',
         ritnummer:      ordernummer,
         bootnaam:       '',
-        rederij:        rederij,
+        rederijRaw,
+        rederij:        '',
         inleverBootnaam: '',
-        inleverRederij:  rederij,
+        inleverRederij:  '',
         containernummer:   c2.containernummer,
         containertype:     containerTypeStr,
-        containertypeCode: ctCode || '0',
         zegel: '', colli: '0', lading: '',
         brutogewicht: '0', geladenGewicht: '0', cbm: '0',
         datum,
@@ -381,36 +357,8 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         ladenOfLossen: 'Lossen',
         instructies,
         tar: '', documentatie: '', tarra: '0', brix: '0',
-        locaties: [
-          {
-            volgorde: '0', actie: 'Opzetten',
-            naam:          steinwegInfoR2?.naam  || r2.from,
-            adres:         steinwegInfoR2?.adres || '',
-            postcode:      normPostcode(steinwegInfoR2?.postcode || ''),
-            plaats:        steinwegInfoR2?.plaats || '',
-            land:          normLand(steinwegInfoR2?.land || 'NL'),
-            voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-            portbase_code: cleanFloat(steinwegInfoR2?.portbase_code || ''),
-            bicsCode:      cleanFloat(steinwegInfoR2?.bicsCode || '')
-          },
-          {
-            volgorde: '0', actie: 'Lossen',
-            naam: '', adres: '', postcode: '', plaats: '', land: 'NL',
-            portbase_code: '', bicsCode: ''
-          },
-          {
-            volgorde: '0', actie: 'Afzetten',
-            naam:          depotInfo?.naam     || c2.returnDepot || '',
-            adres:         depotInfo?.adres    || '',
-            postcode:      normPostcode(depotInfo?.postcode || ''),
-            plaats:        depotInfo?.plaats   || '',
-            land:          normLand(depotInfo?.land || 'NL'),
-            voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-            portbase_code: cleanFloat(depotInfo?.portbase_code || ''),
-            bicsCode:      cleanFloat(depotInfo?.bicsCode || '')
-          }
-        ]
-      });
+        locaties
+      }, { bron: 'Steinweg' }));
     }
   }
 

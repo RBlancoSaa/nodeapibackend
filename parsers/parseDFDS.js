@@ -1,15 +1,7 @@
 // 📁 parsers/parseDFDS.js
 import '../utils/fsPatch.js';
 import PDFParser from 'pdf2json';
-import {
-  getTerminalInfoMetFallback,
-  getAdresboekEntry,
-  getContainerTypeCode,
-  getRederijNaam,
-  voegAdresboekEntryToe,
-  normLand,
-  cleanFloat
-} from '../utils/lookups/terminalLookup.js';
+import { enrichOrder } from '../utils/enrichOrder.js';
 
 function extractLinesPdf2Json(buffer) {
   return new Promise((resolve, reject) => {
@@ -68,8 +60,6 @@ export default async function parseDFDS(buffer) {
   const bootnaam    = log('bootnaam',  regels.find(r => r.includes('Vaartuig'))?.split('Vaartuig')[1]?.split('Reis')[0]?.trim() || '');
   const rederijRaw  = regels.find(r => r.includes('Rederij'))?.split('Rederij')[1]?.trim() || '';
   const rederijExtracted = log('rederij', rederijRaw.replace(/\s+[A-Z]{3}[UJZ]\d{7}.*$/i, '').trim());
-  const rederij = rederijExtracted ? ((await getRederijNaam(rederijExtracted)) || '') : '';
-  if (rederijExtracted && !rederij) console.warn(`⚠️ DFDS rederij "${rederijExtracted}" niet gevonden — veld leeggemaakt`);
 
   // Klantnaam: eerste woord(en) voor " Datum " op de datumregel
   const klantnaam   = log('klantnaam',  datumRegel?.match(/^(.+?)\s+Datum\s+\d{2}-\d{2}-\d{4}/)?.[1]?.trim() || '');
@@ -187,71 +177,25 @@ export default async function parseDFDS(buffer) {
   console.log('📍 Lossen:',  lossenLocNaam,  '|', lossenLocAdres);
   console.log('📍 Afzetten:', dropoffLocNaam, '|', dropoffLocAdres);
 
-  // Lossen lookup volgorde (adres = primaire sleutel):
-  // 1. Adresboek: zoek op naam + adres — entry wordt ALLEEN geaccepteerd als adres overeenkomt
-  // 2. Terminal: zoek in op_afzetten.json op naam + adres
-  // 3. Fallback: gebruik raw PDF data (lossenLocNaam + klantadres/klantpostcode/klantplaats)
-  // Het klantadres (factuuradres uit PDF-header) is het meest betrouwbare adresgegeven.
-  const lossenZoekNaam  = lossenLocNaam  || klantnaam;
-  const lossenZoekAdres = lossenLocAdres || klantadres;
-
-  const [pickupInfo, lossenAdresboek, lossenTerminal, dropoffInfo] = await Promise.all([
-    getTerminalInfoMetFallback(pickupLocNaam),
-    getAdresboekEntry(lossenZoekNaam, null, lossenZoekAdres),   // klant in adresboek (adres-gate actief)
-    getTerminalInfoMetFallback(lossenLocNaam, lossenZoekAdres), // terminal + adres als tiebreaker
-    getTerminalInfoMetFallback(dropoffLocNaam)
-  ]);
-
-  const lossenInfo = lossenAdresboek || lossenTerminal || null;
-  if (!lossenInfo && lossenZoekNaam && (lossenZoekAdres || klantadres)) {
-    console.log(`⚠️ DFDS lossen: "${lossenZoekNaam}" niet gevonden — raw PDF data + auto-toevoegen aan adresboek`);
-    await voegAdresboekEntryToe({
-      naam:     lossenZoekNaam,
-      adres:    lossenZoekAdres || klantadres,
-      postcode: klantpostcode,
-      plaats:   klantplaats,
-      type:     'Klant',
-      bron:     'DFDS auto'
-    });
-  }
-
+  // Ruwe locaties — enrichOrder doet alle lookups
   const pA = parseAdresRegel(pickupLocAdres);
   const lA = parseAdresRegel(lossenLocAdres);
   const dA = parseAdresRegel(dropoffLocAdres);
+  const lossenNaam  = lossenLocNaam  || klantnaam;
+  const lossenAdres = lossenLocAdres || klantadres;
 
   const locaties = [
     {
       volgorde: '0', actie: 'Opzetten',
-      naam:     pickupInfo?.naam     || pickupLocNaam,
-      adres:    pickupInfo?.adres    || pA.adres,
-      postcode: pickupInfo?.postcode || pA.postcode,
-      plaats:   pickupInfo?.plaats   || pA.plaats,
-      land:     normLand(pickupInfo?.land || 'NL'),
-      voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: cleanFloat(pickupInfo?.portbase_code || ''),
-      bicsCode:      cleanFloat(pickupInfo?.bicsCode      || '')
+      naam: pickupLocNaam, adres: pA.adres, postcode: pA.postcode, plaats: pA.plaats, land: 'NL'
     },
     {
       volgorde: '0', actie: 'Lossen',
-      // Als geen entry gevonden: gebruik exact wat in de PDF staat (naam + factuuradres)
-      naam:     lossenInfo?.naam     || lossenZoekNaam,
-      adres:    lossenInfo?.adres    || lA.adres    || klantadres,
-      postcode: lossenInfo?.postcode || lA.postcode || klantpostcode,
-      plaats:   lossenInfo?.plaats   || lA.plaats   || klantplaats,
-      land:     normLand(lossenInfo?.land || 'NL'),
-      portbase_code: cleanFloat(lossenInfo?.portbase_code || ''),
-      bicsCode:      cleanFloat(lossenInfo?.bicsCode      || '')
+      naam: lossenNaam, adres: lossenAdres, postcode: lA.postcode || klantpostcode, plaats: lA.plaats || klantplaats, land: 'NL'
     },
     {
       volgorde: '0', actie: 'Afzetten',
-      naam:     dropoffInfo?.naam     || dropoffLocNaam,
-      adres:    dropoffInfo?.adres    || dA.adres,
-      postcode: dropoffInfo?.postcode || dA.postcode,
-      plaats:   dropoffInfo?.plaats   || dA.plaats,
-      land:     normLand(dropoffInfo?.land || 'NL'),
-      voorgemeld: 'Onwaar', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: cleanFloat(dropoffInfo?.portbase_code || ''),
-      bicsCode:      cleanFloat(dropoffInfo?.bicsCode      || '')
+      naam: dropoffLocNaam, adres: dA.adres, postcode: dA.postcode, plaats: dA.plaats, land: 'NL'
     }
   ];
 
@@ -265,9 +209,11 @@ export default async function parseDFDS(buffer) {
     opdrachtgeverEmail:     'nl-rtm-operations@dfds.com',
     opdrachtgeverBTW:       'NL007129099B01',
     opdrachtgeverKVK:       '24232781',
-    ritnummer, bootnaam, rederij,
+    ritnummer, bootnaam,
+    rederijRaw:      rederijExtracted,
+    rederij:         '',
     inleverBootnaam: bootnaam,
-    inleverRederij:  rederij,
+    inleverRederij:  '',
     klantnaam, klantadres, klantpostcode, klantplaats,
     adr,
     ladenOfLossen:    'Lossen',
@@ -283,29 +229,27 @@ export default async function parseDFDS(buffer) {
 
   if (containerBlokken.length === 0) {
     console.warn('⚠️ Geen containers gevonden in transport tabel');
-    return [{ ...base, containertype: '', containernummer: '', datum: orderDatum }];
+    return [await enrichOrder({ ...base, containertype: '', containernummer: '', datum: orderDatum }, { bron: 'DFDS' })];
   }
 
   const results = await Promise.all(containerBlokken.map(async blok => {
-    const g    = goederenMap.get(blok.containernummer) || {};
-    const ctCode = await getContainerTypeCode(blok.containertype) || '0';
-    return {
+    const g = goederenMap.get(blok.containernummer) || {};
+    return enrichOrder({
       ...base,
-      containernummer:        blok.containernummer,
-      containertype:          blok.containertype,
-      containertypeCode:      ctCode,
-      cbm:                    g.cbm  || blok.cbmTransport,
-      zegel:                  g.zegel || '',
-      colli:                  g.colli || '0',
-      lading:                 (g.lading || '').toUpperCase(),
-      brutogewicht:           g.gewicht || '0',
-      geladenGewicht:         g.gewicht || '0',
-      referentie:             blok.pickupRef,
-      datum:                  blok.datum,
-      tijd:                   blok.tijd,
-      laadreferentie:         blok.lossenRef,
-      inleverreferentie:      blok.dropoffRef
-    };
+      containernummer:   blok.containernummer,
+      containertype:     blok.containertype,
+      cbm:               g.cbm  || blok.cbmTransport,
+      zegel:             g.zegel || '',
+      colli:             g.colli || '0',
+      lading:            (g.lading || '').toUpperCase(),
+      brutogewicht:      g.gewicht || '0',
+      geladenGewicht:    g.gewicht || '0',
+      referentie:        blok.pickupRef,
+      datum:             blok.datum,
+      tijd:              blok.tijd,
+      laadreferentie:    blok.lossenRef,
+      inleverreferentie: blok.dropoffRef
+    }, { bron: 'DFDS' });
   }));
 
   console.log(`✅ ${results.length} DFDS container(s) geparsed`);

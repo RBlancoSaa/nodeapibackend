@@ -1,16 +1,8 @@
 // parsers/parseB2L.js
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
-import {
-  getTerminalInfoMetFallback,
-  getAdresboekEntry,
-  voegAdresboekEntryToe,
-  getContainerTypeCode,
-  getRederijNaam,
-  getKlantData,
-  normLand,
-  cleanFloat
-} from '../utils/lookups/terminalLookup.js';
+import { getKlantData, normLand } from '../utils/lookups/terminalLookup.js';
+import { enrichOrder } from '../utils/enrichOrder.js';
 
 const MONTHS_EN = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
 
@@ -199,35 +191,11 @@ export default async function parseB2L(buffer) {
   console.log(`🔍 B2L afzetten: "${afzettenNaam}" | adres: "${afzettenAdres}"`);
 
   // === Postcode + plaats uit klantPCPlaats ("3225 MA, HELLEVOETSLUIS" of "3225MA HELLEVOETSLUIS") ===
-  const pcMatch   = klantPCPlaats.match(/^(\d{4}\s*[A-Z]{2})[,\s]+(.+)/i);
-  const klantPC   = pcMatch?.[1]?.replace(/(\d{4})\s*([A-Z]{2})/, '$1 $2') || '';
+  const pcMatch     = klantPCPlaats.match(/^(\d{4}\s*[A-Z]{2})[,\s]+(.+)/i);
+  const klantPC     = pcMatch?.[1]?.replace(/(\d{4})\s*([A-Z]{2})/, '$1 $2') || '';
   const klantPlaats = pcMatch?.[2]?.trim() || '';
 
-  // === Land normaliseren ===
-  function normaliseerLand(raw) {
-    if (!raw) return 'NL';
-    if (/netherlands/i.test(raw) || raw.trim().toUpperCase() === 'NL') return 'NL';
-    return normLand(raw) || raw;
-  }
-
-  // === Terminal & klant lookups ===
-  const [opzettenInfo, afzettenInfo, klant, klantInfo] = await Promise.all([
-    getTerminalInfoMetFallback(opzettenNaam),
-    getTerminalInfoMetFallback(afzettenNaam),
-    getKlantData('b2l cargocare'),
-    getAdresboekEntry(klantNaam, null, klantAdres)
-  ]);
-  const ctCode = await getContainerTypeCode(containertype);
-
-  if (!klantInfo && klantNaam && klantAdres) {
-    await voegAdresboekEntryToe({ naam: klantNaam, adres: klantAdres, postcode: klantPC, plaats: klantPlaats, type: 'Klant', bron: 'B2L auto' });
-  }
-
-  // Rederij MOET uit de lijst komen — nooit raw doorsturen
-  const rederijNaam = await getRederijNaam(rederijRaw) || await getRederijNaam(rederijRaw.split(/\s+/)[0]) || '';
-  if (rederijRaw && !rederijNaam) {
-    console.warn(`⚠️ B2L rederij "${rederijRaw}" niet gevonden in lijst — veld leeggemaakt`);
-  }
+  const klant = await getKlantData('b2l cargocare');
 
   // === Instructies ===
   const instrStart = ls.findIndex(l => /SPECIAL INSTRUCTIONS/i.test(l));
@@ -236,65 +204,50 @@ export default async function parseB2L(buffer) {
     ? ls.slice(instrStart + 1, instrEind).filter(Boolean).join(' ').slice(0, 300)
     : '';
 
-  // === Bouw resultaat per container ===
+  // === Ruwe postcode/plaats voor afzetten uit klantPCPlaats-achtige string ===
+  const afzetPostcode = afzettenPCPlaats.match(/\d{4}\s*[A-Z]{2}/i)?.[0]?.replace(/(\d{4})\s*([A-Z]{2})/, '$1 $2') || '';
+  const afzetPlaats   = afzettenPCPlaats.replace(/^\d{4}\s*[A-Z]{2}[,\s]*/i, '').split(',')[0].trim() || '';
+
+  // === Bouw resultaat per container — enrichOrder doet alle lookups ===
   const results = [];
   for (let i = 0; i < containerCount; i++) {
     const tijd = tijden[i] || '';
 
+    // Ruwe locaties: enrichOrder doet terminal + adresboek lookups
     const locaties = [
       {
         volgorde: '0', actie: 'Opzetten',
-        naam:     opzettenInfo?.naam     || opzettenNaam,
-        adres:    opzettenInfo?.adres    || opzettenAdres,
-        postcode: opzettenInfo?.postcode || '',
-        plaats:   opzettenInfo?.plaats   || '',
-        land:     normLand(opzettenInfo?.land || 'NL'),
-        voorgemeld:    opzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-        aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-        portbase_code: cleanFloat(opzettenInfo?.portbase_code || ''),
-        bicsCode:      cleanFloat(opzettenInfo?.bicsCode      || '')
+        naam: opzettenNaam, adres: opzettenAdres, postcode: '', plaats: '', land: 'NL'
       },
       {
         volgorde: '0', actie: laadActie,
-        naam:     klantInfo?.naam     || klantNaam,
-        adres:    klantInfo?.adres    || klantAdres,
-        postcode: klantInfo?.postcode || klantPC,
-        plaats:   klantInfo?.plaats   || klantPlaats,
-        land:     normaliseerLand(klantInfo?.land || klantLand)
+        naam: klantNaam, adres: klantAdres, postcode: klantPC, plaats: klantPlaats,
+        land: normLand(klantLand || 'NL')
       },
       {
         volgorde: '0', actie: 'Afzetten',
-        naam:     afzettenInfo?.naam     || afzettenNaam,
-        adres:    afzettenInfo?.adres    || afzettenAdres,
-        postcode: afzettenInfo?.postcode || afzettenPCPlaats.match(/\d{4}\s*[A-Z]{2}/i)?.[0]?.replace(/(\d{4})\s*([A-Z]{2})/, '$1 $2') || '',
-        plaats:   afzettenInfo?.plaats   || afzettenPCPlaats.replace(/^\d{4}\s*[A-Z]{2}[,\s]*/i, '').split(',')[0].trim(),
-        land:     normLand(afzettenInfo?.land || 'NL'),
-        voorgemeld:    afzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
-        aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-        portbase_code: cleanFloat(afzettenInfo?.portbase_code || ''),
-        bicsCode:      cleanFloat(afzettenInfo?.bicsCode      || '')
+        naam: afzettenNaam, adres: afzettenAdres, postcode: afzetPostcode, plaats: afzetPlaats, land: 'NL'
       }
     ];
 
-    results.push({
+    results.push(await enrichOrder({
       ritnummer,
-      klantnaam:     klantInfo?.naam     || klantNaam,
-      klantadres:    klantInfo?.adres    || klantAdres,
-      klantpostcode: klantInfo?.postcode || klantPC,
-      klantplaats:   klantInfo?.plaats   || klantPlaats,
+      klantnaam:     klantNaam,
+      klantadres:    klantAdres,
+      klantpostcode: klantPC,
+      klantplaats:   klantPlaats,
 
-      opdrachtgeverNaam:     klant.naam     || 'B2L CARGOCARE',
-      opdrachtgeverAdres:    klant.adres    || '',
-      opdrachtgeverPostcode: klant.postcode || '',
-      opdrachtgeverPlaats:   klant.plaats   || '',
-      opdrachtgeverTelefoon: klant.telefoon || '',
-      opdrachtgeverEmail:    klant.email    || '',
-      opdrachtgeverBTW:      klant.btw      || '',
-      opdrachtgeverKVK:      klant.kvk      || '57',
+      opdrachtgeverNaam:     klant?.naam     || 'B2L CARGOCARE',
+      opdrachtgeverAdres:    klant?.adres    || '',
+      opdrachtgeverPostcode: klant?.postcode || '',
+      opdrachtgeverPlaats:   klant?.plaats   || '',
+      opdrachtgeverTelefoon: klant?.telefoon || '',
+      opdrachtgeverEmail:    klant?.email    || '',
+      opdrachtgeverBTW:      klant?.btw      || '',
+      opdrachtgeverKVK:      klant?.kvk      || '57',
 
-      containernummer:           containerNummerPDF || '',
+      containernummer: containerNummerPDF || '',
       containertype,
-      containertypeCode:         ctCode || '0',
 
       datum,
       tijd,
@@ -303,25 +256,26 @@ export default async function parseB2L(buffer) {
       inleverreferentie: referentie,
       inleverBestemming: '',
 
-      rederij:         rederijNaam,
+      rederijRaw,
+      rederij:         '',
       bootnaam,
-      inleverRederij:  rederijNaam,
       inleverBootnaam: bootnaam,
+      inleverRederij:  '',
 
-      zegel: '',
-      colli: '0',
+      zegel:          '',
+      colli:          '0',
       lading,
       brutogewicht:   gewicht,
       geladenGewicht: gewicht,
-      cbm: '0',
+      cbm:            '0',
 
-      adr: 'Onwaar',
+      adr:           'Onwaar',
       ladenOfLossen: isImport ? 'Lossen' : 'Laden',
       instructies,
       tar: '', documentatie: '', tarra: '0', brix: '0',
 
       locaties
-    });
+    }, { bron: 'B2L' }));
   }
 
   console.log(`✅ parseB2L: ${results.length} container(s)`);
