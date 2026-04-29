@@ -150,7 +150,8 @@ export default async function parseRitra(buffer) {
   if (!opzettenInfo) console.log(`⚠️ Opzet-terminal niet in lijst: "${opzettenNaam}"`);
   if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${afzettenNaam}"`);
   const ctCode     = await getContainerTypeCode(containertype);
-  const rederijNaam = await getRederijNaam(rederijCode) || rederijCode;
+  const rederijNaam = await getRederijNaam(rederijCode) || '';
+  if (rederijCode && !rederijNaam) console.warn(`⚠️ Ritra rederij "${rederijCode}" niet gevonden — veld leeggemaakt`);
 
   const locaties = [
     {
@@ -214,9 +215,9 @@ export default async function parseRitra(buffer) {
     inleverreferentie: '',
     inleverBestemming: '',
 
-    rederij:        rederijNaam || rederijCode,
+    rederij:        rederijNaam,
     bootnaam,
-    inleverRederij: rederijNaam || rederijCode,
+    inleverRederij: rederijNaam,
     inleverBootnaam: bootnaam,
 
     zegel,

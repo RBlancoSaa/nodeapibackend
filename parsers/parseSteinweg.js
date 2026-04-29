@@ -1,7 +1,7 @@
 // 📁 parsers/parseSteinweg.js
 import '../utils/fsPatch.js';
 import XLSX from 'xlsx';
-import { getTerminalInfoMetFallback, getContainerTypeCode, getKlantData } from '../utils/lookups/terminalLookup.js';
+import { getTerminalInfoMetFallback, getContainerTypeCode, getKlantData, getRederijNaam } from '../utils/lookups/terminalLookup.js';
 
 function normLand(val) {
   const s = (val || '').trim().toUpperCase();
@@ -234,8 +234,10 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
   const r1 = route1Buffer ? parseRoute1(route1Buffer) : null;
   const r2 = route2Buffer ? parseRoute2(route2Buffer) : null;
 
-  const ordernummer = r1?.ordernummer || r2?.ordernummer || '';
-  const rederij     = r1?.rederij    || r2?.rederij    || '';
+  const ordernummer  = r1?.ordernummer || r2?.ordernummer || '';
+  const rederijRaw   = r1?.rederij    || r2?.rederij    || '';
+  const rederij      = rederijRaw ? ((await getRederijNaam(rederijRaw)) || '') : '';
+  if (rederijRaw && !rederij) console.warn(`⚠️ Steinweg rederij "${rederijRaw}" niet gevonden — veld leeggemaakt`);
 
   const klant = await getKlantData('steinweg');
   const instructies = [emailSubject, emailBody]
@@ -361,9 +363,9 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         klantplaats:   klant.plaats   || '',
         ritnummer:      ordernummer,
         bootnaam:       '',
-        rederij:        r2.rederij || rederij || '',
+        rederij:        rederij,
         inleverBootnaam: '',
-        inleverRederij:  r2.rederij || rederij || '',
+        inleverRederij:  rederij,
         containernummer:   c2.containernummer,
         containertype:     containerTypeStr,
         containertypeCode: ctCode || '0',

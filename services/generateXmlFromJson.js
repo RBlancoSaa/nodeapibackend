@@ -139,7 +139,7 @@ if (typeof data.rederij === 'string') {
 
 const officiëleRederij = await getRederijNaam(baseRederij);
 
-if (officiëleRederij && officiëleRederij !== '0') {
+if (officiëleRederij) {
   data.rederij = officiëleRederij;
   data.inleverRederij = officiëleRederij;
 } else {

@@ -169,7 +169,8 @@ export default async function parseNeelevat(buffer) {
   if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${loc3.naam}"`);
   const ctCode     = await getContainerTypeCode(containertypeDisplay) || '0';
   // Alleen lookup als er iets gevonden is — anders leeg laten (niet '0' doorgeven)
-  const rederijNaam = rederijRaw ? ((await getRederijNaam(rederijRaw)) || rederijRaw) : '';
+  const rederijNaam = rederijRaw ? ((await getRederijNaam(rederijRaw)) || '') : '';
+  if (rederijRaw && !rederijNaam) console.warn(`⚠️ Neelevat rederij "${rederijRaw}" niet gevonden — veld leeggemaakt`);
 
   const datum = loc1.datum || loc2.datum || '';
 

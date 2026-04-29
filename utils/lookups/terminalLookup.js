@@ -201,8 +201,9 @@ export async function getTerminalInfoMetFallback(key, zoekAdres = '') {
 
 export async function getRederijNaam(input) {
   try {
-    if (!input || typeof input !== 'string') return '0';
+    if (!input || typeof input !== 'string') return '';
     const norm = input.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!norm) return '';
     const res  = await fetch(`${SUPABASE_LIST_URL}/rederijen.json`);
     const lijst = await res.json();
 
@@ -211,20 +212,20 @@ export async function getRederijNaam(input) {
       for (const optie of [item.naam, item.code, ...(item.altLabels || [])]) {
         if (!optie) continue;
         const optieNorm = optie.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (optieNorm === norm) return item.naam;
+        if (optieNorm === norm) return item.naam;  // exacte match
         const score = norm.includes(optieNorm) || optieNorm.includes(norm) ? optieNorm.length : 0;
         if (score > hoogsteScore) { besteMatch = item.naam; hoogsteScore = score; }
       }
     }
-    if (besteMatch) {
+    if (besteMatch && hoogsteScore >= 3) {
       console.warn(`⚠️ Fuzzy match rederij "${input}" ➜ "${besteMatch}"`);
       return besteMatch;
     }
     console.warn(`❌ Geen rederij gevonden voor "${input}"`);
-    return '0';
+    return '';  // NOOIT raw doorgeven — leeg = veld weglaten
   } catch (err) {
     console.error('❌ Fout in getRederijNaam:', err);
-    return '0';
+    return '';
   }
 }
 

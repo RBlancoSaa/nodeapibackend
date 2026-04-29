@@ -5,6 +5,7 @@ import {
   getTerminalInfoMetFallback,
   getAdresboekEntry,
   getContainerTypeCode,
+  getRederijNaam,
   normLand,
   cleanFloat
 } from '../utils/lookups/terminalLookup.js';
@@ -65,7 +66,9 @@ export default async function parseDFDS(buffer) {
   const ritnummer   = log('ritnummer', regels.find(r => r.includes('Onze referentie'))?.match(/SFIM\d{7}/)?.[0] || '');
   const bootnaam    = log('bootnaam',  regels.find(r => r.includes('Vaartuig'))?.split('Vaartuig')[1]?.split('Reis')[0]?.trim() || '');
   const rederijRaw  = regels.find(r => r.includes('Rederij'))?.split('Rederij')[1]?.trim() || '';
-  const rederij     = log('rederij',   rederijRaw.replace(/\s+[A-Z]{3}[UJZ]\d{7}.*$/i, '').trim());
+  const rederijExtracted = log('rederij', rederijRaw.replace(/\s+[A-Z]{3}[UJZ]\d{7}.*$/i, '').trim());
+  const rederij = rederijExtracted ? ((await getRederijNaam(rederijExtracted)) || '') : '';
+  if (rederijExtracted && !rederij) console.warn(`⚠️ DFDS rederij "${rederijExtracted}" niet gevonden — veld leeggemaakt`);
 
   // Klantnaam: eerste woord(en) voor " Datum " op de datumregel
   const klantnaam   = log('klantnaam',  datumRegel?.match(/^(.+?)\s+Datum\s+\d{2}-\d{2}-\d{4}/)?.[1]?.trim() || '');

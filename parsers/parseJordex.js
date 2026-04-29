@@ -549,10 +549,14 @@ try {
     : data.rederij.trim();
 
   const officiëleRederij = await getRederijNaam(baseRederij);
-   console.log('🎯 MATCH uit rederijenlijst:', officiëleRederij);
-    if (officiëleRederij && officiëleRederij !== '0') {
+  console.log('🎯 MATCH uit rederijenlijst:', officiëleRederij);
+  if (officiëleRederij) {
     data.rederij = officiëleRederij;
     data.inleverRederij = officiëleRederij;
+  } else {
+    console.warn(`⚠️ Jordex rederij "${baseRederij}" niet gevonden — veld leeggemaakt`);
+    data.rederij = '';
+    data.inleverRederij = '';
   }
   
 } catch (e) {

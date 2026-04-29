@@ -221,7 +221,8 @@ export default async function parseSteder(buffer) {
   if (!afzettenInfo) console.log(`⚠️ Afzet-terminal niet in lijst: "${loc3.naam}"`);
 
   const ctCode      = await getContainerTypeCode(containertypeDisplay) || '0';
-  const rederijNaam = (await getRederijNaam(rederijRaw)) || rederijRaw;
+  const rederijNaam = (await getRederijNaam(rederijRaw)) || '';
+  if (rederijRaw && !rederijNaam) console.warn(`⚠️ Steder rederij "${rederijRaw}" niet gevonden — veld leeggemaakt`);
 
   const onbekendeMeldingen = [];
   if (!opzettenInfo && loc1.naam) onbekendeMeldingen.push(`Opzet-terminal niet in lijst: ${loc1.naam}`);
