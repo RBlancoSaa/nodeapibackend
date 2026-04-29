@@ -156,21 +156,27 @@ export default async function parseDFDS(buffer) {
   console.log(`📦 ${containerBlokken.length} container(s) in transport tabel`);
 
   // === Locaties: aparte sectie na de transport tabel ===
-  // "Pickup Ect Delta Terminal" / "Lossen Climax" / "Dropoff MEDREPAIR NEDERLAND"
-  // Locatielijnen hebben geen PORTBASE / cijferreeksen / datums in de naam
-  const isLocNaam = r => !/\d{7}|\d{2}-\d{2}-\d{4}|PORTBASE/i.test(r);
+  // "Pickup Ect Delta Terminal" / "Lossen Climax" / "Dropoff Ect Delta Terminal"
+  // Zoek ALLEEN in de locatiesectie (na de transport-tabel) zodat referentienummers
+  // zoals "Dropoff 610RT4S87694" (in de container-tabel) niet worden meegenomen.
+  const locSectie = regels.slice(i); // i staat nu op de eerste locatieregel
 
-  const pickupLocR  = regels.find(r => r.startsWith('Pickup ')  && isLocNaam(r));
-  const lossenLocR  = regels.find(r => r.startsWith('Lossen ')  && isLocNaam(r));
-  const dropoffLocR = regels.find(r => r.startsWith('Dropoff ') && isLocNaam(r));
+  const pickupLocR  = locSectie.find(r => r.startsWith('Pickup '));
+  const lossenLocR  = locSectie.find(r => r.startsWith('Lossen '));
+  const dropoffLocR = locSectie.find(r => r.startsWith('Dropoff '));
 
   const pickupLocNaam  = pickupLocR?.replace('Pickup ', '').trim()  || '';
   const lossenLocNaam  = lossenLocR?.replace('Lossen ', '').trim()  || '';
   const dropoffLocNaam = dropoffLocR?.replace('Dropoff ', '').trim() || '';
 
-  const pickupLocAdres  = pickupLocR  ? regels[regels.findIndex(r => r === pickupLocR)  + 1] || '' : '';
-  const lossenLocAdres  = lossenLocR  ? regels[regels.findIndex(r => r === lossenLocR)  + 1] || '' : '';
-  const dropoffLocAdres = dropoffLocR ? regels[regels.findIndex(r => r === dropoffLocR) + 1] || '' : '';
+  // Adresregel staat direct na de locatieregel in dezelfde sectie
+  const locOffset = (locR) => {
+    const idx = locSectie.findIndex(r => r === locR);
+    return idx >= 0 ? locSectie[idx + 1] || '' : '';
+  };
+  const pickupLocAdres  = locOffset(pickupLocR);
+  const lossenLocAdres  = locOffset(lossenLocR);
+  const dropoffLocAdres = locOffset(dropoffLocR);
 
   console.log('📍 Opzetten:', pickupLocNaam, '|', pickupLocAdres);
   console.log('📍 Lossen:',  lossenLocNaam,  '|', lossenLocAdres);
