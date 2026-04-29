@@ -122,6 +122,16 @@ export async function generateXmlFromJson(data) {
     if (!data[veld] || data[veld] === '') console.warn(`⚠️ Ontbrekend opdrachtgeverveld: ${veld}`);
   }
   const zeroFallback = (val) => (val === undefined || val === '' || val === null ? '0' : val);
+  // EasyTrip verwacht komma als decimaalteken (NL-locale). Punt wordt anders
+  // als duizendteken gelezen → 28.50 wordt 2850 of 285. Formatteer als "28,50".
+  const formatBedrag = (val) => {
+    if (val === undefined || val === null || val === '') return '0';
+    const num = typeof val === 'number' ? val : parseFloat(String(val).replace(',', '.'));
+    if (isNaN(num) || num === 0) return '0';
+    // Geheel getal → geen decimalen; anders 2 decimalen met komma
+    if (num === Math.floor(num)) return String(Math.floor(num));
+    return num.toFixed(2).replace('.', ',');
+  };
   const containers = await fetchList('containers');
 
   // Rederij is al opgezocht door enrichOrder — hier alleen loggen
@@ -136,7 +146,10 @@ export async function generateXmlFromJson(data) {
   };
 
   const locaties = data.locaties || [];
-  while (locaties.length < 3) locaties.push({
+  // Minimaal 2 locaties garanderen (Opzetten + Afzetten).
+  // NIET pads naar 3 — dat breekt 2-locatie omrijder-orders waarbij at(-1) dan
+  // de lege padding oppikt in plaats van de echte Afzetten-locatie.
+  while (locaties.length < 2) locaties.push({
     actie: '', naam: '', adres: '', postcode: '', plaats: '', land: '',
     voorgemeld: '', aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
     portbase_code: '', bicsCode: ''
@@ -286,15 +299,15 @@ ${(() => {
 </Locatie>
 </Locaties>
 <Financieel>
-<Tarief>${zeroFallback(data.tarief)}</Tarief>
+<Tarief>${formatBedrag(data.tarief)}</Tarief>
 <BTW>0</BTW>
 <ADR_toeslag_Chart>0</ADR_toeslag_Chart>
 <ADR_bedrag_Chart>0</ADR_bedrag_Chart>
 <Botlek_Chart>0</Botlek_Chart>
 <Chassishuur_Bedrag_chart>0</Chassishuur_Bedrag_chart>
-<Delta_Chart>${zeroFallback(data.deltaChart)}</Delta_Chart>
-<Diesel_toeslag_Chart>${zeroFallback(data.dieselToeslagChart)}</Diesel_toeslag_Chart>
-<Euromax_Chart>${zeroFallback(data.euromaxChart)}</Euromax_Chart>
+<Delta_Chart>${formatBedrag(data.deltaChart)}</Delta_Chart>
+<Diesel_toeslag_Chart>${formatBedrag(data.dieselToeslagChart)}</Diesel_toeslag_Chart>
+<Euromax_Chart>${formatBedrag(data.euromaxChart)}</Euromax_Chart>
 <ExtraStop_Chart>0</ExtraStop_Chart>
 <GasMeten_Chart>0</GasMeten_Chart>
 <Gen_Chart>0</Gen_Chart>
@@ -307,9 +320,9 @@ ${(() => {
 <MV2_Chart>0</MV2_Chart>
 <Scannen_Chart>0</Scannen_Chart>
 <Tol_Chart>0</Tol_Chart>
-<Blanco1_Chart>${zeroFallback(data.blanco1Chart)}</Blanco1_Chart>
+<Blanco1_Chart>${formatBedrag(data.blanco1Chart)}</Blanco1_Chart>
 <Blanco1_Text>${c(data.blanco1Text || '')}</Blanco1_Text>
-<Blanco2_Chart>${zeroFallback(data.blanco2Chart)}</Blanco2_Chart>
+<Blanco2_Chart>${formatBedrag(data.blanco2Chart)}</Blanco2_Chart>
 <Blanco2_Text>${c(data.blanco2Text || '')}</Blanco2_Text>
 </Financieel>
 </Dossier>

@@ -135,7 +135,7 @@ function parseRoute1(buffer) {
   const cProd   = colOf('product');
   const cOrigin = colOf('origin');
   const cImo    = colOf('imo');
-  const cZegel  = colOf('zegel');
+  const cZegel  = ['zegel', 'seal nr', 'seal no', 'seal'].reduce((f, l) => f >= 0 ? f : colOf(l), -1);
   const cShip   = colOf('shipping comp');
 
   let rederij = '';
@@ -306,7 +306,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         inleverreferentie: steinwegRef,           // referentie bij Steinweg afzetten
         inleverBestemming: '',
         adr:           c1.imo && c1.imo !== '' ? 'Waar' : 'Onwaar',
-        ladenOfLossen: 'Lossen',
+        ladenOfLossen: 'Omrijder',
         instructies,
         tar: '', documentatie: '', tarra: '0', brix: '0',
         // Financieel
@@ -389,7 +389,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         inleverreferentie: c2.reDeliveryRef || '',  // referentie bij depot afzetten
         inleverBestemming: c2.returnDepot   || '',
         adr: 'Onwaar',
-        ladenOfLossen: 'Lossen',
+        ladenOfLossen: 'Omrijder',
         instructies,
         tar: '', documentatie: '', tarra: '0', brix: '0',
         // Financieel
