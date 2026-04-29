@@ -1,587 +1,521 @@
-// api/dashboard.js
-// Volledig dashboard: opdrachten, email log, fouten en statistieken
-// Beveiligd met ?token=<CRON_SECRET>
+// api/dashboard.js  –  Romy HQ frontend
 import { supabase } from '../services/supabaseClient.js';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(ts) {
   if (!ts) return '—';
-  const d = new Date(ts);
-  return d.toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam', dateStyle: 'short', timeStyle: 'short' });
+  return new Date(ts).toLocaleString('nl-NL', {
+    timeZone: 'Europe/Amsterdam', day: '2-digit', month: '2-digit',
+    year: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+}
+function fmtDate(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleDateString('nl-NL', {
+    timeZone: 'Europe/Amsterdam', day: '2-digit', month: 'short', year: 'numeric'
+  });
 }
 function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function badge(bron) {
-  const cls = (bron || '').toLowerCase().replace(/\s+/g, '-');
-  return `<span class="badge badge-${cls}">${esc(bron)}</span>`;
-}
-function statusPill(s) {
-  const map = { OK:'ok', FOUT:'fout', verwerkt:'ok', fout:'fout', overgeslagen:'skip', update:'update', onbekend:'skip' };
-  const cls = map[s] || 'skip';
-  return `<span class="pill pill-${cls}">${esc(s)}</span>`;
-}
-function typePill(t) {
-  const map = { transport:'tr', reservering:'res', update:'upd', onbekend:'unk' };
-  const cls = map[t] || 'unk';
-  return `<span class="pill pill-type-${cls}">${esc(t)}</span>`;
+function ago(ts) {
+  if (!ts) return '';
+  const diff = Date.now() - new Date(ts).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'zojuist';
+  if (m < 60) return `${m}m geleden`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}u geleden`;
+  return `${Math.floor(h / 24)}d geleden`;
 }
 
-// ── Main handler ─────────────────────────────────────────────────────────────
+const BRON_COLORS = {
+  jordex:    '#10b981', dfds:      '#3b82f6', steinweg:  '#f59e0b',
+  neelevat:  '#8b5cf6', ritra:     '#ef4444', b2l:       '#f97316',
+  steder:    '#06b6d4', eimskip:   '#14b8a6', easyfresh: '#84cc16',
+  kwe:       '#ec4899',
+};
+function bronDot(bron) {
+  const c = BRON_COLORS[(bron||'').toLowerCase()] || '#94a3b8';
+  return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:6px;flex-shrink:0"></span>`;
+}
+function bronBadge(bron) {
+  const c = BRON_COLORS[(bron||'').toLowerCase()] || '#94a3b8';
+  const bg = c + '22';
+  return `<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;background:${bg};color:${c}">${bronDot(bron)}${esc(bron||'?')}</span>`;
+}
+function statusChip(s) {
+  const map = {
+    OK:          ['#dcfce7','#16a34a','✓'],
+    FOUT:        ['#fee2e2','#dc2626','✕'],
+    verwerkt:    ['#dcfce7','#16a34a','✓'],
+    fout:        ['#fee2e2','#dc2626','✕'],
+    overgeslagen:['#fef9c3','#92400e','—'],
+    update:      ['#e0e7ff','#4338ca','↑'],
+    onbekend:    ['#f1f5f9','#64748b','?'],
+  };
+  const [bg, color, icon] = map[s] || ['#f1f5f9','#64748b','?'];
+  return `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;background:${bg};color:${color}">${icon} ${esc(s)}</span>`;
+}
+
 export default async function handler(req, res) {
   try {
-  const token = req.query?.token || '';
-  if (token !== (process.env.CRON_SECRET || '')) {
-    res.status(401).send('Niet geautoriseerd');
-    return;
-  }
-
-  // Filters
-  const bronFilter    = req.query?.bron    || '';
-  const statusFilter  = req.query?.status  || '';
-  const typeFilter    = req.query?.type    || '';
-  const zoekFilter    = (req.query?.zoek   || '').toLowerCase().trim();
-  const dagenFilter   = parseInt(req.query?.dagen  || '30', 10);
-  const activeTab     = req.query?.tab     || 'opdrachten';
-
-  const cutoff = dagenFilter > 0
-    ? new Date(Date.now() - dagenFilter * 86_400_000).toISOString()
-    : null;
-
-  // ── Ophalen opdrachten_log ────────────────────────────────────────────────
-  let qOp = supabase
-    .from('opdrachten_log')
-    .select('*')
-    .order('verwerkt_op', { ascending: false })
-    .limit(1000);
-  if (bronFilter)   qOp = qOp.eq('bron', bronFilter);
-  if (statusFilter && (statusFilter === 'OK' || statusFilter === 'FOUT')) qOp = qOp.eq('status', statusFilter);
-  if (cutoff)       qOp = qOp.gte('verwerkt_op', cutoff);
-  const { data: opdrachten, error: opErr } = await qOp;
-  if (opErr) { res.status(500).send(`Supabase fout (opdrachten): ${opErr.message}`); return; }
-
-  // ── Ophalen verwerkingslog ────────────────────────────────────────────────
-  let qVl = supabase
-    .from('verwerkingslog')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(1000);
-  if (typeFilter)   qVl = qVl.eq('type', typeFilter);
-  if (statusFilter === 'verwerkt' || statusFilter === 'fout' || statusFilter === 'overgeslagen') qVl = qVl.eq('status', statusFilter);
-  if (cutoff)       qVl = qVl.gte('created_at', cutoff);
-  const { data: verwLog } = await qVl;
-  const emailLog = verwLog || [];
-
-  // ── Unieke bronnen voor filter ────────────────────────────────────────────
-  const { data: bronnenRij } = await supabase.from('opdrachten_log').select('bron').order('bron');
-  const uniekeBronnen = [...new Set((bronnenRij || []).map(r => r.bron).filter(Boolean))];
-
-  // ── Filter op zoekterm (client-side-achtig: server filtert) ──────────────
-  const opRows = (opdrachten || []).filter(r => {
-    if (!zoekFilter) return true;
-    return [r.ritnummer, r.containernummer, r.klant_naam, r.klant_plaats, r.bron, r.laadreferentie]
-      .some(v => (v || '').toLowerCase().includes(zoekFilter));
-  });
-
-  const vlRows = emailLog.filter(r => {
-    if (!zoekFilter) return true;
-    return [r.email_subject, r.email_van, r.klant, r.fout_melding]
-      .some(v => (v || '').toLowerCase().includes(zoekFilter));
-  });
-
-  const foutRows = [
-    ...opRows.filter(r => r.status === 'FOUT').map(r => ({
-      _src: 'opdracht',
-      ts:   r.verwerkt_op,
-      bron: r.bron,
-      subject: r.bestandsnaam || '',
-      van:  r.afzender_email || '',
-      detail: `${r.containernummer || r.ritnummer || ''} — ${r.klant_naam || ''}`,
-      fout: r.foutmelding || '',
-      raw:  r
-    })),
-    ...vlRows.filter(r => r.status === 'fout').map(r => ({
-      _src: 'email',
-      ts:   r.created_at,
-      bron: r.klant || '?',
-      subject: r.email_subject || '',
-      van:  r.email_van || '',
-      detail: r.type || '',
-      fout: r.fout_melding || '',
-      raw:  r
-    }))
-  ].sort((a, b) => new Date(b.ts) - new Date(a.ts));
-
-  // ── Stats ─────────────────────────────────────────────────────────────────
-  const totOp   = opRows.length;
-  const okOp    = opRows.filter(r => r.status === 'OK').length;
-  const foutOp  = opRows.filter(r => r.status === 'FOUT').length;
-  const totVl   = vlRows.length;
-  const verwerkt= vlRows.filter(r => r.status === 'verwerkt').length;
-  const skip    = vlRows.filter(r => r.status === 'overgeslagen').length;
-  const foutVl  = vlRows.filter(r => r.status === 'fout').length;
-
-  // ── Bouw HTML ────────────────────────────────────────────────────────────
-  const baseUrl = `?token=${encodeURIComponent(token)}&dagen=${dagenFilter}${bronFilter ? `&bron=${encodeURIComponent(bronFilter)}` : ''}${zoekFilter ? `&zoek=${encodeURIComponent(zoekFilter)}` : ''}`;
-
-  function tabLink(tabId, label, count, hasAlert = false) {
-    const active = activeTab === tabId;
-    const url = `${baseUrl}&tab=${tabId}`;
-    const alert = hasAlert && count > 0 ? ` <span class="tab-badge">${count}</span>` : '';
-    return `<a href="${url}" class="tab${active ? ' tab-active' : ''}">${label}${alert}</a>`;
-  }
-
-  // ─ Tabel opdrachten ───────────────────────────────────────────────────────
-  function opdrachtRows() {
-    if (!opRows.length) return `<tr><td colspan="13" class="empty">Geen opdrachten gevonden</td></tr>`;
-    return opRows.map(r => {
-      const isOK = r.status === 'OK';
-      const dataJson = esc(JSON.stringify({
-        Datum:        fmt(r.verwerkt_op),
-        Bron:         r.bron || '',
-        Ritnummer:    r.ritnummer || '',
-        Container:    r.containernummer || '',
-        Type:         r.containertype || '',
-        'L/L Datum':  r.datum || '',
-        Klant:        r.klant_naam || '',
-        Plaats:       r.klant_plaats || '',
-        'Laad ref':   r.laadreferentie || '',
-        'Inlever ref':r.inleverreferentie || '',
-        Status:       r.status || '',
-        'Easy bestand': r.easy_bestand || '',
-        Afzender:     r.afzender_email || '',
-        Bestandsnaam: r.bestandsnaam || '',
-        Foutmelding:  r.foutmelding || ''
-      }));
-      return `<tr class="${isOK ? '' : 'row-fout'}" onclick="showDetail(this)" data-detail="${dataJson}" style="cursor:pointer">
-        <td>${fmt(r.verwerkt_op)}</td>
-        <td>${badge(r.bron)}</td>
-        <td class="mono">${esc(r.ritnummer)}</td>
-        <td class="mono">${esc(r.containernummer)}</td>
-        <td>${esc(r.containertype)}</td>
-        <td>${esc(r.datum)}</td>
-        <td>${esc(r.klant_naam)}</td>
-        <td>${esc(r.klant_plaats)}</td>
-        <td class="ref">${esc(r.laadreferentie)}</td>
-        <td class="ref">${esc(r.inleverreferentie)}</td>
-        <td>${statusPill(r.status)}</td>
-        <td class="easy">${esc(r.easy_bestand)}</td>
-        <td class="fout-col">${esc((r.foutmelding || '').slice(0, 80))}</td>
-      </tr>`;
-    }).join('\n');
-  }
-
-  // ─ Tabel email log ────────────────────────────────────────────────────────
-  function emailRows() {
-    if (!vlRows.length) return `<tr><td colspan="7" class="empty">Geen log-entries gevonden</td></tr>`;
-    return vlRows.map(r => {
-      const dataJson = esc(JSON.stringify({
-        Datum:       fmt(r.created_at),
-        'Run ID':    r.run_id || '',
-        Afzender:    r.email_van || '',
-        Onderwerp:   r.email_subject || '',
-        Type:        r.type || '',
-        Klant:       r.klant || '',
-        Status:      r.status || '',
-        'Easy bestanden': Array.isArray(r.easy_bestanden) ? r.easy_bestanden.join(', ') : (r.easy_bestanden || ''),
-        Foutmelding: r.fout_melding || ''
-      }));
-      return `<tr onclick="showDetail(this)" data-detail="${dataJson}" style="cursor:pointer" class="${r.status === 'fout' ? 'row-fout' : r.status === 'overgeslagen' ? 'row-skip' : ''}">
-        <td>${fmt(r.created_at)}</td>
-        <td class="vantd" title="${esc(r.email_van)}">${esc((r.email_van||'').split('@')[1] ? '@'+(r.email_van||'').split('@')[1] : r.email_van||'')}</td>
-        <td class="subject">${esc((r.email_subject||'').slice(0,80))}</td>
-        <td>${typePill(r.type)}</td>
-        <td>${badge(r.klant || '?')}</td>
-        <td>${statusPill(r.status)}</td>
-        <td class="fout-col">${esc((r.fout_melding||'').slice(0,80))}</td>
-      </tr>`;
-    }).join('\n');
-  }
-
-  // ─ Tabel fouten ──────────────────────────────────────────────────────────
-  function foutRowsHtml() {
-    if (!foutRows.length) return `<tr><td colspan="6" class="empty">✅ Geen fouten gevonden in deze periode</td></tr>`;
-    return foutRows.map(r => {
-      const dataJson = esc(JSON.stringify(r.raw));
-      return `<tr class="row-fout" onclick="showDetail(this)" data-detail="${dataJson}" style="cursor:pointer">
-        <td>${fmt(r.ts)}</td>
-        <td>${badge(r.bron)}</td>
-        <td class="subject">${esc((r.subject||'').slice(0,60))}</td>
-        <td class="van-td">${esc((r.van||'').slice(0,40))}</td>
-        <td class="mono">${esc((r.detail||'').slice(0,60))}</td>
-        <td class="fout-col red">${esc((r.fout||'').slice(0,120))}</td>
-      </tr>`;
-    }).join('\n');
-  }
-
-  // ─ Overzicht stats / recent ───────────────────────────────────────────────
-  function overzichtContent() {
-    const recentOp = opRows.slice(0, 5);
-    const recentRecentHtml = recentOp.length
-      ? recentOp.map(r => `<div class="recent-item">
-          <div class="ri-left">${badge(r.bron)} <span class="ri-cntr mono">${esc(r.containernummer||r.ritnummer||'—')}</span></div>
-          <div class="ri-mid">${esc(r.klant_naam||'—')} · ${esc(r.klant_plaats||'—')}</div>
-          <div class="ri-right">${statusPill(r.status)} <span class="ri-time">${fmt(r.verwerkt_op)}</span></div>
-        </div>`).join('')
-      : '<div class="empty" style="padding:20px">Geen recente opdrachten</div>';
-
-    // Per-bron statistieken
-    const bronStats = {};
-    for (const r of opRows) {
-      const b = r.bron || 'Onbekend';
-      if (!bronStats[b]) bronStats[b] = { ok: 0, fout: 0 };
-      if (r.status === 'OK') bronStats[b].ok++;
-      else bronStats[b].fout++;
+    const token = req.query?.token || '';
+    if (token !== (process.env.CRON_SECRET || '')) {
+      res.status(401).send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Romy HQ</title>
+      <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0f172a;display:flex;align-items:center;justify-content:center;height:100vh;color:white}
+      .box{text-align:center}.logo{font-size:32px;font-weight:800;margin-bottom:8px}.logo span{color:#6366f1}
+      p{color:#94a3b8;margin-bottom:24px}input{padding:10px 16px;border-radius:8px;border:1px solid #334155;background:#1e293b;color:white;font-size:14px;width:280px}
+      button{margin-left:8px;padding:10px 20px;background:#6366f1;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
+      </style></head><body><div class="box"><div class="logo">Romy <span>HQ</span></div>
+      <p>Voer je toegangstoken in</p>
+      <form method="GET"><input type="password" name="token" placeholder="Token..." autofocus>
+      <button type="submit">Inloggen</button></form></div></body></html>`);
+      return;
     }
-    const bronHtml = Object.entries(bronStats)
-      .sort((a, b) => (b[1].ok + b[1].fout) - (a[1].ok + a[1].fout))
-      .map(([b, s]) => `<div class="bron-stat">
-        <div class="bs-left">${badge(b)}</div>
-        <div class="bs-bar">
-          <div class="bar-ok" style="width:${totOp ? Math.round(s.ok / (s.ok + s.fout) * 100) : 0}%"></div>
-        </div>
-        <div class="bs-nums"><span class="green">${s.ok} ok</span>${s.fout ? ` <span class="red">${s.fout} fout</span>` : ''}</div>
-      </div>`).join('') || '<div class="empty" style="padding:10px">Geen data</div>';
 
-    return `<div class="overzicht-grid">
-      <div class="ov-section">
-        <h3>Recente opdrachten</h3>
-        <div class="recent-list">${recentRecentHtml}</div>
-        <a href="${baseUrl}&tab=opdrachten" class="meer-link">Alle opdrachten →</a>
-      </div>
-      <div class="ov-section">
-        <h3>Per opdrachtgever (${dagenFilter} dagen)</h3>
-        <div class="bron-stats">${bronHtml}</div>
-      </div>
-    </div>`;
-  }
+    const dagen   = parseInt(req.query?.dagen || '30', 10);
+    const tab     = req.query?.tab   || 'opdrachten';
+    const zoek    = (req.query?.zoek || '').toLowerCase().trim();
+    const cutoff  = dagen > 0 ? new Date(Date.now() - dagen * 86_400_000).toISOString() : null;
+    const base    = `?token=${encodeURIComponent(token)}`;
 
-  const bronOpties = uniekeBronnen.map(b =>
-    `<option value="${b}" ${b === bronFilter ? 'selected' : ''}>${b}</option>`
-  ).join('');
-  const dagenOpties = [7, 14, 30, 90, 365].map(d =>
-    `<option value="${d}" ${d === dagenFilter ? 'selected' : ''}>${d} d</option>`
-  ).join('');
+    // ── Data ophalen ─────────────────────────────────────────────────────────
+    let qOp = supabase.from('opdrachten_log').select('*')
+      .order('verwerkt_op', { ascending: false }).limit(500);
+    if (cutoff) qOp = qOp.gte('verwerkt_op', cutoff);
+    const { data: opRaw } = await qOp;
 
-  const html = `<!DOCTYPE html>
+    let qVl = supabase.from('verwerkingslog').select('*')
+      .order('created_at', { ascending: false }).limit(500);
+    if (cutoff) qVl = qVl.gte('created_at', cutoff);
+    const { data: vlRaw } = await qVl;
+
+    const opdrachten = opRaw || [];
+    const emails     = vlRaw || [];
+
+    // ── Filter ───────────────────────────────────────────────────────────────
+    const opFiltered = zoek ? opdrachten.filter(r =>
+      [r.ritnummer, r.containernummer, r.klant_naam, r.klant_plaats, r.bron, r.easy_bestand, r.laadreferentie]
+        .some(v => (v||'').toLowerCase().includes(zoek))
+    ) : opdrachten;
+
+    const vlFiltered = zoek ? emails.filter(r =>
+      [r.email_subject, r.email_van, r.klant, r.fout_melding]
+        .some(v => (v||'').toLowerCase().includes(zoek))
+    ) : emails;
+
+    // ── Stats ────────────────────────────────────────────────────────────────
+    const totOp      = opFiltered.length;
+    const okOp       = opFiltered.filter(r => r.status === 'OK').length;
+    const foutOp     = opFiltered.filter(r => r.status === 'FOUT').length;
+    const totVl      = vlFiltered.length;
+    const verwerktVl = vlFiltered.filter(r => r.status === 'verwerkt').length;
+    const skipVl     = vlFiltered.filter(r => r.status === 'overgeslagen').length;
+    const foutVl     = vlFiltered.filter(r => r.status === 'fout').length;
+
+    // TO's (easy bestanden)
+    const allTOs = opFiltered.filter(r => r.easy_bestand && r.status === 'OK').map(r => r.easy_bestand);
+    const totTO  = allTOs.length;
+
+    // ── Runs (gegroepeerd op run_id) ─────────────────────────────────────────
+    const runMap = new Map();
+    for (const e of vlFiltered) {
+      const rid = e.run_id || 'onbekend';
+      if (!runMap.has(rid)) runMap.set(rid, { id: rid, ts: e.created_at, emails: [] });
+      runMap.get(rid).emails.push(e);
+    }
+    const runs = [...runMap.values()].slice(0, 20);
+
+    // ── Bronnen voor filter ──────────────────────────────────────────────────
+    const bronnen = [...new Set(opdrachten.map(r => r.bron).filter(Boolean))].sort();
+
+    // ── Per-bron stats ───────────────────────────────────────────────────────
+    const bronStats = {};
+    for (const r of opFiltered) {
+      const b = (r.bron || 'onbekend').toLowerCase();
+      if (!bronStats[b]) bronStats[b] = { ok: 0, fout: 0, naam: r.bron || 'onbekend' };
+      r.status === 'OK' ? bronStats[b].ok++ : bronStats[b].fout++;
+    }
+
+    // ── HTML bouwers ─────────────────────────────────────────────────────────
+
+    function statsBar() {
+      const cards = [
+        { n: totTO,      l: 'TO\'s aangemaakt', icon: '📄', accent: '#6366f1' },
+        { n: okOp,       l: 'Verwerkt',         icon: '✅', accent: '#10b981' },
+        { n: foutOp + foutVl, l: 'Fouten',      icon: '⚠️', accent: '#ef4444' },
+        { n: skipVl,     l: 'Overgeslagen',      icon: '⏭',  accent: '#f59e0b' },
+        { n: totVl,      l: 'Emails gelezen',    icon: '📧', accent: '#3b82f6' },
+        { n: totOp,      l: 'Opdrachten',        icon: '📦', accent: '#8b5cf6' },
+      ];
+      return cards.map(c => `
+        <div class="stat-card">
+          <div class="stat-icon">${c.icon}</div>
+          <div class="stat-num" style="color:${c.accent}">${c.n}</div>
+          <div class="stat-lbl">${c.l}</div>
+        </div>`).join('');
+    }
+
+    function runsList() {
+      if (!runs.length) return `<div class="empty">Geen runs gevonden in de afgelopen ${dagen} dagen</div>`;
+      return runs.map(run => {
+        const verwerkt   = run.emails.filter(e => e.status === 'verwerkt');
+        const overgeslagen = run.emails.filter(e => e.status === 'overgeslagen');
+        const fouten     = run.emails.filter(e => e.status === 'fout');
+        const tos        = verwerkt.flatMap(e => Array.isArray(e.easy_bestanden) ? e.easy_bestanden : (e.easy_bestanden ? [e.easy_bestanden] : []));
+
+        return `<div class="run-card">
+          <div class="run-header">
+            <div class="run-meta">
+              <span class="run-time">${fmt(run.ts)}</span>
+              <span class="run-ago">${ago(run.ts)}</span>
+            </div>
+            <div class="run-chips">
+              ${verwerkt.length ? `<span class="chip chip-ok">✓ ${verwerkt.length} verwerkt</span>` : ''}
+              ${fouten.length ? `<span class="chip chip-err">✕ ${fouten.length} fout</span>` : ''}
+              ${overgeslagen.length ? `<span class="chip chip-skip">— ${overgeslagen.length} overgeslagen</span>` : ''}
+            </div>
+          </div>
+          ${tos.length ? `<div class="run-tos">${tos.map(t => `<span class="to-tag">📄 ${esc(t)}</span>`).join('')}</div>` : ''}
+          <div class="run-emails">
+            ${run.emails.map(e => {
+              const isOk   = e.status === 'verwerkt';
+              const isErr  = e.status === 'fout';
+              const isSkip = e.status === 'overgeslagen';
+              const dot    = isOk ? '🟢' : isErr ? '🔴' : '⚪';
+              return `<div class="run-email ${isErr ? 'email-err' : isSkip ? 'email-skip' : ''}">
+                <span class="run-email-dot">${dot}</span>
+                <span class="run-email-van">${esc((e.email_van||'').replace(/^"([^"]+)".*/, '$1').trim())}</span>
+                <span class="run-email-sub">${esc((e.email_subject||'').slice(0,70))}</span>
+                ${e.klant ? bronBadge(e.klant) : ''}
+                ${isErr ? `<span class="run-email-err" title="${esc(e.fout_melding||'')}">⚠ ${esc((e.fout_melding||'').slice(0,50))}</span>` : ''}
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function opdrachtenTable() {
+      if (!opFiltered.length) return `<div class="empty">Geen opdrachten gevonden</div>`;
+      return `<div class="table-wrap"><table>
+        <thead><tr>
+          <th>Datum</th><th>Bron</th><th>Container</th><th>Type</th>
+          <th>Klant</th><th>Plaats</th><th>Laad datum</th>
+          <th>TO bestand</th><th>Status</th><th>Fout</th>
+        </tr></thead>
+        <tbody>
+        ${opFiltered.map(r => `<tr class="${r.status !== 'OK' ? 'row-err' : ''}">
+          <td class="td-time">${fmt(r.verwerkt_op)}</td>
+          <td>${bronBadge(r.bron)}</td>
+          <td class="td-mono">${esc(r.containernummer||r.ritnummer||'—')}</td>
+          <td class="td-type">${esc(r.containertype||'')}</td>
+          <td class="td-klant">${esc(r.klant_naam||'—')}</td>
+          <td class="td-plaats">${esc(r.klant_plaats||'—')}</td>
+          <td class="td-datum">${esc(r.datum||'—')}</td>
+          <td class="td-to">${r.easy_bestand ? `<span class="to-inline">📄 ${esc(r.easy_bestand)}</span>` : '<span class="td-empty">—</span>'}</td>
+          <td>${statusChip(r.status)}</td>
+          <td class="td-fout">${esc((r.foutmelding||'').slice(0,60))}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+    }
+
+    function overgeslagenTable() {
+      const rows = vlFiltered.filter(r => r.status === 'overgeslagen');
+      if (!rows.length) return `<div class="empty">Geen overgeslagen emails in deze periode ✅</div>`;
+      return `<div class="table-wrap"><table>
+        <thead><tr><th>Datum</th><th>Afzender</th><th>Onderwerp</th><th>Type</th></tr></thead>
+        <tbody>
+        ${rows.map(r => `<tr class="row-skip">
+          <td class="td-time">${fmt(r.created_at)}</td>
+          <td class="td-van">${esc((r.email_van||'').replace(/^"([^"]+)".*/, '$1').trim())}</td>
+          <td class="td-sub">${esc((r.email_subject||'').slice(0,80))}</td>
+          <td><span class="type-badge">${esc(r.type||'onbekend')}</span></td>
+        </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+    }
+
+    function foutenTable() {
+      const opFouten = opFiltered.filter(r => r.status === 'FOUT');
+      const vlFouten = vlFiltered.filter(r => r.status === 'fout');
+      if (!opFouten.length && !vlFouten.length) return `<div class="empty">Geen fouten gevonden ✅</div>`;
+      return `<div class="table-wrap"><table>
+        <thead><tr><th>Datum</th><th>Bron</th><th>Onderwerp / Bestand</th><th>Foutmelding</th></tr></thead>
+        <tbody>
+        ${opFouten.map(r => `<tr class="row-err">
+          <td class="td-time">${fmt(r.verwerkt_op)}</td>
+          <td>${bronBadge(r.bron)}</td>
+          <td class="td-sub">${esc(r.bestandsnaam||r.containernummer||'—')}</td>
+          <td class="td-fout-big">${esc(r.foutmelding||'')}</td>
+        </tr>`).join('')}
+        ${vlFouten.map(r => `<tr class="row-err">
+          <td class="td-time">${fmt(r.created_at)}</td>
+          <td>${bronBadge(r.klant||'?')}</td>
+          <td class="td-sub">${esc((r.email_subject||'').slice(0,70))}</td>
+          <td class="td-fout-big">${esc(r.fout_melding||'')}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+    }
+
+    function bronOverzicht() {
+      const entries = Object.entries(bronStats).sort((a,b) => (b[1].ok+b[1].fout)-(a[1].ok+a[1].fout));
+      if (!entries.length) return `<div class="empty">Geen data</div>`;
+      return entries.map(([key, s]) => {
+        const tot  = s.ok + s.fout;
+        const pct  = tot ? Math.round(s.ok / tot * 100) : 0;
+        const c    = BRON_COLORS[key] || '#94a3b8';
+        return `<div class="bron-row">
+          <div class="bron-label">${bronBadge(s.naam)}</div>
+          <div class="bron-bar-wrap">
+            <div class="bron-bar-bg">
+              <div class="bron-bar-fill" style="width:${pct}%;background:${c}"></div>
+            </div>
+          </div>
+          <div class="bron-nums">
+            <span style="color:#10b981;font-weight:600">${s.ok}</span>
+            ${s.fout ? `<span style="color:#ef4444"> / ${s.fout} fout</span>` : ''}
+            <span style="color:#94a3b8;font-size:10px"> (${pct}%)</span>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    const TABS = [
+      { id: 'runs',         label: 'Runs',         icon: '⚡' },
+      { id: 'opdrachten',   label: 'Opdrachten',   icon: '📦', count: totOp },
+      { id: 'overgeslagen', label: 'Overgeslagen', icon: '⏭',  count: skipVl },
+      { id: 'fouten',       label: 'Fouten',       icon: '⚠️', count: foutOp + foutVl, alert: true },
+    ];
+
+    function tabNav() {
+      return TABS.map(t => {
+        const active = tab === t.id;
+        const badge  = t.count !== undefined
+          ? `<span class="tab-cnt ${t.alert && t.count > 0 ? 'tab-cnt-err' : ''}">${t.count}</span>`
+          : '';
+        return `<a href="${base}&dagen=${dagen}&tab=${t.id}${zoek ? '&zoek='+encodeURIComponent(zoek) : ''}"
+          class="tab-btn ${active ? 'tab-active' : ''}">${t.icon} ${t.label}${badge}</a>`;
+      }).join('');
+    }
+
+    function tabContent() {
+      switch (tab) {
+        case 'runs':         return `<div class="runs-list">${runsList()}</div>`;
+        case 'opdrachten':   return opdrachtenTable();
+        case 'overgeslagen': return overgeslagenTable();
+        case 'fouten':       return foutenTable();
+        default:             return opdrachtenTable();
+      }
+    }
+
+    const html = `<!DOCTYPE html>
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tiaro Transport — Dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Romy HQ</title>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #1a1a2e; font-size: 13px; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #f8fafc; color: #0f172a; font-size: 13px; min-height: 100vh; }
 
-/* ── Header ── */
-header { background: #0f172a; color: white; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 52px; }
-header .logo { font-size: 16px; font-weight: 700; letter-spacing: .3px; }
-header .logo span { color: #38bdf8; }
-.header-right { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 14px; }
-.auto-refresh-btn { background: none; border: 1px solid #334155; color: #94a3b8; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
-.auto-refresh-btn.active { border-color: #38bdf8; color: #38bdf8; }
+/* ── Sidebar ── */
+.layout    { display: flex; min-height: 100vh; }
+.sidebar   { width: 220px; background: #0f172a; display: flex; flex-direction: column; flex-shrink: 0; position: sticky; top: 0; height: 100vh; }
+.sb-logo   { padding: 24px 20px 20px; border-bottom: 1px solid #1e293b; }
+.sb-logo-text { font-size: 22px; font-weight: 800; color: white; letter-spacing: -.5px; }
+.sb-logo-text span { color: #6366f1; }
+.sb-logo-sub { font-size: 10px; color: #475569; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
+.sb-nav    { padding: 16px 12px; flex: 1; }
+.sb-section { font-size: 10px; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; padding: 8px 8px 4px; }
+.sb-link   { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 500; transition: all .15s; margin-bottom: 2px; }
+.sb-link:hover { background: #1e293b; color: white; }
+.sb-link.active { background: #6366f1; color: white; }
+.sb-link .sb-cnt { margin-left: auto; background: rgba(255,255,255,.15); padding: 1px 6px; border-radius: 10px; font-size: 10px; }
+.sb-link .sb-cnt.err { background: #ef4444; color: white; }
+.sb-bottom { padding: 16px 12px; border-top: 1px solid #1e293b; }
+.sb-status { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; padding: 6px 10px; }
+.sb-status .dot { width: 7px; height: 7px; border-radius: 50%; background: #10b981; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── Main ── */
+.main      { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.topbar    { background: white; border-bottom: 1px solid #e2e8f0; padding: 0 28px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+.topbar-left { display: flex; align-items: center; gap: 16px; }
+.page-title  { font-size: 16px; font-weight: 700; color: #0f172a; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.refresh-btn  { display: flex; align-items: center; gap: 6px; padding: 6px 14px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; }
+.refresh-btn:hover { background: #4f46e5; }
+
+/* ── Stats ── */
+.stats-grid  { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding: 20px 28px 0; }
+@media(max-width:1200px) { .stats-grid { grid-template-columns: repeat(3,1fr); } }
+.stat-card   { background: white; border-radius: 12px; padding: 16px; border: 1px solid #e2e8f0; }
+.stat-icon   { font-size: 20px; margin-bottom: 8px; }
+.stat-num    { font-size: 28px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+.stat-lbl    { font-size: 11px; color: #64748b; font-weight: 500; }
+
+/* ── Filter bar ── */
+.filter-bar  { padding: 16px 28px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.filter-bar select, .filter-bar input { padding: 7px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; background: white; color: #0f172a; outline: none; }
+.filter-bar select:focus, .filter-bar input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px #6366f133; }
+.btn-filter  { padding: 7px 16px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.btn-reset   { padding: 7px 12px; background: white; color: #64748b; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; cursor: pointer; text-decoration: none; }
+.search-wrap { position: relative; }
+.search-wrap input { padding-left: 32px; width: 220px; }
+.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px; pointer-events: none; }
 
 /* ── Tabs ── */
-.tabs { background: #1e293b; display: flex; gap: 2px; padding: 0 24px; }
-.tab { padding: 12px 18px; font-size: 12px; font-weight: 500; color: #94a3b8; text-decoration: none; border-bottom: 3px solid transparent; transition: all .15s; display: flex; align-items: center; gap: 6px; }
-.tab:hover { color: white; }
-.tab-active { color: white; border-bottom-color: #38bdf8; }
-.tab-badge { background: #ef4444; color: white; font-size: 10px; padding: 1px 5px; border-radius: 10px; font-weight: 700; }
+.tabs-row    { padding: 16px 28px 0; display: flex; gap: 4px; border-bottom: 1px solid #e2e8f0; margin: 0 28px; margin-top: 16px; }
+.tab-btn     { padding: 10px 16px; font-size: 13px; font-weight: 500; color: #64748b; text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; display: flex; align-items: center; gap: 6px; transition: all .15s; border-radius: 6px 6px 0 0; }
+.tab-btn:hover { color: #0f172a; background: #f8fafc; }
+.tab-active  { color: #6366f1; border-bottom-color: #6366f1; font-weight: 600; }
+.tab-cnt     { background: #f1f5f9; color: #475569; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+.tab-cnt-err { background: #ef4444; color: white; }
 
-/* ── Stats bar ── */
-.stats-bar { padding: 12px 24px; display: flex; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid #e2e5ea; background: white; }
-.stat { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
-.stat .num { font-size: 20px; font-weight: 700; }
-.stat .lbl { font-size: 11px; color: #64748b; }
-.stat.ok  .num { color: #16a34a; }
-.stat.err .num { color: #dc2626; }
-.stat.skip .num { color: #d97706; }
-.stat.tot  .num { color: #0f172a; }
+/* ── Content ── */
+.content     { padding: 20px 28px 40px; flex: 1; }
+.empty       { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 14px; }
 
-/* ── Toolbar ── */
-.toolbar { background: white; border-bottom: 1px solid #e2e5ea; padding: 8px 24px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.toolbar label { font-size: 12px; color: #64748b; }
-.toolbar select, .toolbar input[type=text] { padding: 5px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; background: white; }
-.toolbar select:focus, .toolbar input:focus { outline: 2px solid #38bdf8; border-color: transparent; }
-.toolbar .search-wrap { display: flex; align-items: center; gap: 4px; flex: 1; max-width: 280px; }
-.toolbar .search-wrap input { width: 100%; }
-.btn { padding: 5px 14px; background: #0f172a; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500; text-decoration: none; }
-.btn:hover { background: #1e293b; }
-.btn-ghost { background: none; border: 1px solid #cbd5e1; color: #64748b; }
-.btn-ghost:hover { background: #f1f5f9; }
+/* ── Runs ── */
+.runs-list   { display: flex; flex-direction: column; gap: 12px; }
+.run-card    { background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+.run-header  { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; gap: 8px; }
+.run-meta    { display: flex; align-items: center; gap: 10px; }
+.run-time    { font-size: 12px; font-weight: 600; color: #0f172a; }
+.run-ago     { font-size: 11px; color: #94a3b8; }
+.run-chips   { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip        { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.chip-ok     { background: #dcfce7; color: #16a34a; }
+.chip-err    { background: #fee2e2; color: #dc2626; }
+.chip-skip   { background: #fef9c3; color: #92400e; }
+.run-tos     { padding: 8px 16px; background: #f0f9ff; border-bottom: 1px solid #bae6fd; display: flex; flex-wrap: wrap; gap: 6px; }
+.to-tag      { background: white; border: 1px solid #bae6fd; color: #0369a1; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 500; }
+.run-emails  { padding: 8px 0; }
+.run-email   { display: flex; align-items: center; gap: 8px; padding: 6px 16px; font-size: 12px; flex-wrap: wrap; }
+.run-email:hover { background: #f8fafc; }
+.email-err   { background: #fff5f5; }
+.email-skip  { opacity: .65; }
+.run-email-dot { font-size: 9px; flex-shrink: 0; }
+.run-email-van  { color: #475569; min-width: 120px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; flex-shrink: 0; }
+.run-email-sub  { color: #0f172a; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.run-email-err  { color: #dc2626; font-size: 11px; flex-shrink: 0; }
 
-/* ── Tabel ── */
-.table-wrap { padding: 16px 24px 24px; overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-thead tr { background: #0f172a; color: white; }
-thead th { padding: 10px 12px; text-align: left; font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; white-space: nowrap; }
-tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .1s; }
-tbody tr:hover { background: #f8fafc; }
+/* ── Tables ── */
+.table-wrap  { overflow-x: auto; border-radius: 12px; border: 1px solid #e2e8f0; }
+table        { width: 100%; border-collapse: collapse; background: white; }
+thead tr     { background: #0f172a; }
+thead th     { padding: 10px 14px; text-align: left; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .8px; white-space: nowrap; }
+tbody tr     { border-bottom: 1px solid #f1f5f9; }
 tbody tr:last-child { border-bottom: none; }
-tbody tr.row-fout { background: #fff5f5; }
-tbody tr.row-fout:hover { background: #ffe4e4; }
+tbody tr:hover { background: #f8fafc; }
+tbody tr.row-err  { background: #fff5f5; }
+tbody tr.row-err:hover { background: #ffe4e4; }
 tbody tr.row-skip { background: #fffbeb; }
-tbody tr.row-skip:hover { background: #fef3c7; }
-td { padding: 7px 12px; vertical-align: middle; white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
-.empty { text-align: center; padding: 40px; color: #94a3b8; }
+td           { padding: 8px 14px; vertical-align: middle; }
+.td-time     { font-size: 11px; color: #64748b; white-space: nowrap; }
+.td-mono     { font-family: 'Consolas', monospace; font-size: 12px; font-weight: 600; color: #0f172a; }
+.td-type     { font-size: 11px; color: #64748b; }
+.td-klant    { font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-plaats   { color: #475569; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-datum    { font-size: 12px; color: #475569; white-space: nowrap; }
+.td-to       { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.to-inline   { font-size: 11px; color: #0369a1; background: #e0f2fe; padding: 2px 7px; border-radius: 5px; }
+.td-fout     { font-size: 11px; color: #dc2626; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-fout-big { font-size: 12px; color: #dc2626; max-width: 300px; }
+.td-van      { color: #475569; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-sub      { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-empty    { color: #cbd5e1; }
+.type-badge  { background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 6px; font-size: 11px; }
 
-/* ── Badges & Pills ── */
-.badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; }
-.badge-dfds       { background: #dbeafe; color: #1d4ed8; }
-.badge-jordex     { background: #d1fae5; color: #065f46; }
-.badge-steinweg   { background: #fef3c7; color: #92400e; }
-.badge-neelevat   { background: #f3e8ff; color: #6b21a8; }
-.badge-ritra      { background: #ffe4e6; color: #9f1239; }
-.badge-b2l        { background: #ffedd5; color: #9a3412; }
-.badge-b2l-cargocare { background: #ffedd5; color: #9a3412; }
-.badge-steder     { background: #e0f2fe; color: #0369a1; }
-.badge-eimskip    { background: #ecfdf5; color: #065f46; }
-.badge-reservering { background: #f0fdf4; color: #166534; }
-.badge-steinweg-route1,.badge-steinweg-route2 { background: #fef3c7; color: #92400e; }
-.badge- { background: #f1f5f9; color: #475569; }
-
-.pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; }
-.pill-ok      { background: #dcfce7; color: #15803d; }
-.pill-fout    { background: #fee2e2; color: #b91c1c; }
-.pill-skip    { background: #fef9c3; color: #854d0e; }
-.pill-update  { background: #e0e7ff; color: #4338ca; }
-.pill-type-tr  { background: #dbeafe; color: #1e40af; }
-.pill-type-res { background: #d1fae5; color: #065f46; }
-.pill-type-upd { background: #e0e7ff; color: #4338ca; }
-.pill-type-unk { background: #f1f5f9; color: #64748b; }
-
-.mono   { font-family: 'Consolas', monospace; font-size: 12px; }
-.ref    { font-size: 12px; color: #475569; }
-.easy   { font-size: 11px; color: #94a3b8; }
-.fout-col { font-size: 11px; color: #b91c1c; max-width: 160px; }
-.subject { max-width: 260px; color: #334155; }
-.vantd  { color: #64748b; font-size: 12px; }
-.red    { color: #b91c1c !important; }
-.green  { color: #16a34a; }
-
-/* ── Overzicht ── */
-.overzicht-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 24px 24px; }
-@media(max-width: 900px) { .overzicht-grid { grid-template-columns: 1fr; } }
-.ov-section { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-.ov-section h3 { font-size: 13px; font-weight: 600; margin-bottom: 14px; color: #0f172a; }
-.recent-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f5f9; gap: 8px; flex-wrap: wrap; }
-.recent-item:last-child { border-bottom: none; }
-.ri-left { display: flex; align-items: center; gap: 6px; }
-.ri-cntr { color: #475569; font-size: 12px; }
-.ri-mid  { flex: 1; color: #64748b; font-size: 12px; }
-.ri-right { display: flex; align-items: center; gap: 6px; }
-.ri-time { font-size: 11px; color: #94a3b8; }
-.meer-link { display: inline-block; margin-top: 10px; font-size: 12px; color: #0ea5e9; text-decoration: none; }
-.meer-link:hover { text-decoration: underline; }
-.bron-stats { display: flex; flex-direction: column; gap: 8px; }
-.bron-stat { display: flex; align-items: center; gap: 8px; }
-.bs-left { min-width: 80px; }
-.bs-bar { flex: 1; height: 8px; background: #fee2e2; border-radius: 4px; overflow: hidden; }
-.bar-ok { height: 100%; background: #16a34a; border-radius: 4px; }
-.bs-nums { font-size: 11px; min-width: 80px; text-align: right; }
-
-/* ── Modal ── */
-#modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000; justify-content: center; align-items: flex-start; padding: 40px 20px; overflow-y: auto; }
-#modal-overlay.open { display: flex; }
-#modal { background: white; border-radius: 12px; width: 100%; max-width: 680px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
-.modal-header { padding: 18px 22px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
-.modal-header h2 { font-size: 15px; font-weight: 600; }
-.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b; line-height: 1; }
-.modal-close:hover { color: #0f172a; }
-.modal-body { padding: 20px 22px; }
-.detail-grid { display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; }
-.detail-grid .lbl { font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; padding-top: 2px; }
-.detail-grid .val { font-size: 13px; color: #1e293b; word-break: break-all; }
-.detail-grid .val.fout-val { color: #b91c1c; font-weight: 500; }
-.detail-sep { grid-column: 1/-1; border-top: 1px solid #f1f5f9; margin: 6px 0; }
+/* ── Bron overzicht ── */
+.bron-grid   { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.bron-card   { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px; }
+.bron-card h3 { font-size: 13px; font-weight: 700; margin-bottom: 14px; color: #0f172a; }
+.bron-row    { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.bron-label  { min-width: 100px; }
+.bron-bar-wrap { flex: 1; }
+.bron-bar-bg { background: #f1f5f9; border-radius: 4px; height: 8px; overflow: hidden; }
+.bron-bar-fill { height: 100%; border-radius: 4px; transition: width .3s; }
+.bron-nums   { min-width: 120px; font-size: 11px; text-align: right; }
 </style>
 </head>
 <body>
+<div class="layout">
 
-<header>
-  <div class="logo">🚛 Tiaro <span>Transport</span></div>
-  <div class="header-right">
-    <span>Dashboard</span>
-    <button class="auto-refresh-btn" id="refreshBtn" onclick="toggleAutoRefresh()">⟳ Auto-refresh</button>
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-text">Romy <span>HQ</span></div>
+    <div class="sb-logo-sub">Tiaro Transport</div>
   </div>
-</header>
+  <nav class="sb-nav">
+    <div class="sb-section">Overzicht</div>
+    <a href="${base}&dagen=${dagen}&tab=runs"         class="sb-link ${tab==='runs'?'active':''}">⚡ Runs</a>
+    <a href="${base}&dagen=${dagen}&tab=opdrachten"   class="sb-link ${tab==='opdrachten'?'active':''}">📦 Opdrachten <span class="sb-cnt">${totOp}</span></a>
+    <a href="${base}&dagen=${dagen}&tab=overgeslagen" class="sb-link ${tab==='overgeslagen'?'active':''}">⏭ Overgeslagen <span class="sb-cnt">${skipVl}</span></a>
+    <a href="${base}&dagen=${dagen}&tab=fouten"       class="sb-link ${tab==='fouten'?'active':''}">⚠️ Fouten ${(foutOp+foutVl)>0 ? `<span class="sb-cnt err">${foutOp+foutVl}</span>` : `<span class="sb-cnt">0</span>`}</a>
+    <div class="sb-section" style="margin-top:12px">Periode</div>
+    ${[7,14,30,90].map(d => `<a href="${base}&dagen=${d}&tab=${tab}" class="sb-link ${dagen===d?'active':''}">${d === 7 ? '7 dagen' : d === 14 ? '2 weken' : d === 30 ? '1 maand' : '3 maanden'}</a>`).join('')}
+  </nav>
+  <div class="sb-bottom">
+    <div class="sb-status"><span class="dot"></span> Systeem actief</div>
+  </div>
+</aside>
 
-<nav class="tabs">
-  ${tabLink('overzicht',   '📊 Overzicht',  0)}
-  ${tabLink('opdrachten',  '📦 Opdrachten', totOp)}
-  ${tabLink('emaillog',    '📧 Email log',  totVl)}
-  ${tabLink('fouten',      '❌ Fouten',     foutOp + foutVl, true)}
-</nav>
-
-<div class="stats-bar">
-  <div class="stat tot"><div class="num">${totOp}</div><div class="lbl">Opdrachten</div></div>
-  <div class="stat ok"> <div class="num">${okOp}</div>   <div class="lbl">Succesvol</div></div>
-  <div class="stat err"><div class="num">${foutOp + foutVl}</div><div class="lbl">Fouten</div></div>
-  <div class="stat tot"><div class="num">${totVl}</div><div class="lbl">Emails log</div></div>
-  <div class="stat ok"> <div class="num">${verwerkt}</div><div class="lbl">Verwerkt</div></div>
-  <div class="stat skip"><div class="num">${skip}</div>  <div class="lbl">Overgeslagen</div></div>
-</div>
-
-<div class="toolbar">
-  <form method="GET" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%">
-    <input type="hidden" name="token" value="${token}">
-    <input type="hidden" name="tab" value="${activeTab}">
-    <div class="search-wrap">
-      <input type="text" name="zoek" placeholder="🔍 Zoeken..." value="${esc(zoekFilter)}" autocomplete="off">
+<!-- ── Main ── -->
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="page-title">${
+        tab === 'runs' ? '⚡ Runs' :
+        tab === 'opdrachten' ? '📦 Opdrachten' :
+        tab === 'overgeslagen' ? '⏭ Overgeslagen emails' :
+        tab === 'fouten' ? '⚠️ Fouten' : '📦 Opdrachten'
+      }</span>
+      <span style="font-size:11px;color:#94a3b8">Laatste ${dagen} dagen</span>
     </div>
-    <label>Bron:
-      <select name="bron" onchange="this.form.submit()">
-        <option value="">Alle</option>
-        ${bronOpties}
-      </select>
-    </label>
-    <label>Periode:
-      <select name="dagen" onchange="this.form.submit()">
-        ${dagenOpties}
-      </select>
-    </label>
-    <button type="submit" class="btn">Filteren</button>
-    <a class="btn btn-ghost" href="?token=${encodeURIComponent(token)}&tab=${activeTab}">Reset</a>
-    <button type="button" class="btn btn-ghost" onclick="exportCsv()">⬇ CSV</button>
-  </form>
-</div>
-
-<!-- ─── Tab: Overzicht ─── -->
-<div id="tab-overzicht" class="tab-panel" style="display:${activeTab === 'overzicht' ? 'block' : 'none'}">
-  ${overzichtContent()}
-</div>
-
-<!-- ─── Tab: Opdrachten ─── -->
-<div id="tab-opdrachten" class="tab-panel" style="display:${activeTab === 'opdrachten' ? 'block' : 'none'}">
-  <div class="table-wrap">
-    <table id="tbl-opdrachten">
-      <thead><tr>
-        <th>Verwerkt op</th>
-        <th>Bron</th>
-        <th>Ritnummer</th>
-        <th>Container</th>
-        <th>Type</th>
-        <th>L/L datum</th>
-        <th>Klant</th>
-        <th>Plaats</th>
-        <th>Laad ref</th>
-        <th>Inlever ref</th>
-        <th>Status</th>
-        <th>Easy bestand</th>
-        <th>Foutmelding</th>
-      </tr></thead>
-      <tbody>${opdrachtRows()}</tbody>
-    </table>
-  </div>
-</div>
-
-<!-- ─── Tab: Email log ─── -->
-<div id="tab-emaillog" class="tab-panel" style="display:${activeTab === 'emaillog' ? 'block' : 'none'}">
-  <div class="table-wrap">
-    <table id="tbl-emaillog">
-      <thead><tr>
-        <th>Datum</th>
-        <th>Afzender</th>
-        <th>Onderwerp</th>
-        <th>Type</th>
-        <th>Klant</th>
-        <th>Status</th>
-        <th>Foutmelding</th>
-      </tr></thead>
-      <tbody>${emailRows()}</tbody>
-    </table>
-  </div>
-</div>
-
-<!-- ─── Tab: Fouten ─── -->
-<div id="tab-fouten" class="tab-panel" style="display:${activeTab === 'fouten' ? 'block' : 'none'}">
-  <div class="table-wrap">
-    <table id="tbl-fouten">
-      <thead><tr>
-        <th>Datum</th>
-        <th>Bron</th>
-        <th>Bestand / Onderwerp</th>
-        <th>Afzender</th>
-        <th>Detail</th>
-        <th>Foutmelding</th>
-      </tr></thead>
-      <tbody>${foutRowsHtml()}</tbody>
-    </table>
-  </div>
-</div>
-
-<!-- ─── Detail Modal ─── -->
-<div id="modal-overlay" onclick="closeModal(event)">
-  <div id="modal">
-    <div class="modal-header">
-      <h2 id="modal-title">Detail</h2>
-      <button class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('open')">✕</button>
+    <div class="topbar-right">
+      <form method="GET" style="display:flex;gap:8px;align-items:center">
+        <input type="hidden" name="token" value="${esc(token)}">
+        <input type="hidden" name="tab" value="${esc(tab)}">
+        <input type="hidden" name="dagen" value="${dagen}">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" name="zoek" placeholder="Zoek container, klant..." value="${esc(zoek)}" autocomplete="off">
+        </div>
+        <button type="submit" class="btn-filter">Zoeken</button>
+        ${zoek ? `<a href="${base}&dagen=${dagen}&tab=${tab}" class="btn-reset">✕ Reset</a>` : ''}
+      </form>
+      <a href="?token=${esc(token)}&dagen=${dagen}&tab=${tab}" class="refresh-btn">↻ Verversen</a>
     </div>
-    <div class="modal-body" id="modal-body"></div>
-  </div>
-</div>
+  </header>
 
+  <!-- Stats -->
+  <div class="stats-grid">${statsBar()}</div>
+
+  <!-- Tab content -->
+  <div class="content" style="padding-top:24px">
+    ${tabContent()}
+  </div>
+</div><!-- /main -->
+
+</div><!-- /layout -->
 <script>
-// ── Auto-refresh ────────────────────────────────────────────────────────────
-let refreshTimer = null;
-function toggleAutoRefresh() {
-  const btn = document.getElementById('refreshBtn');
-  if (refreshTimer) {
-    clearInterval(refreshTimer);
-    refreshTimer = null;
-    btn.classList.remove('active');
-    btn.textContent = '⟳ Auto-refresh';
-  } else {
-    refreshTimer = setInterval(() => location.reload(), 60000);
-    btn.classList.add('active');
-    btn.textContent = '⟳ Auto (60s)';
-  }
-}
-
-// ── Detail Modal ─────────────────────────────────────────────────────────────
-function showDetail(row) {
-  try {
-    const data = JSON.parse(row.getAttribute('data-detail'));
-    const body = document.getElementById('modal-body');
-    let html = '<div class="detail-grid">';
-    for (const [k, v] of Object.entries(data)) {
-      if (!v && v !== 0) continue;
-      const isFout = k.toLowerCase().includes('fout') || k.toLowerCase().includes('fout');
-      html += \`<div class="lbl">\${k}</div><div class="val\${isFout && v ? ' fout-val' : ''}"><span>\${String(v).replace(/</g,'&lt;')}</span></div>\`;
-    }
-    html += '</div>';
-    body.innerHTML = html;
-    document.getElementById('modal-title').textContent = data['Container'] || data['Onderwerp'] || 'Detail';
-    document.getElementById('modal-overlay').classList.add('open');
-  } catch(e) { console.error(e); }
-}
-function closeModal(e) {
-  if (e.target.id === 'modal-overlay') document.getElementById('modal-overlay').classList.remove('open');
-}
-document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('modal-overlay').classList.remove('open'); });
-
-// ── CSV export ───────────────────────────────────────────────────────────────
-function exportCsv() {
-  const activePanel = document.querySelector('.tab-panel[style*="block"]');
-  const table = activePanel?.querySelector('table');
-  if (!table) return;
-  const rows = [...table.querySelectorAll('tr')];
-  const csv = rows.map(r => [...r.querySelectorAll('th,td')].map(c => '"' + c.textContent.trim().replace(/"/g,'""') + '"').join(',')).join('\\n');
-  const a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent('\\uFEFF' + csv);
-  a.download = 'tiaro-export-' + new Date().toISOString().slice(0,10) + '.csv';
-  a.click();
-}
+// Auto-refresh elke 90 seconden
+setTimeout(() => location.reload(), 90000);
 </script>
 </body>
 </html>`;
 
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.status(200).send(html);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.status(200).send(html);
 
   } catch (err) {
     console.error('❌ Dashboard crash:', err);
-    res.status(500).send(`<pre>Dashboard fout:\n${err?.stack || err?.message || String(err)}</pre>`);
+    res.status(500).send(`<pre style="padding:20px;font-family:monospace">Dashboard fout:\n${err?.stack || err?.message || String(err)}</pre>`);
   }
 }
