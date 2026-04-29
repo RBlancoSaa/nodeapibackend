@@ -20,7 +20,7 @@ function parseDatumNL(str) {
 }
 
 function parseDatumEN(str) {
-  // "22-Apr-2026" or "29-APR-2026"
+  // "22-Apr-2026" or "29-APR-2026" or "30-APR-2026"
   const m = (str || '').match(/(\d{1,2})[- ]([A-Za-z]{3})[- ](\d{4})/);
   if (!m) return '';
   const maand = MONTHS_EN[m[2].toLowerCase()];
@@ -32,11 +32,31 @@ function valAfterLabel(line, label) {
   return line?.replace(new RegExp(`.*${label}[:\\s]*`, 'i'), '').trim() || '';
 }
 
+// Herkent sectie-headers die we moeten overslaan als naam/adres
+const SECTION_LABEL_RE = /^(?:EMPTY|FULL)\s+PICK-?UP\s+TERMINAL|^FULL\s+DELIVERY\s+TERMINAL|^EMPTY\s+(?:RETURN|DELIVERY)\s+TERMINAL|^EMPTY\s+DEPOT|^PLACE\s+OF\s+(?:LOADING|DELIVERY|UNLOADING|DISCHARGE)|^DELIVERY\s+ADDRESS|^DATE\/?TIME|^PORT\s+(?:OF|NUMBER)|^VOYAGE|^CARRIER|^MAIN\s+VESSEL|^ROUTINGS|^FROM\s+/i;
+
+// Geeft de eerste 'echte' bedrijfs/terminalnaam terug na een sectie-index.
+// Strips REFERENCE:... van de regel en slaat sectie-headers over.
+function nextRealLine(arr, startIdx) {
+  for (let i = startIdx; i < arr.length; i++) {
+    const raw  = arr[i] || '';
+    const line = raw.replace(/REFERENCE[:\s].*/i, '').trim();
+    if (line && !SECTION_LABEL_RE.test(line)) return { line, idx: i };
+  }
+  return { line: '', idx: startIdx };
+}
+
+// Adres-kandidaat: als de volgende regel een sectie-header is, geen adres.
+function safeAdres(arr, idx) {
+  const raw = arr[idx] || '';
+  return SECTION_LABEL_RE.test(raw) ? '' : raw;
+}
+
 export default async function parseB2L(buffer) {
   if (!buffer || !Buffer.isBuffer(buffer)) return [];
 
   const { text } = await pdfParse(buffer);
-  // Deduplicate lines (PDF has 3 identical page headers)
+  // Dedupliceer identieke regels (PDF bevat soms 3× dezelfde paginakoptekst)
   const seen = new Set();
   const ls = text.split('\n')
     .map(r => r.trim())
@@ -44,28 +64,15 @@ export default async function parseB2L(buffer) {
   console.log('📋 B2L regels:\n', ls.map((r, i) => `[${i}] ${r}`).join('\n'));
 
   // === Referentie / ritnummer ===
-  const refIdx  = ls.findIndex(l => /^REFERENTIE$/i.test(l));
+  const refIdx   = ls.findIndex(l => /^REFERENTIE$/i.test(l));
   const ritnummer = refIdx >= 0 ? (ls[refIdx + 1] || '') : '';
-
-  // === Datum (voorkeur: laaddatum uit schedule, fallback: documentdatum) ===
-  const docDatum = ls.find(l => /^\d{2}-\d{2}-\d{4}$/.test(l)) || '';
-
-  // Loading schedule dates
-  const schedLine = ls.find(l => /40ft High Cube/i.test(l));
-  const loadDatumEN = schedLine?.match(/(\d{1,2}-[A-Za-z]{3}-\d{4})/)?.[1] || '';
-  const datum = parseDatumEN(loadDatumEN) || parseDatumNL(docDatum);
-
-  // Load times from schedule
-  const tijden = ls
-    .filter(l => /at\s+\d{2}[:.]\d{2}h?/i.test(l))
-    .map(l => l.match(/(\d{2})[.:.](\d{2})/)?.[0]?.replace('.', ':') + ':00' || '');
 
   // === Container type ===
   const containerSetLine = ls.find(l => /CONTAINER SET/i.test(l));
-  const countMatch = containerSetLine?.match(/(\d+)X\s+(.+)/i);
-  const containerCount = parseInt(countMatch?.[1] || '1');
+  const countMatch       = containerSetLine?.match(/(\d+)X\s+(.+)/i);
+  const containerCount   = parseInt(countMatch?.[1] || '1');
   const containertypeRaw = countMatch?.[2]?.trim() || '40FT HIGH CUBE';
-  const containertype = /high.?cube|HC/i.test(containertypeRaw)
+  const containertype    = /high.?cube|HC/i.test(containertypeRaw)
     ? (/40/i.test(containertypeRaw) ? '40ft HC' : '45ft HC')
     : (/40/i.test(containertypeRaw) ? '40ft' : '20ft');
 
@@ -76,117 +83,145 @@ export default async function parseB2L(buffer) {
   const kgMatch = weightLine?.match(/([\d.,]+)\s*KGS?/i);
   const gewicht = kgMatch ? String(Math.round(parseFloat(kgMatch[1].replace(',', '.')))) : '0';
 
-  // === Detecteer formaat: export (PLACE OF LOADING) vs import (PLACE OF DELIVERY/UNLOADING) ===
-  const isImport = !ls.some(l => /PLACE OF LOADING/i.test(l)) &&
-                   ls.some(l => /PLACE OF (DELIVERY|UNLOADING|DISCHARGE)|DELIVERY ADDRESS/i.test(l));
+  // === Container nummer ===
+  // Alleen als een VOLLEDIGE regel exact een containernummer is (XXXX0000000).
+  // Embedding in boekingsreferenties zoals "YMTRTM0031219" wordt zo vermeden.
+  const containerNummerPDF = ls.find(l => /^[A-Z]{4}\d{7}$/.test(l.trim()))?.trim() || '';
+
+  // === Datum & Tijd ===
+  // Voorkeur 1: DATE/TIME: regel  (bijv. "DATE/TIME:30-APR-2026 AT 08.00H")
+  // Voorkeur 2: datumregel in scheduling-tabel
+  // Fallback: documentdatum
+  const dateTimeLine  = ls.find(l => /DATE[\/]?TIME\s*:/i.test(l));
+  const loadDatumEN   = dateTimeLine?.match(/(\d{1,2}-[A-Za-z]{3}-\d{4})/)?.[1]
+                     || ls.find(l => /40ft High Cube/i.test(l))?.match(/(\d{1,2}-[A-Za-z]{3}-\d{4})/)?.[1]
+                     || '';
+  const docDatum      = ls.find(l => /^\d{2}-\d{2}-\d{4}$/.test(l)) || '';
+  const datum         = parseDatumEN(loadDatumEN) || parseDatumNL(docDatum);
+
+  // Tijden: alle regels met "AT HH.MMH" patroon (zoals "DATE/TIME:30-APR-2026 AT 08.00H")
+  const tijden = ls
+    .filter(l => /\bAT\s+\d{2}[.:]\d{2}H?\b/i.test(l))
+    .map(l => {
+      const m = l.match(/\bAT\s+(\d{2})[.:](\d{2})H?\b/i);
+      return m ? `${m[1]}:${m[2]}:00` : '';
+    })
+    .filter(Boolean);
+
+  // === Formaat detectie: export vs import ===
+  // ANCHORED zoek: voorkomt dat routing-regels ("FROM X TO Y TO Z") matchen.
+  const hasPlaceOfLoading  = ls.some(l => /^PLACE\s+OF\s+LOADING\s*:?\s*$/i.test(l));
+  const hasPlaceOfDelivery = ls.some(l => /^PLACE\s+OF\s+(?:DELIVERY|UNLOADING|DISCHARGE)\s*:?\s*$|^DELIVERY\s+ADDRESS\s*:?\s*$/i.test(l));
+  const isImport = !hasPlaceOfLoading && hasPlaceOfDelivery;
   console.log(`🔀 B2L formaat: ${isImport ? 'IMPORT (lossen)' : 'EXPORT (laden)'}`);
 
-  // === Referenties ===
-  // Export: EMPTY PICK-UP TERMINAL | Import: FULL PICK-UP TERMINAL
-  const epuIdx = ls.findIndex(l => /EMPTY PICK-UP TERMINAL|FULL PICK-UP TERMINAL|PICK-?UP TERMINAL/i.test(l));
+  // === Sectie-indices (ANCHORED — slaan routing-regels over) ===
+  // Sectie-headers staan als standalone regel met optionele ":" aan het einde.
+  const epuIdx = ls.findIndex(l => /^(?:EMPTY|FULL)\s+PICK-?UP\s+TERMINAL\s*:?\s*$/i.test(l));
+  const polIdx = ls.findIndex(l => /^PLACE\s+OF\s+LOADING\s*:?\s*$/i.test(l));
+  const fdtIdx = ls.findIndex(l => /^FULL\s+DELIVERY\s+TERMINAL\s*:?\s*$/i.test(l));
+  const podIdx = ls.findIndex(l => /^PLACE\s+OF\s+(?:DELIVERY|UNLOADING|DISCHARGE)\s*:?\s*$|^DELIVERY\s+ADDRESS\s*:?\s*$/i.test(l));
+  const erdIdx = ls.findIndex(l => /^EMPTY\s+(?:RETURN|DELIVERY)\s+TERMINAL\s*:?\s*$|^EMPTY\s+DEPOT\s*:?\s*$/i.test(l));
+
+  // === Referentie (uit terminalsectie) ===
+  // Bijv. "KRAMER CITY DEPOTREFERENCE:YMTRTM0031219" → "YMTRTM0031219"
   const referentie = epuIdx >= 0
     ? (ls[epuIdx + 1] || '').replace(/.*REFERENCE[:\s]*/i, '').trim()
     : '';
 
   // === Rederij & Bootnaam ===
+  // Combinatieregel: "CARRIER:YANG MING (NETHERLANDS) BVMAIN VESSEL:ONE HAMMERSMITH"
   const voyageLine = ls.find(l => /CARRIER.*MAIN VESSEL|MAIN VESSEL.*CARRIER/i.test(l));
-  const rederijRaw  = voyageLine?.match(/CARRIER[:\s]+(.+?)(?=MAIN VESSEL)/i)?.[1]?.trim() || '';
-  const bootnaam    = voyageLine?.match(/MAIN VESSEL[:\s]+(.+)/i)?.[1]?.trim() || '';
-  const etsLine     = ls.find(l => /ETS[:\s]/i.test(l));
-  const etsRaw      = etsLine?.match(/ETS[:\s]*(\d{1,2}-[A-Za-z]{3}-\d{4})/i)?.[1] || '';
-  const etsDatum    = parseDatumEN(etsRaw);
+  const rederijRaw = voyageLine?.match(/CARRIER[:\s]+(.+?)(?=MAIN VESSEL)/i)?.[1]?.trim() || '';
+  const bootnaam   = voyageLine?.match(/MAIN VESSEL[:\s]+(.+)/i)?.[1]?.trim() || '';
 
   // === Locaties — export vs import ===
-  let opzettenNaam = '', opzettenAdres = '', opzettenAdresPCPlaats = '';
+  let opzettenNaam = '', opzettenAdres = '';
   let klantNaam = '', klantAdres = '', klantPCPlaats = '', klantLand = '';
   let laadActie = 'Laden';
   let afzettenNaam = '', afzettenAdres = '', afzettenPCPlaats = '';
 
-  // Helper: sla sectielabels over en geef de eerste 'echte' bedrijfsnaam terug
-  // (B2L PDFs hebben soms "FULL PICK-UP TERMINAL" als sub-header na een sectielabel)
-  const SECTION_LABELS = /^(FULL|EMPTY)\s+(PICK-?UP|DELIVERY|RETURN)\s+TERMINAL|^PLACE\s+OF\s+(LOADING|DELIVERY|UNLOADING|DISCHARGE)|^DELIVERY\s+ADDRESS|^EMPTY\s+DEPOT/i;
-  function nextRealLine(arr, startIdx) {
-    for (let i = startIdx; i < arr.length; i++) {
-      const line = (arr[i] || '').replace(/REFERENCE[:\s].*/i, '').trim();
-      if (line && !SECTION_LABELS.test(line)) return { line, idx: i };
-    }
-    return { line: '', idx: startIdx };
-  }
-
   if (!isImport) {
-    // ── Export: Opzetten=lege pickup, Laden=klant, Afzetten=volle aflevering ──
-    const { line: epuLine, idx: epuNameIdx } = nextRealLine(ls, epuIdx + 1);
-    opzettenNaam  = epuLine;
-    opzettenAdres = ls[epuNameIdx + 1] || '';
-
-    const polIdx = ls.findIndex(l => /PLACE OF LOADING/i.test(l));
+    // ── Export: lege container ophalen (Opzetten) → laden bij klant → terminal inleveren (Afzetten) ──
+    if (epuIdx >= 0) {
+      const { line, idx } = nextRealLine(ls, epuIdx + 1);
+      opzettenNaam  = line;
+      opzettenAdres = safeAdres(ls, idx + 1);
+    }
     if (polIdx >= 0) {
-      const { line: polLine, idx: polNameIdx } = nextRealLine(ls, polIdx + 1);
-      klantNaam     = polLine;
-      klantAdres    = ls[polNameIdx + 1] || '';
-      klantPCPlaats = ls[polNameIdx + 2] || '';
-      klantLand     = ls[polNameIdx + 3] || '';
+      const { line, idx } = nextRealLine(ls, polIdx + 1);
+      klantNaam     = line;
+      klantAdres    = safeAdres(ls, idx + 1);
+      klantPCPlaats = safeAdres(ls, idx + 2);
+      klantLand     = safeAdres(ls, idx + 3);
     }
     laadActie = 'Laden';
-
-    const fdtIdx = ls.findIndex(l => /FULL DELIVERY TERMINAL/i.test(l));
     if (fdtIdx >= 0) {
-      const { line: fdtLine, idx: fdtNameIdx } = nextRealLine(ls, fdtIdx + 1);
-      afzettenNaam     = fdtLine;
-      afzettenAdres    = ls[fdtNameIdx + 1] || '';
-      afzettenPCPlaats = ls[fdtNameIdx + 2] || '';
+      const { line, idx } = nextRealLine(ls, fdtIdx + 1);
+      afzettenNaam     = line;
+      afzettenAdres    = safeAdres(ls, idx + 1);
+      afzettenPCPlaats = safeAdres(ls, idx + 2);
     }
   } else {
-    // ── Import: Opzetten=volle pickup terminal, Lossen=klant, Afzetten=lege return ──
-    const { line: fpuLine, idx: fpuNameIdx } = nextRealLine(ls, epuIdx + 1);
-    opzettenNaam  = fpuLine;
-    opzettenAdres = ls[fpuNameIdx + 1] || '';
-
-    const podIdx = ls.findIndex(l => /PLACE OF (DELIVERY|UNLOADING|DISCHARGE)|DELIVERY ADDRESS/i.test(l));
+    // ── Import: volle container ophalen (Opzetten) → lossen bij klant → leeg depot retour (Afzetten) ──
+    if (epuIdx >= 0) {
+      const { line, idx } = nextRealLine(ls, epuIdx + 1);
+      opzettenNaam  = line;
+      opzettenAdres = safeAdres(ls, idx + 1);
+    }
     if (podIdx >= 0) {
-      const { line: podLine, idx: podNameIdx } = nextRealLine(ls, podIdx + 1);
-      klantNaam     = podLine;
-      klantAdres    = ls[podNameIdx + 1] || '';
-      klantPCPlaats = ls[podNameIdx + 2] || '';
-      klantLand     = ls[podNameIdx + 3] || '';
+      const { line, idx } = nextRealLine(ls, podIdx + 1);
+      klantNaam     = line;
+      klantAdres    = safeAdres(ls, idx + 1);
+      klantPCPlaats = safeAdres(ls, idx + 2);
+      klantLand     = safeAdres(ls, idx + 3);
     }
     laadActie = 'Lossen';
-
-    const erdIdx = ls.findIndex(l => /EMPTY (RETURN|DELIVERY) TERMINAL|EMPTY DEPOT/i.test(l));
     if (erdIdx >= 0) {
-      const { line: erdLine, idx: erdNameIdx } = nextRealLine(ls, erdIdx + 1);
-      afzettenNaam     = erdLine;
-      afzettenAdres    = ls[erdNameIdx + 1] || '';
-      afzettenPCPlaats = ls[erdNameIdx + 2] || '';
+      const { line, idx } = nextRealLine(ls, erdIdx + 1);
+      afzettenNaam     = line;
+      afzettenAdres    = safeAdres(ls, idx + 1);
+      afzettenPCPlaats = safeAdres(ls, idx + 2);
     }
   }
 
-  // Container nummer uit PDF tekst (bijv. HLBU3904412 of BSIU3317531)
-  const containerNummerPDF = ls.find(l => /[A-Z]{4}\d{7}/.test(l))
-    ?.match(/([A-Z]{4}\d{7})/)?.[1] || '';
+  console.log(`🔍 B2L opzetten: "${opzettenNaam}" | adres: "${opzettenAdres}"`);
+  console.log(`🔍 B2L klant:    "${klantNaam}" | adres: "${klantAdres}"`);
+  console.log(`🔍 B2L afzetten: "${afzettenNaam}" | adres: "${afzettenAdres}"`);
 
-  // Parse postcode + plaats uit "6541 CS NIJMEGEN"
-  const pcMatch   = klantPCPlaats.match(/^(\d{4}\s?[A-Z]{2})\s+(.+)/i);
-  const klantPC   = pcMatch?.[1]?.replace(/(\d{4})([A-Z]{2})/, '$1 $2') || klantPCPlaats;
-  const klantPlaats = pcMatch?.[2] || '';
+  // === Postcode + plaats uit klantPCPlaats ("3225 MA, HELLEVOETSLUIS" of "3225MA HELLEVOETSLUIS") ===
+  const pcMatch   = klantPCPlaats.match(/^(\d{4}\s*[A-Z]{2})[,\s]+(.+)/i);
+  const klantPC   = pcMatch?.[1]?.replace(/(\d{4})\s*([A-Z]{2})/, '$1 $2') || '';
+  const klantPlaats = pcMatch?.[2]?.trim() || '';
 
-  // Terminal lookups
+  // === Land normaliseren ===
+  function normaliseerLand(raw) {
+    if (!raw) return 'NL';
+    if (/netherlands/i.test(raw) || raw.trim().toUpperCase() === 'NL') return 'NL';
+    return normLand(raw) || raw;
+  }
+
+  // === Terminal & klant lookups ===
   const [opzettenInfo, afzettenInfo, klant, klantInfo] = await Promise.all([
     getTerminalInfoMetFallback(opzettenNaam),
     getTerminalInfoMetFallback(afzettenNaam),
     getKlantData('b2l cargocare'),
     getAdresboekEntry(klantNaam, null, klantAdres)
   ]);
-  const ctCode      = await getContainerTypeCode(containertype);
-  // Rederij MOET uit de lijst komen — nooit raw doorsturen
-  const rederijNaam = await getRederijNaam(rederijRaw.split(' ')[0]) || '';
+  const ctCode = await getContainerTypeCode(containertype);
 
-  const instructies = ls
-    .slice(ls.findIndex(l => /SPECIAL INSTRUCTIONS/i.test(l)) + 1,
-           ls.findIndex(l => /GENERAL INFORMATION/i.test(l)))
-    .filter(Boolean)
-    .join(' ')
-    .slice(0, 300);
+  // Rederij MOET uit de lijst komen — nooit raw doorsturen
+  const rederijNaam = await getRederijNaam(rederijRaw) || await getRederijNaam(rederijRaw.split(/\s+/)[0]) || '';
+  if (rederijRaw && !rederijNaam) {
+    console.warn(`⚠️ B2L rederij "${rederijRaw}" niet gevonden in lijst — veld leeggemaakt`);
+  }
+
+  // === Instructies ===
+  const instrStart = ls.findIndex(l => /SPECIAL INSTRUCTIONS/i.test(l));
+  const instrEind  = ls.findIndex(l => /GENERAL INFORMATION/i.test(l));
+  const instructies = (instrStart >= 0 && instrEind > instrStart)
+    ? ls.slice(instrStart + 1, instrEind).filter(Boolean).join(' ').slice(0, 300)
+    : '';
 
   // === Bouw resultaat per container ===
   const results = [];
@@ -201,7 +236,7 @@ export default async function parseB2L(buffer) {
         postcode: opzettenInfo?.postcode || '',
         plaats:   opzettenInfo?.plaats   || '',
         land:     normLand(opzettenInfo?.land || 'NL'),
-        voorgemeld: opzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+        voorgemeld:    opzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
         aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
         portbase_code: cleanFloat(opzettenInfo?.portbase_code || ''),
         bicsCode:      cleanFloat(opzettenInfo?.bicsCode      || '')
@@ -212,16 +247,16 @@ export default async function parseB2L(buffer) {
         adres:    klantInfo?.adres    || klantAdres,
         postcode: klantInfo?.postcode || klantPC,
         plaats:   klantInfo?.plaats   || klantPlaats,
-        land:     klantLand === 'NETHERLANDS' ? 'NL' : (klantLand || 'NL')
+        land:     normaliseerLand(klantInfo?.land || klantLand)
       },
       {
         volgorde: '0', actie: 'Afzetten',
         naam:     afzettenInfo?.naam     || afzettenNaam,
         adres:    afzettenInfo?.adres    || afzettenAdres,
-        postcode: afzettenInfo?.postcode || afzettenPCPlaats.match(/\d{4}\s?[A-Z]{2}/i)?.[0] || '',
-        plaats:   afzettenInfo?.plaats   || afzettenPCPlaats.replace(/^\d{4}\s?[A-Z]{2},?\s*/i, '').split(',')[0].trim(),
+        postcode: afzettenInfo?.postcode || afzettenPCPlaats.match(/\d{4}\s*[A-Z]{2}/i)?.[0]?.replace(/(\d{4})\s*([A-Z]{2})/, '$1 $2') || '',
+        plaats:   afzettenInfo?.plaats   || afzettenPCPlaats.replace(/^\d{4}\s*[A-Z]{2}[,\s]*/i, '').split(',')[0].trim(),
         land:     normLand(afzettenInfo?.land || 'NL'),
-        voorgemeld: afzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+        voorgemeld:    afzettenInfo?.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
         aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
         portbase_code: cleanFloat(afzettenInfo?.portbase_code || ''),
         bicsCode:      cleanFloat(afzettenInfo?.bicsCode      || '')
@@ -230,10 +265,10 @@ export default async function parseB2L(buffer) {
 
     results.push({
       ritnummer,
-      klantnaam:    klantInfo?.naam     || klantNaam,
-      klantadres:   klantInfo?.adres    || klantAdres,
+      klantnaam:     klantInfo?.naam     || klantNaam,
+      klantadres:    klantInfo?.adres    || klantAdres,
       klantpostcode: klantInfo?.postcode || klantPC,
-      klantplaats:  klantInfo?.plaats   || klantPlaats,
+      klantplaats:   klantInfo?.plaats   || klantPlaats,
 
       opdrachtgeverNaam:     klant.naam     || 'B2L CARGOCARE',
       opdrachtgeverAdres:    klant.adres    || '',
@@ -244,9 +279,9 @@ export default async function parseB2L(buffer) {
       opdrachtgeverBTW:      klant.btw      || '',
       opdrachtgeverKVK:      klant.kvk      || '57',
 
-      containernummer: containerNummerPDF || '',
+      containernummer:           containerNummerPDF || '',
       containertype,
-      containertypeCode: ctCode || '0',
+      containertypeCode:         ctCode || '0',
 
       datum,
       tijd,
@@ -255,9 +290,9 @@ export default async function parseB2L(buffer) {
       inleverreferentie: referentie,
       inleverBestemming: '',
 
-      rederij:        rederijNaam,
+      rederij:         rederijNaam,
       bootnaam,
-      inleverRederij: rederijNaam,
+      inleverRederij:  rederijNaam,
       inleverBootnaam: bootnaam,
 
       zegel: '',
