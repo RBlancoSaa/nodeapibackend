@@ -67,13 +67,9 @@ function parseDateFromSubject(subject) {
 }
 
 /**
- * Normaliseert terminalnamen uit het Steinweg Excel-bestand naar de exacte namen
- * zoals ze in de terminal-lijst (op_afzetten.json) staan.
- * Hierdoor vindt enrichOrder de juiste BICS/portbase-codes.
- *
- * LET OP: Steinweg-eigen adressen worden NIET genormaliseerd — de ruwe naam
- * uit het Excel-bestand wordt doorgegeven zodat het juiste Steinweg-adres
- * (Spakenburgweg, Parmentierplein, Beatrix, Botlek etc.) behouden blijft.
+ * Normaliseert haven-terminalnamen naar exacte namen uit op_afzetten.json.
+ * ALLEEN voor haventerminals (Opzetten bij Route 1, Afzetten bij Route 2).
+ * Steinweg-eigen vestigingen worden NIET via deze functie verwerkt.
  */
 function canonicalTerminalNaam(naam) {
   const s = (naam || '').toLowerCase().replace(/[\s\-_\/.,]+/g, ' ').trim();
@@ -91,17 +87,25 @@ function canonicalTerminalNaam(naam) {
   if (/van\s*doorn/.test(s))                                             return 'VAN DOORN';
   if (/\buwt\b|\buct\b/.test(s))                                        return 'UWT';
   if (/cetem/.test(s))                                                   return 'Cetem';
-  // ── Steinweg-vestigingen ─────────────────────────────────────────────
-  // Alleen bedrijfsreferenties matchen, GEEN generieke "steinweg"-straatnamen.
-  // Volgorde: specifiek → algemeen.
-  if (/steinweg.*botlek|gerbrandyweg/.test(s))                             return 'STEINWEG BOTLEK TERMINAL BV';
-  if (/steinweg.*beatrix|den hamweg.*port/.test(s))                        return 'STEINWEG BEATRIX TERMINAL';
-  // Duidelijke bedrijfsnaam-varianten (met "c. steinweg" of bekende locatie):
-  if (/^c[\s.]?\s*steinweg/.test(s))                                       return 'STEINWEG';
-  if (/steinweg\s*(handelsveem|parmentier|sluijsdijk|seine|spakenburgweg|waalhaven|heijplaat)/.test(s)) return 'STEINWEG';
-  // Generiek "steinweg" als zelfstandig woord aan het begin → firma-referentie
-  if (/^steinweg\b(?!straat|weg|laan|plein\s*\d)/.test(s))                return 'STEINWEG';
   return naam;
+}
+
+/**
+ * Normaliseert Steinweg-eigen leverlocaties (r1.to / r2.from).
+ * Verwijdert "C." prefix, standaardiseert schrijfwijze.
+ * Behoudt vestigingsinfo zodat de chauffeur weet waar hij moet zijn.
+ *   "C. Steinweg Parmentierplein" → "STEINWEG Parmentierplein"
+ *   "C. Steinweg"                 → "STEINWEG"
+ *   "Steinweg Beatrix Terminal"   → "STEINWEG Beatrix Terminal"
+ */
+function normSteinwegLocatieNaam(naam) {
+  if (!naam) return '';
+  return (naam)
+    .replace(/^C[.\s]+/i, '')                    // verwijder "C." of "C " prefix
+    .replace(/^steinweg\b/i, 'STEINWEG')          // normaliseer hoofdletters
+    .replace(/^STEINWEG\s+handelsveem\b/i, 'STEINWEG Handelsveem')
+    .trim()
+    || naam;
 }
 
 function sizetypeToDescription(sizetype) {
@@ -311,8 +315,9 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         },
         {
           volgorde: '0', actie: 'Afzetten',
-          // Steinweg eigen vestiging — GEEN haventerminal, adres NIET overschrijven
-          naam: canonicalTerminalNaam(r1.to), adres: '', postcode: '', plaats: '', land: 'NL',
+          // Steinweg eigen vestiging — GEEN haventerminal
+          // normSteinwegLocatieNaam behoudt vestigingsinfo (bijv. "STEINWEG Parmentierplein")
+          naam: normSteinwegLocatieNaam(r1.to), adres: '', postcode: '', plaats: '', land: 'NL',
           _noTerminalLookup: true
         }
       ];
@@ -395,8 +400,9 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       const locaties = [
         {
           volgorde: '0', actie: 'Opzetten',
-          // Steinweg eigen vestiging — GEEN haventerminal, adres NIET overschrijven
-          naam: canonicalTerminalNaam(r2.from), adres: '', postcode: '', plaats: '', land: 'NL',
+          // Steinweg eigen vestiging — GEEN haventerminal
+          // normSteinwegLocatieNaam behoudt vestigingsinfo (bijv. "STEINWEG Parmentierplein")
+          naam: normSteinwegLocatieNaam(r2.from), adres: '', postcode: '', plaats: '', land: 'NL',
           _noTerminalLookup: true
         },
         {

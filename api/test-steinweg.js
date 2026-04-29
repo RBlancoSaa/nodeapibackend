@@ -64,6 +64,8 @@ export default async function handler(req, res) {
       success: true,
       aantalContainers: containers.length,
       containers: containers.map(c => ({
+        opdrachtgeverNaam: c.opdrachtgeverNaam,   // ← dit verschijnt in <Opdrachtgever> in de XML
+        klantnaam:         c.klantnaam,
         containernummer:   c.containernummer,
         containertype:     c.containertype,
         datum:             c.datum,

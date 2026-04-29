@@ -15,8 +15,10 @@ import { supabase } from '../services/supabaseClient.js';
 export async function logOpdracht({ bron, afzenderEmail = '', bestandsnaam = '', container = {}, easyBestand = '', status = 'OK', foutmelding = '' }) {
   try {
     // Haal laad/los klantlocatie op uit locaties-array (actie = Laden of Lossen)
+    // Sla OMRIJDER-placeholder over — die is geen echte klant
     const laadLosLocatie = (container.locaties || []).find(l =>
-      l.actie === 'Laden' || l.actie === 'Lossen'
+      (l.actie === 'Laden' || l.actie === 'Lossen') &&
+      (l.naam || '').toUpperCase() !== 'OMRIJDER'
     );
 
     await supabase.from('opdrachten_log').insert([{
