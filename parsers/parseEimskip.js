@@ -1,14 +1,36 @@
 // parsers/parseEimskip.js
-// Eimskip leveringsopdrachten
-// Formaat: email body bevat afleveradres, subject bevat container + datum + tijd
+// Eimskip "Transportopdracht" PDF parser
+// PDF structuur:
+//   Referentie → :NNNNN - NNNNN -
+//   Schip: \n NAAM
+//   Rederij: NAAM
+//   Container: XXXUNNNNNNN (ISO_CODE)
+//   Rederij zegel: ZEGEL
+//   Goederen omschrijving... → STC61  CT 5410.00
+//   1. Terminal depot → Opzetten
+//   2. Delivery address → Lossen (met klantnaam)
+//   3. Terminal depot → Afzetten
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import {
   getTerminalInfoMetFallback,
   getAdresboekEntry,
-  getContainerTypeCode,
   getKlantData
 } from '../utils/lookups/terminalLookup.js';
+
+// ISO container type → EasyTrip omschrijving
+const ISO_TYPE = {
+  '20G0': '20 ft standard', '20G1': '20 ft standard',
+  '22G0': '20 ft standard', '22G1': '20 ft standard',
+  '40G0': '40 ft standard', '40G1': '40 ft standard',
+  '42G0': '40 ft standard', '42G1': '40 ft standard',
+  '45G0': '40 ft hc',       '45G1': '40 ft hc',
+  'L0G0': '45 ft hc',       'L0G1': '45 ft hc',
+  'L5G0': '45 ft hc',       'L5G1': '45 ft hc',
+  '22R0': '20 ft reefer',    '22R1': '20 ft reefer',
+  '42R0': '40 ft reefer',    '42R1': '40 ft reefer',
+  '45R0': '40 ft reefer hc', '45R1': '40 ft reefer hc',
+};
 
 function normLand(val) {
   const s = (val || '').trim().toUpperCase();
@@ -20,7 +42,6 @@ function normLand(val) {
   if (/^(FRANCE|FRANKRIJK|FR)$/.test(s)) return 'FR';
   if (/^(LUXEMBOURG|LUXEMBURG|LU)$/.test(s)) return 'LU';
   if (/^(SPAIN|SPANJE|ES)$/.test(s)) return 'ES';
-  if (/^(ITALY|ITALIE|ITALIË|IT)$/.test(s)) return 'IT';
   return s.length === 2 ? s : 'NL';
 }
 
@@ -31,189 +52,280 @@ function parseDatum(str) {
   return `${parseInt(m[1])}-${parseInt(m[2])}-${yyyy}`;
 }
 
-/**
- * Extraheer adresblok uit email body.
- * Trigger: regel die eindigt op ':' en 'leveren' bevat.
- * Daarna: straat, postcode+stad, land.
- */
-function extractAdresBlok(lines) {
-  // Methode 1: zoek 'leveren in ...:' trigger
-  const trigIdx = lines.findIndex(l => l.endsWith(':') && /leveren/i.test(l));
-  if (trigIdx >= 0) {
-    const adresLines = [];
-    for (let i = trigIdx + 1; i < lines.length && adresLines.length < 3; i++) {
-      if (lines[i].trim()) adresLines.push(lines[i].trim());
-    }
-    if (adresLines.length >= 2) {
-      return parseAdresLines(adresLines);
-    }
-  }
-
-  // Methode 2: zoek postcode-patroon (4 cijfers + tekst)
-  for (let i = 1; i < lines.length - 1; i++) {
-    if (/^\d{4}(\s*[A-Z]{2})?\s+\S/.test(lines[i])) {
-      return parseAdresLines([lines[i - 1] || '', lines[i], lines[i + 1] || '']);
-    }
-  }
-
-  return null;
+function parsePostcodeStad(pcStad) {
+  const pcNL = pcStad.match(/^(\d{4}\s*[A-Z]{2})\s+(.*)/i);
+  const pcBE = pcStad.match(/^(\d{4})\s+(.*)/);
+  if (pcNL) return { postcode: pcNL[1].trim().toUpperCase(), plaats: pcNL[2].trim() };
+  if (pcBE) return { postcode: pcBE[1].trim(),               plaats: pcBE[2].trim() };
+  return { postcode: '', plaats: pcStad.trim() };
 }
 
-function parseAdresLines([adres, pcStad, landRaw]) {
-  const adresTrimmed = (adres || '').trim();
+/**
+ * Extraheer een sectie uit de PDF-regels.
+ * Formaat na sectieheader (bijv. "2. Delivery address"):
+ *   naam
+ *   :              (separator)
+ *   datum [tijd]
+ *   adres
+ *   : PORTBASE     (optioneel — overslaan)
+ *   postcode+stad
+ *   land
+ */
+function extractSectie(pls, headerIdx) {
+  if (headerIdx < 0) return null;
+  let i = headerIdx + 1;
+  if (i >= pls.length) return null;
 
-  // NL: 1234 AB STAD of 1234AB STAD
-  const pcNL = pcStad.match(/^(\d{4}\s?[A-Z]{2})\s+(.*)/i);
-  // BE/DE/FR: 1234 STAD (enkel cijfers)
-  const pcBE = pcStad.match(/^(\d{4})\s+(.*)/);
+  const naam = (pls[i++] || '').trim();
 
-  let postcode = '', plaats = '';
-  if (pcNL) { postcode = pcNL[1].trim().toUpperCase(); plaats = pcNL[2].trim(); }
-  else if (pcBE) { postcode = pcBE[1].trim(); plaats = pcBE[2].trim(); }
-  else { plaats = pcStad.trim(); }
+  // Skip ":"
+  while (i < pls.length && /^\s*:\s*$/.test(pls[i])) i++;
 
-  const land = normLand(landRaw) || 'BE';
-  return { adres: adresTrimmed, postcode, plaats, land };
+  const datumTijdLijn = (pls[i++] || '').trim();
+  const datumM  = datumTijdLijn.match(/(\d{2}-\d{2}-\d{4})/);
+  const tijdM   = datumTijdLijn.match(/(\d{1,2}:\d{2})/);
+  const datum   = datumM ? parseDatum(datumM[1]) : '';
+  const tijd    = tijdM  ? tijdM[1] : '';
+
+  const adres = (pls[i++] || '').trim();
+
+  // Skip ": PORTBASE" of ": ?"
+  while (i < pls.length && /^\s*:/.test(pls[i])) i++;
+
+  const pcStadLijn = (pls[i++] || '').trim();
+  const landRaw    = (pls[i++] || '').trim();
+
+  const { postcode, plaats } = parsePostcodeStad(pcStadLijn);
+  const land = normLand(landRaw);
+
+  return { naam, datum, tijd, adres, postcode, plaats, land };
+}
+
+/**
+ * Verwerk de tekst-regels van de Eimskip Transportopdracht PDF.
+ */
+function parsePDFLines(pls) {
+  // ── Referentie ──────────────────────────────────────────────────────────
+  const refIdx = pls.findIndex(l => /^referentie\s*$/i.test(l));
+  let ritnummer     = '';
+  let laadreferentie = '';
+  if (refIdx >= 0) {
+    const volgende = (pls[refIdx + 1] || '').replace(/^:/, '').trim();
+    const nrs = volgende.match(/\d{5,}/g) || [];
+    ritnummer      = nrs[0] || '';
+    laadreferentie = volgende.replace(/\s*-\s*$/, '').trim();  // bijv. "120563 - 520483"
+  }
+
+  // ── Schip ──────────────────────────────────────────────────────────────
+  const schipIdx = pls.findIndex(l => /^schip\s*:?\s*$/i.test(l));
+  const bootnaam = schipIdx >= 0 ? (pls[schipIdx + 1] || '').trim() : '';
+
+  // ── Rederij (inline: "Rederij: NAAM") ─────────────────────────────────
+  const rederijLine = pls.find(l => /^rederij\s*:/i.test(l));
+  const rederij     = rederijLine ? rederijLine.replace(/^rederij\s*:\s*/i, '').trim() : '';
+
+  // ── Container + ISO type ───────────────────────────────────────────────
+  const containerLine = pls.find(l => /^container\s*:/i.test(l));
+  let containernummer   = '';
+  let containertypeIso  = '';
+  if (containerLine) {
+    const m = containerLine.match(/Container\s*:\s*([A-Z]{3,4}U?\d{6,7})\s*\(([^)]+)\)/i);
+    if (m) { containernummer = m[1].toUpperCase(); containertypeIso = m[2].toUpperCase(); }
+    // fallback: containernummer zonder type
+    if (!containernummer) {
+      const m2 = containerLine.match(/Container\s*:\s*([A-Z]{4}\d{7})/i);
+      if (m2) containernummer = m2[1].toUpperCase();
+    }
+  }
+
+  // ── Rederij zegel ─────────────────────────────────────────────────────
+  const zegelLine = pls.find(l => /^rederij\s*zegel\s*:/i.test(l));
+  const zegel     = zegelLine ? zegelLine.replace(/^rederij\s*zegel\s*:\s*/i, '').trim() : '';
+
+  // ── Goederen / gewicht ─────────────────────────────────────────────────
+  let lading = '', brutogewicht = '0', colli = '0';
+  const goederenIdx = pls.findIndex(l => /goederen\s*omschrijving/i.test(l));
+  if (goederenIdx >= 0 && goederenIdx + 1 < pls.length) {
+    const gl = pls[goederenIdx + 1] || '';
+    // "STC61  CT 5410.00" → lading=STC, colli=61, gewicht=5410
+    const ladingM = gl.match(/^([A-Z]{2,})/i);
+    if (ladingM) lading = ladingM[1].toUpperCase();
+    const colliM = gl.match(/^[A-Z]+(\d+)/i);
+    if (colliM) colli = colliM[1];
+    const gewM = gl.match(/([\d]+(?:[.,]\d+)?)\s*$/);
+    if (gewM) brutogewicht = String(Math.round(parseFloat(gewM[1].replace(',', '.'))));
+  }
+
+  // ── Secties ────────────────────────────────────────────────────────────
+  const sec1Idx = pls.findIndex(l => /^1\.\s+terminal\s+depot/i.test(l));
+  const sec2Idx = pls.findIndex(l => /^2\.\s+delivery\s+address/i.test(l));
+  const sec3Idx = pls.findIndex((l, i) => i > sec2Idx && /^3\.\s+terminal\s+depot/i.test(l));
+
+  const sec1 = extractSectie(pls, sec1Idx);
+  const sec2 = extractSectie(pls, sec2Idx);
+  const sec3 = extractSectie(pls, sec3Idx);
+
+  console.log(`🔍 PDF: container=${containernummer} type=${containertypeIso} zegel=${zegel}`);
+  console.log(`🔍 PDF: sec1="${sec1?.naam}" sec2="${sec2?.naam}" sec3="${sec3?.naam}"`);
+  console.log(`🔍 PDF: ref="${laadreferentie}" rederij="${rederij}" schip="${bootnaam}"`);
+
+  return { ritnummer, laadreferentie, bootnaam, rederij, containernummer, containertypeIso,
+           zegel, lading, brutogewicht, colli, sec1, sec2, sec3 };
+}
+
+// Fallback: adres uit email body (na "leveren in [STAD]:")
+function extractAdresUitBody(lines) {
+  const trigIdx = lines.findIndex(l => l.endsWith(':') && /leveren/i.test(l));
+  if (trigIdx < 0) return null;
+  const bl = [];
+  for (let i = trigIdx + 1; i < lines.length && bl.length < 3; i++) {
+    if (lines[i].trim()) bl.push(lines[i].trim());
+  }
+  if (bl.length < 2) return null;
+  const { postcode, plaats } = parsePostcodeStad(bl[1] || '');
+  return { naam: '', adres: bl[0], postcode, plaats, land: normLand(bl[2] || '') || 'BE' };
 }
 
 export default async function parseEimskip({ bodyText, mailSubject, pdfAttachments = [] }) {
   console.log('🚢 Eimskip parser gestart');
-  const lines = (bodyText || '').split('\n').map(l => l.trim()).filter(Boolean);
-  console.log('📋 Eimskip body regels:\n', lines.map((r, i) => `[${i}] ${r}`).join('\n'));
 
-  // ── Onderwerp parsing ──────────────────────────────────────────────────────
+  const bodyLines = (bodyText || '').split('\n').map(l => l.trim()).filter(Boolean);
+  console.log('📋 Eimskip body:\n', bodyLines.map((r, i) => `[${i}] ${r}`).join('\n'));
+
+  // ── Onderwerp (fallback info) ──────────────────────────────────────────
   const sub = mailSubject || '';
+  const subContainerM = sub.match(/container\s+([A-Z]{4}\d{7})/i);
+  const subContainer   = subContainerM ? subContainerM[1].toUpperCase() : '';
+  const subTijdM       = sub.match(/(\d{1,2}:\d{2})\s*uur/i);
+  const subTijd        = subTijdM ? subTijdM[1] : '';
+  const subDatumM      = sub.match(/(\d{2}-\d{2}-\d{4})/);
+  const subDatum       = subDatumM ? parseDatum(subDatumM[1]) : '';
 
-  // "Levering container CAIU7394309 12:00 uur Brussel 30-04-2026"
-  const containerMatch  = sub.match(/container\s+([A-Z]{4}\d{7})/i);
-  const containernummer = containerMatch ? containerMatch[1].toUpperCase() : '';
+  // ── Zoek de Transportopdracht PDF (prioriteit) ─────────────────────────
+  const sortedPdfs = [...pdfAttachments].sort((a, b) => {
+    const aTO = /transportopdracht|transport\s*order/i.test(a.filename || '');
+    const bTO = /transportopdracht|transport\s*order/i.test(b.filename || '');
+    return (bTO ? 1 : 0) - (aTO ? 1 : 0);
+  });
 
-  const tijdMatch = sub.match(/(\d{1,2}:\d{2})\s*uur/i);
-  const tijd      = tijdMatch ? tijdMatch[1] : '';
-
-  const datumMatch = sub.match(/(\d{2}-\d{2}-\d{4})/);
-  const datum      = datumMatch ? parseDatum(datumMatch[1]) : '';
-
-  console.log(`📦 Container: ${containernummer} | Datum: ${datum} | Tijd: ${tijd}`);
-
-  // ── Afleveradres uit body ──────────────────────────────────────────────────
-  const adresBlok = extractAdresBlok(lines);
-  console.log('📍 Eimskip afleveradres:', adresBlok);
-
-  // ── PDFs doorzoeken voor extra info ───────────────────────────────────────
-  let pdfInfo = {
-    containertype: '',
-    terminal:      '',
-    klantnaam:     '',
-    referentie:    ''
-  };
-
-  for (const att of pdfAttachments) {
+  let pdfData = null;
+  for (const att of sortedPdfs) {
     if (!att.buffer || !Buffer.isBuffer(att.buffer)) continue;
     try {
       const { text } = await pdfParse(att.buffer);
       const pls = text.split('\n').map(l => l.trim()).filter(Boolean);
       console.log(`📄 Eimskip PDF "${att.filename}" (${pls.length} regels):\n`,
-        pls.slice(0, 50).map((r, i) => `[${i}] ${r}`).join('\n'));
+        pls.slice(0, 55).map((r, i) => `[${i}] ${r}`).join('\n'));
 
-      // Containertype (20FT / 40FT / HC)
-      if (!pdfInfo.containertype) {
-        const ctLine = pls.find(l => /\b(20|40|45)\s*(ft|hc|high|voet|standard|dry)/i.test(l));
-        if (ctLine) pdfInfo.containertype = ctLine.trim();
+      // Herken transportopdracht
+      const isTO = /transportopdracht|transport\s*(order|opdracht)/i.test(att.filename || '') ||
+                   pls.some(l => /^transport\s*(order|opdracht)/i.test(l));
+      if (isTO && pls.length > 10) {
+        pdfData = parsePDFLines(pls);
+        if (pdfData.containernummer) break;  // PDF succesvol geparsed
       }
-
-      // Terminal (Rotterdam)
-      if (!pdfInfo.terminal) {
-        const termLine = pls.find(l =>
-          /\b(ECT|APMT|RST|Euromax|Uniport|Deltaweg|Amazonehaven|Waalhaven|Eimskip.*terminal)\b/i.test(l)
-        );
-        if (termLine) pdfInfo.terminal = termLine.trim();
-      }
-
-      // Referentie / ordernummer
-      if (!pdfInfo.referentie) {
-        const refLine = pls.find(l => /^(order|opdracht|ref|referentie|job)[^:]*:\s*\S/i.test(l));
-        if (refLine) {
-          const rm = refLine.match(/:\s*(\S+)/);
-          if (rm) pdfInfo.referentie = rm[1].trim();
-        }
-        // Of simpelweg een lang getal
-        if (!pdfInfo.referentie) {
-          const numLine = pls.find(l => /^\d{6,}$/.test(l));
-          if (numLine) pdfInfo.referentie = numLine.trim();
-        }
-      }
-
-      // Klantnaam: zoek regel vóór het adres in de PDF
-      if (!pdfInfo.klantnaam && adresBlok?.adres) {
-        const adresWord = adresBlok.adres.split(/\s+/)[0] || '';
-        const adresIdx = pls.findIndex(l => l.toLowerCase().includes(adresWord.toLowerCase()));
-        if (adresIdx > 0) {
-          const kandidaat = pls[adresIdx - 1] || '';
-          if (kandidaat && !/^\d/.test(kandidaat)) pdfInfo.klantnaam = kandidaat.trim();
-        }
-      }
-
     } catch (e) {
       console.warn(`⚠️ Kon PDF "${att.filename}" niet parsen:`, e.message);
     }
   }
-  console.log('🔍 Eimskip PDF info:', pdfInfo);
 
-  // ── Lookups ────────────────────────────────────────────────────────────────
-  const lossenZoekNaam  = pdfInfo.klantnaam || adresBlok?.plaats || '';
-  const lossenZoekAdres = adresBlok?.adres  || '';
+  // ── Bouw container data ────────────────────────────────────────────────
+  const containernummer = pdfData?.containernummer || subContainer;
+  const datum           = pdfData?.sec2?.datum     || subDatum;
+  const tijd            = pdfData?.sec2?.tijd      || subTijd;
+  const zegel           = pdfData?.zegel           || '';
+  const bootnaam        = pdfData?.bootnaam        || '';
+  const rederij         = pdfData?.rederij         || 'EIMSKIP';
+  const laadreferentie  = pdfData?.laadreferentie  || '';
+  const ritnummer       = pdfData?.ritnummer       || '';
+  const lading          = pdfData?.lading          || '';
+  const brutogewicht    = pdfData?.brutogewicht    || '0';
+  const colli           = pdfData?.colli           || '0';
 
-  const [opdrachtgever, lossenInfo, opzettenInfo, ctCode] = await Promise.all([
+  // Containertype: van ISO code naar EasyTrip-omschrijving
+  const isoCode            = pdfData?.containertypeIso || '';
+  const containertypeOms   = (isoCode ? (ISO_TYPE[isoCode] || isoCode.toLowerCase()) : '');
+
+  // Locatie-data uit secties
+  const lossenRaw  = pdfData?.sec2  || extractAdresUitBody(bodyLines);
+  const opzetRaw   = pdfData?.sec1;
+  const afzetRaw   = pdfData?.sec3;
+
+  // ── Lookups ────────────────────────────────────────────────────────────
+  const lossenZoekNaam  = lossenRaw?.naam  || '';
+  const lossenZoekAdres = lossenRaw?.adres || '';
+
+  const [opdrachtgever, lossenInfo, opzettenInfo, afzettenInfo] = await Promise.all([
     getKlantData('eimskip'),
-    adresBlok ? getAdresboekEntry(lossenZoekNaam, null, lossenZoekAdres) : Promise.resolve(null),
-    pdfInfo.terminal ? getTerminalInfoMetFallback(pdfInfo.terminal) : Promise.resolve(null),
-    pdfInfo.containertype ? getContainerTypeCode(pdfInfo.containertype.toLowerCase()) : Promise.resolve('0')
+    lossenRaw ? getAdresboekEntry(lossenZoekNaam, null, lossenZoekAdres) : Promise.resolve(null),
+    opzetRaw  ? getTerminalInfoMetFallback(opzetRaw.naam, opzetRaw.adres) : Promise.resolve(null),
+    afzetRaw  ? getTerminalInfoMetFallback(afzetRaw.naam, afzetRaw.adres) : Promise.resolve(null)
   ]);
 
-  const lossenAdres = adresBlok || {};
-  const klantnaam   = lossenInfo?.naam || pdfInfo.klantnaam || lossenAdres.plaats || '';
+  const klantnaam     = lossenInfo?.naam     || lossenRaw?.naam     || '';
+  const klantadres    = lossenInfo?.adres    || lossenRaw?.adres    || '';
+  const klantpostcode = lossenInfo?.postcode || lossenRaw?.postcode || '';
+  const klantplaats   = lossenInfo?.plaats   || lossenRaw?.plaats   || '';
+  const klantland     = lossenInfo?.land     || lossenRaw?.land     || 'BE';
 
-  // ── Locaties ───────────────────────────────────────────────────────────────
-  const locaties = [];
+  function cleanFloat(v) { return v ? String(v).replace(/\.0+$/, '') : ''; }
 
-  if (opzettenInfo) {
-    locaties.push({
+  // ── Locaties ───────────────────────────────────────────────────────────
+  const locaties = [
+    // [0] Opzetten
+    {
       volgorde: '0', actie: 'Opzetten',
-      naam:     opzettenInfo.naam     || '',
-      adres:    opzettenInfo.adres    || '',
-      postcode: opzettenInfo.postcode || '',
-      plaats:   opzettenInfo.plaats   || '',
-      land:     opzettenInfo.land     || 'NL',
-      voorgemeld:    opzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+      naam:     opzettenInfo?.naam     || opzetRaw?.naam     || '',
+      adres:    opzettenInfo?.adres    || opzetRaw?.adres    || '',
+      postcode: opzettenInfo?.postcode || opzetRaw?.postcode || '',
+      plaats:   opzettenInfo?.plaats   || opzetRaw?.plaats   || '',
+      land:     opzettenInfo?.land     || normLand(opzetRaw?.land) || 'NL',
+      voorgemeld:    opzettenInfo ? (opzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
+      aankomst_verw: datum || '', tijslot_van: '', tijslot_tm: '',
+      portbase_code: cleanFloat(opzettenInfo?.portbase_code || ''),
+      bicsCode:      cleanFloat(opzettenInfo?.bicsCode      || '')
+    },
+    // [1] Lossen
+    {
+      volgorde:      '0',
+      actie:         'Lossen',
+      naam:          klantnaam,
+      adres:         klantadres,
+      postcode:      klantpostcode,
+      plaats:        klantplaats,
+      land:          klantland,
+      aankomst_verw: datum || '',
+      tijslot_van:   tijd  || '',
+      tijslot_tm:    ''
+    },
+    // [2] Afzetten
+    {
+      volgorde: '0', actie: 'Afzetten',
+      naam:     afzettenInfo?.naam     || afzetRaw?.naam     || '',
+      adres:    afzettenInfo?.adres    || afzetRaw?.adres    || '',
+      postcode: afzettenInfo?.postcode || afzetRaw?.postcode || '',
+      plaats:   afzettenInfo?.plaats   || afzetRaw?.plaats   || '',
+      land:     afzettenInfo?.land     || normLand(afzetRaw?.land) || 'NL',
+      voorgemeld:    afzettenInfo ? (afzettenInfo.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar') : 'Onwaar',
       aankomst_verw: '', tijslot_van: '', tijslot_tm: '',
-      portbase_code: String(opzettenInfo.portbase_code || ''),
-      bicsCode:      String(opzettenInfo.bicsCode      || '')
-    });
+      portbase_code: cleanFloat(afzettenInfo?.portbase_code || ''),
+      bicsCode:      cleanFloat(afzettenInfo?.bicsCode      || '')
+    }
+  ];
+
+  if (!containertypeOms) {
+    console.warn(`⚠️ Containertype niet herkend. ISO code uit PDF: "${isoCode}"`);
   }
 
-  locaties.push({
-    volgorde:      '0',
-    actie:         'Lossen',
-    naam:          lossenInfo?.naam     || klantnaam,
-    adres:         lossenInfo?.adres    || lossenAdres.adres    || '',
-    postcode:      lossenInfo?.postcode || lossenAdres.postcode || '',
-    plaats:        lossenInfo?.plaats   || lossenAdres.plaats   || '',
-    land:          lossenInfo?.land     || lossenAdres.land     || 'BE',
-    aankomst_verw: datum || '',
-    tijslot_van:   tijd  || '',
-    tijslot_tm:    ''
-  });
-
   return [{
-    ritnummer:     pdfInfo.referentie  || '',
+    ritnummer,
     klantnaam,
-    klantadres:    lossenInfo?.adres    || lossenAdres.adres    || '',
-    klantpostcode: lossenInfo?.postcode || lossenAdres.postcode || '',
-    klantplaats:   lossenInfo?.plaats   || lossenAdres.plaats   || '',
-    klantland:     lossenInfo?.land     || lossenAdres.land     || 'BE',
+    klantadres,
+    klantpostcode,
+    klantplaats,
+    klantland,
 
-    opdrachtgeverNaam:     opdrachtgever?.naam     || 'EIMSKIP',
+    opdrachtgeverNaam:     opdrachtgever?.naam     || 'EIMSKIP JAC. MEISNER',
     opdrachtgeverAdres:    opdrachtgever?.adres    || '',
     opdrachtgeverPostcode: opdrachtgever?.postcode || '',
     opdrachtgeverPlaats:   opdrachtgever?.plaats   || '',
@@ -223,26 +335,27 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     opdrachtgeverKVK:      opdrachtgever?.kvk      || '',
 
     containernummer,
-    containertype:     pdfInfo.containertype || '',
-    containertypeCode: ctCode || '0',
+    containertype:          containertypeOms,
+    containertypeCode:      isoCode,
+    containertypeOmschrijving: containertypeOms,
 
     datum,
     tijd,
     referentie:        containernummer,
-    laadreferentie:    pdfInfo.referentie || '',
+    laadreferentie,
     inleverreferentie: '',
     inleverBestemming: '',
 
-    rederij:         'EIMSKIP',
-    bootnaam:        '',
-    inleverRederij:  '',
-    inleverBootnaam: '',
+    rederij,
+    bootnaam,
+    inleverRederij:  rederij,
+    inleverBootnaam: bootnaam,
 
-    zegel:          '',
-    colli:          '0',
-    lading:         '',
-    brutogewicht:   '0',
-    geladenGewicht: '0',
+    zegel,
+    colli,
+    lading,
+    brutogewicht,
+    geladenGewicht: brutogewicht,
     cbm:            '0',
 
     adr:           'Onwaar',

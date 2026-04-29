@@ -29,6 +29,8 @@ export default async function handleEimskip({
   const to = process.env.RECIPIENT_EMAIL || 'opdrachten@tiarotransport.nl';
   const easyBestanden = [];
 
+  const fouten = [];
+
   for (const container of containers) {
     try {
       const xml = await generateXmlFromJson(container);
@@ -67,6 +69,7 @@ export default async function handleEimskip({
       });
     } catch (err) {
       console.error(`❌ Fout bij Eimskip container ${container.containernummer}:`, err.message);
+      fouten.push(err.message);
       await logOpdracht({
         bron:          'Eimskip',
         afzenderEmail: mailFrom || fromEmail,
@@ -76,6 +79,11 @@ export default async function handleEimskip({
         foutmelding:   err.message
       });
     }
+  }
+
+  // Als alles mislukt is, gooi fout door zodat de response 'fout' toont i.p.v. 'overgeslagen'
+  if (easyBestanden.length === 0 && fouten.length > 0) {
+    throw new Error(fouten.join('; '));
   }
 
   return easyBestanden;
