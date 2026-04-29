@@ -32,7 +32,7 @@ export default async function handleReservering({ subject, bodyText, from, date 
     const easyPath = path.join(os.tmpdir(), easyFilename);
     fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
-    const to = process.env.RECIPIENT_EMAIL || fromAddr;
+    const to = process.env.RECIPIENT_EMAIL || 'opdrachten@tiarotransport.nl';
     await transporter.sendMail({
       from: fromAddr,
       to,

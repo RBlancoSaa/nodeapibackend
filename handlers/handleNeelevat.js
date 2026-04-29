@@ -18,7 +18,7 @@ export default async function handleNeelevat({ buffer, base64, filename, mailSub
   }
 
   const { transporter, from } = await getGmailTransporter();
-  const to = process.env.RECIPIENT_EMAIL || from;
+  const to = process.env.RECIPIENT_EMAIL || 'opdrachten@tiarotransport.nl';
   const easyBestanden = [];
 
   for (const container of containers) {
