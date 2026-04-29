@@ -73,21 +73,64 @@ export default async function handler(req, res) {
       return;
     }
 
-    const dagen   = parseInt(req.query?.dagen || '30', 10);
-    const tab     = req.query?.tab   || 'opdrachten';
-    const zoek    = (req.query?.zoek || '').toLowerCase().trim();
-    const cutoff  = dagen > 0 ? new Date(Date.now() - dagen * 86_400_000).toISOString() : null;
+    const periode = req.query?.periode || 'deze-maand';
+    const tab     = req.query?.tab    || 'runs';
+    const zoek    = (req.query?.zoek  || '').toLowerCase().trim();
     const base    = `?token=${encodeURIComponent(token)}`;
+
+    // ── Periode → cutoff berekenen ───────────────────────────────────────────
+    function periodeLabel(p) {
+      return { vandaag:'Vandaag', gisteren:'Gisteren', 'deze-week':'Deze week',
+               'vorige-week':'Vorige week', 'deze-maand':'Deze maand',
+               'vorige-maand':'Vorige maand', alles:'Alles' }[p] || 'Deze maand';
+    }
+    function periodeCutoffs(p) {
+      const now = new Date();
+      const ams = d => new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam' }));
+      const today = ams(now);
+      today.setHours(0, 0, 0, 0);
+      if (p === 'vandaag') {
+        return { from: today.toISOString(), to: null };
+      }
+      if (p === 'gisteren') {
+        const van = new Date(today); van.setDate(van.getDate() - 1);
+        return { from: van.toISOString(), to: today.toISOString() };
+      }
+      if (p === 'deze-week') {
+        const van = new Date(today);
+        van.setDate(van.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
+        return { from: van.toISOString(), to: null };
+      }
+      if (p === 'vorige-week') {
+        const eind = new Date(today);
+        eind.setDate(eind.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
+        const van  = new Date(eind); van.setDate(van.getDate() - 7);
+        return { from: van.toISOString(), to: eind.toISOString() };
+      }
+      if (p === 'deze-maand') {
+        const van = new Date(today); van.setDate(1);
+        return { from: van.toISOString(), to: null };
+      }
+      if (p === 'vorige-maand') {
+        const eind = new Date(today); eind.setDate(1);
+        const van  = new Date(eind); van.setMonth(van.getMonth() - 1);
+        return { from: van.toISOString(), to: eind.toISOString() };
+      }
+      return { from: null, to: null }; // alles
+    }
+    const { from: cutoff, to: cutoffTo } = periodeCutoffs(periode);
 
     // ── Data ophalen ─────────────────────────────────────────────────────────
     let qOp = supabase.from('opdrachten_log').select('*')
-      .order('verwerkt_op', { ascending: false }).limit(500);
-    if (cutoff) qOp = qOp.gte('verwerkt_op', cutoff);
+      .order('verwerkt_op', { ascending: false }).limit(1000);
+    if (cutoff)   qOp = qOp.gte('verwerkt_op', cutoff);
+    if (cutoffTo) qOp = qOp.lt('verwerkt_op', cutoffTo);
     const { data: opRaw } = await qOp;
 
     let qVl = supabase.from('verwerkingslog').select('*')
-      .order('created_at', { ascending: false }).limit(500);
-    if (cutoff) qVl = qVl.gte('created_at', cutoff);
+      .order('created_at', { ascending: false }).limit(1000);
+    if (cutoff)   qVl = qVl.gte('created_at', cutoff);
+    if (cutoffTo) qVl = qVl.lt('created_at', cutoffTo);
     const { data: vlRaw } = await qVl;
 
     const opdrachten = opRaw || [];
@@ -157,7 +200,7 @@ export default async function handler(req, res) {
     }
 
     function runsList() {
-      if (!runs.length) return `<div class="empty">Geen runs gevonden in de afgelopen ${dagen} dagen</div>`;
+      if (!runs.length) return `<div class="empty">Geen runs gevonden voor periode: ${periodeLabel(periode)}</div>`;
       return runs.map(run => {
         const verwerkt   = run.emails.filter(e => e.status === 'verwerkt');
         const overgeslagen = run.emails.filter(e => e.status === 'overgeslagen');
@@ -296,7 +339,7 @@ export default async function handler(req, res) {
         const badge  = t.count !== undefined
           ? `<span class="tab-cnt ${t.alert && t.count > 0 ? 'tab-cnt-err' : ''}">${t.count}</span>`
           : '';
-        return `<a href="${base}&dagen=${dagen}&tab=${t.id}${zoek ? '&zoek='+encodeURIComponent(zoek) : ''}"
+        return `<a href="${base}&periode=${periode}&tab=${t.id}${zoek ? '&zoek='+encodeURIComponent(zoek) : ''}"
           class="tab-btn ${active ? 'tab-active' : ''}">${t.icon} ${t.label}${badge}</a>`;
       }).join('');
     }
@@ -453,12 +496,20 @@ td           { padding: 8px 14px; vertical-align: middle; }
   </div>
   <nav class="sb-nav">
     <div class="sb-section">Overzicht</div>
-    <a href="${base}&dagen=${dagen}&tab=runs"         class="sb-link ${tab==='runs'?'active':''}">⚡ Runs</a>
-    <a href="${base}&dagen=${dagen}&tab=opdrachten"   class="sb-link ${tab==='opdrachten'?'active':''}">📦 Opdrachten <span class="sb-cnt">${totOp}</span></a>
-    <a href="${base}&dagen=${dagen}&tab=overgeslagen" class="sb-link ${tab==='overgeslagen'?'active':''}">⏭ Overgeslagen <span class="sb-cnt">${skipVl}</span></a>
-    <a href="${base}&dagen=${dagen}&tab=fouten"       class="sb-link ${tab==='fouten'?'active':''}">⚠️ Fouten ${(foutOp+foutVl)>0 ? `<span class="sb-cnt err">${foutOp+foutVl}</span>` : `<span class="sb-cnt">0</span>`}</a>
+    <a href="${base}&periode=${periode}&tab=runs"         class="sb-link ${tab==='runs'?'active':''}">⚡ Runs</a>
+    <a href="${base}&periode=${periode}&tab=opdrachten"   class="sb-link ${tab==='opdrachten'?'active':''}">📦 Opdrachten <span class="sb-cnt">${totOp}</span></a>
+    <a href="${base}&periode=${periode}&tab=overgeslagen" class="sb-link ${tab==='overgeslagen'?'active':''}">⏭ Overgeslagen <span class="sb-cnt">${skipVl}</span></a>
+    <a href="${base}&periode=${periode}&tab=fouten"       class="sb-link ${tab==='fouten'?'active':''}">⚠️ Fouten ${(foutOp+foutVl)>0 ? `<span class="sb-cnt err">${foutOp+foutVl}</span>` : `<span class="sb-cnt">0</span>`}</a>
     <div class="sb-section" style="margin-top:12px">Periode</div>
-    ${[7,14,30,90].map(d => `<a href="${base}&dagen=${d}&tab=${tab}" class="sb-link ${dagen===d?'active':''}">${d === 7 ? '7 dagen' : d === 14 ? '2 weken' : d === 30 ? '1 maand' : '3 maanden'}</a>`).join('')}
+    ${[
+      ['vandaag',      '☀️ Vandaag'],
+      ['gisteren',     '🌙 Gisteren'],
+      ['deze-week',    '📅 Deze week'],
+      ['vorige-week',  '📅 Vorige week'],
+      ['deze-maand',   '🗓 Deze maand'],
+      ['vorige-maand', '🗓 Vorige maand'],
+      ['alles',        '∞ Alles'],
+    ].map(([p, l]) => `<a href="${base}&periode=${p}&tab=${tab}" class="sb-link ${periode===p?'active':''}">${l}</a>`).join('')}
   </nav>
   <div class="sb-bottom">
     <div class="sb-status"><span class="dot"></span> Systeem actief</div>
@@ -475,21 +526,21 @@ td           { padding: 8px 14px; vertical-align: middle; }
         tab === 'overgeslagen' ? '⏭ Overgeslagen emails' :
         tab === 'fouten' ? '⚠️ Fouten' : '📦 Opdrachten'
       }</span>
-      <span style="font-size:11px;color:#94a3b8">Laatste ${dagen} dagen</span>
+      <span style="font-size:11px;color:#94a3b8">${periodeLabel(periode)}</span>
     </div>
     <div class="topbar-right">
       <form method="GET" style="display:flex;gap:8px;align-items:center">
         <input type="hidden" name="token" value="${esc(token)}">
         <input type="hidden" name="tab" value="${esc(tab)}">
-        <input type="hidden" name="dagen" value="${dagen}">
+        <input type="hidden" name="periode" value="${esc(periode)}">
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
           <input type="text" name="zoek" placeholder="Zoek container, klant..." value="${esc(zoek)}" autocomplete="off">
         </div>
         <button type="submit" class="btn-filter">Zoeken</button>
-        ${zoek ? `<a href="${base}&dagen=${dagen}&tab=${tab}" class="btn-reset">✕ Reset</a>` : ''}
+        ${zoek ? `<a href="${base}&periode=${esc(periode)}&tab=${tab}" class="btn-reset">✕ Reset</a>` : ''}
       </form>
-      <a href="?token=${esc(token)}&dagen=${dagen}&tab=${tab}" class="refresh-btn">↻ Verversen</a>
+      <a href="?token=${esc(token)}&periode=${esc(periode)}&tab=${tab}" class="refresh-btn">↻ Verversen</a>
     </div>
   </header>
 
