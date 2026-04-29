@@ -231,7 +231,16 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
 
   const results = [];
 
-  // ── Route 1: Opzetten (terminal/from) → Lossen (Steinweg/to) ──────────────
+  // Ordernummer ook uit e-mailonderwerp extraheren (fallback of primaire bron)
+  // Patroon: "ORDER/ 62685389/0" of "62685389/0" in het onderwerp
+  const orderNrFromSubject = (emailSubject || '')
+    .match(/\border[\/\s#]*(\d{6,}[\/\-]\d+)/i)?.[1]?.replace('/', '-')
+    || (emailSubject || '').match(/(\d{7,}[\/\-]\d+)/)?.[1]?.replace('/', '-')
+    || '';
+  const steinwegRef = ordernummer || orderNrFromSubject;
+  console.log(`📋 Steinweg referentie: Excel="${ordernummer}" Email="${orderNrFromSubject}" → gebruik="${steinwegRef}"`);
+
+  // ── Route 1: Opzetten (terminal) → Afzetten (Steinweg) — omrijder ──────────
   if (r1 && r1.containers.length > 0) {
     const r1Datum = selectEarliestFutureDatum([r1.plannedLoading, r1.plannedDelivery])
       || parseDateFromSubject(emailSubject);
@@ -244,19 +253,15 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       // Tariefberekening voor volle container
       const fin = berekenVolTarief(r1.from, r1.to, containerTypeStr);
 
-      // Ruwe locaties — enrichOrder doet alle lookups
+      // Omrijder: Opzetten (terminal) → Afzetten (Steinweg), geen Lossen tussenstop
       const locaties = [
         {
           volgorde: '0', actie: 'Opzetten',
           naam: r1.from, adres: '', postcode: '', plaats: '', land: 'NL'
         },
         {
-          volgorde: '0', actie: 'Lossen',
-          naam: r1.to, adres: '', postcode: '', plaats: '', land: 'NL'
-        },
-        {
           volgorde: '0', actie: 'Afzetten',
-          naam: '', adres: '', postcode: '', plaats: '', land: 'NL'
+          naam: r1.to, adres: '', postcode: '', plaats: '', land: 'NL'
         }
       ];
 
@@ -269,11 +274,11 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         opdrachtgeverEmail:    klant?.email    || '',
         opdrachtgeverBTW:      klant?.btw      || '',
         opdrachtgeverKVK:      klant?.kvk      || '',
-        klantnaam:     klant?.naam     || 'STEINWEG',
-        klantadres:    klant?.adres    || '',
-        klantpostcode: normPostcode(klant?.postcode || ''),
-        klantplaats:   klant?.plaats   || '',
-        ritnummer:      ordernummer,
+        klantnaam:     'OMRIJDER',
+        klantadres:    '',
+        klantpostcode: '',
+        klantplaats:   '',
+        ritnummer:      steinwegRef,
         bootnaam:       '',
         rederijRaw,
         rederij:        '',
@@ -289,9 +294,9 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         cbm:            '0',
         datum,
         tijd: '',
-        referentie:        c1.pickupRef || '',
+        referentie:        c1.pickupRef || '',   // terminal pickup ref
         laadreferentie:    '',
-        inleverreferentie: '',
+        inleverreferentie: steinwegRef,           // referentie bij Steinweg afzetten
         inleverBestemming: '',
         adr:           c1.imo && c1.imo !== '' ? 'Waar' : 'Onwaar',
         ladenOfLossen: 'Lossen',
@@ -311,7 +316,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
     }
   }
 
-  // ── Route 2: Opzetten (Steinweg/from) → Afzetten (return depot) ─────────────
+  // ── Route 2: Opzetten (Steinweg) → Afzetten (return depot) — omrijder ───────
   // Altijd apart verwerken — ook als route 1 aanwezig is
   if (r2 && r2.containers.length > 0) {
     const r2Datum = selectEarliestFutureDatum([r2.plannedLoading, r2.plannedDelivery]);
@@ -333,15 +338,11 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         isPaired
       );
 
-      // Ruwe locaties — enrichOrder doet alle lookups
+      // Omrijder: Opzetten (Steinweg) → Afzetten (depot), geen Lossen tussenstop
       const locaties = [
         {
           volgorde: '0', actie: 'Opzetten',
           naam: r2.from, adres: '', postcode: '', plaats: '', land: 'NL'
-        },
-        {
-          volgorde: '0', actie: 'Lossen',
-          naam: '', adres: '', postcode: '', plaats: '', land: 'NL'
         },
         {
           volgorde: '0', actie: 'Afzetten',
@@ -359,11 +360,11 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         opdrachtgeverEmail:    klant?.email    || '',
         opdrachtgeverBTW:      klant?.btw      || '',
         opdrachtgeverKVK:      klant?.kvk      || '',
-        klantnaam:     klant?.naam     || 'STEINWEG',
-        klantadres:    klant?.adres    || '',
-        klantpostcode: normPostcode(klant?.postcode || ''),
-        klantplaats:   klant?.plaats   || '',
-        ritnummer:      ordernummer,
+        klantnaam:     'OMRIJDER',
+        klantadres:    '',
+        klantpostcode: '',
+        klantplaats:   '',
+        ritnummer:      steinwegRef,
         bootnaam:       '',
         rederijRaw,
         rederij:        '',
@@ -375,9 +376,9 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         brutogewicht: '0', geladenGewicht: '0', cbm: '0',
         datum,
         tijd: '',
-        referentie:        '',
+        referentie:        steinwegRef,          // referentie bij Steinweg opzetten
         laadreferentie:    '',
-        inleverreferentie: c2.reDeliveryRef || '',
+        inleverreferentie: c2.reDeliveryRef || '',  // referentie bij depot afzetten
         inleverBestemming: c2.returnDepot   || '',
         adr: 'Onwaar',
         ladenOfLossen: 'Lossen',

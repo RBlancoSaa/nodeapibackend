@@ -252,11 +252,13 @@ ${(() => {
   // Nummer duplicate acties: Laden → Laden, Laden → Laden2, Laden → Laden3 etc.
   // Zelfde voor Lossen, Bijladen, of andere acties die meerdere keren voorkomen.
   const count = {};
-  return data.locaties.slice(1, -1).map(loc => {
-    const base = loc.actie || '';
-    count[base] = (count[base] || 0) + 1;
-    const actieName = count[base] === 1 ? base : `${base}${count[base]}`;
-    return `<Locatie>
+  return data.locaties.slice(1, -1)
+    .filter(loc => loc.actie || loc.naam)   // sla lege padded locaties over
+    .map(loc => {
+      const base = loc.actie || '';
+      count[base] = (count[base] || 0) + 1;
+      const actieName = count[base] === 1 ? base : `${base}${count[base]}`;
+      return `<Locatie>
 <Volgorde>0</Volgorde>
 <Actie>${c(actieName)}</Actie>
 <Naam>${c(loc.naam)}</Naam>
@@ -265,7 +267,7 @@ ${(() => {
 <Plaats>${c(loc.plaats)}</Plaats>
 <Land>${c(loc.land)}</Land>
 </Locatie>`;
-  }).join('\n');
+    }).join('\n');
 })()}
 <Locatie>
 <Volgorde>0</Volgorde>
