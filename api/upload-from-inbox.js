@@ -14,6 +14,7 @@ import handleRitra from '../handlers/handleRitra.js';
 import handleSteinweg from '../handlers/handleSteinweg.js';
 import handleSteder from '../handlers/handleSteder.js';
 import handleReservering from '../handlers/handleReservering.js';
+import handleEimskip from '../handlers/handleEimskip.js';
 
 // Elke klant heeft: matchFile, optioneel matchSender + matchSubject, en handler
 const handlers = {
@@ -65,6 +66,12 @@ const handlers = {
     matchSender:  frm => /@stedergroup\.com/i.test(frm) || /@steder\.nl/i.test(frm),
     matchSubject: sub => /steder/i.test(sub),
     handler: handleSteder
+  },
+  eimskip: {
+    matchFile:    fn  => /eimskip/i.test(fn),
+    matchSender:  frm => /@eimskip\.com/i.test(frm) || /@eimskip\.is/i.test(frm),
+    matchSubject: sub => /eimskip/i.test(sub) || /levering\s+container\s+[A-Z]{4}\d{7}/i.test(sub),
+    handler: handleEimskip
   }
 };
 
@@ -225,14 +232,28 @@ export default async function handler(req, res) {
           }
         }
 
-        // Geen PDF-bijlagen maar toch transport (bijv. Jordex met generieke bestandsnaam)?
-        // Probeer de mail zelf te matchen op afzender/onderwerp
+        // Geen PDF-bijlagen maar toch transport — verwerk via email body
+        // (bijv. Eimskip, DFDS-email formaat, Jordex zonder bijlage)
         if (pdfAtts.length === 0) {
           const match = findHandlerForMail(mail);
           if (match) {
             const [klant, { handler: h }] = match;
-            console.log(`🚚 Handler via afzender/onderwerp: ${klant.toUpperCase()} (geen PDF-bijlage)`);
-            addLog(mail, 'transport', klant, [], 'overgeslagen', 'Geen PDF-bijlage gevonden');
+            console.log(`🚚 Handler via afzender/onderwerp: ${klant.toUpperCase()} (geen PDF-bijlage, email body)`);
+            try {
+              const bestanden = await h({
+                buffer:      null,
+                base64:      null,
+                filename:    null,
+                bodyText:    mail.bodyText || '',
+                mailSubject: mail.subject  || '',
+                mailFrom:    mail.from     || '',
+                fromEmail:   mail.from     || ''
+              });
+              addLog(mail, 'transport', klant, bestanden ?? [], bestanden?.length ? 'verwerkt' : 'overgeslagen');
+            } catch (err) {
+              console.error(`❌ Handler ${klant} (body) fout:`, err.message);
+              addLog(mail, 'transport', klant, [], 'fout', err.message);
+            }
           } else {
             addLog(mail, 'transport', null, [], 'overgeslagen');
           }
