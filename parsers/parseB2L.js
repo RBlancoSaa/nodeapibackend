@@ -123,10 +123,18 @@ export default async function parseB2L(buffer) {
   const podIdx = ls.findIndex(l => /^PLACE\s+OF\s+(?:DELIVERY|UNLOADING|DISCHARGE)\s*:?\s*$|^DELIVERY\s+ADDRESS\s*:?\s*$/i.test(l));
   const erdIdx = ls.findIndex(l => /^EMPTY\s+(?:RETURN|DELIVERY)\s+TERMINAL\s*:?\s*$|^EMPTY\s+DEPOT\s*:?\s*$/i.test(l));
 
-  // === Referentie (uit terminalsectie) ===
+  // === Referenties ===
+  // Terminal/boekingsreferentie (uit EMPTY/FULL PICK-UP TERMINAL sectie)
   // Bijv. "KRAMER CITY DEPOTREFERENCE:YMTRTM0031219" → "YMTRTM0031219"
   const referentie = epuIdx >= 0
     ? (ls[epuIdx + 1] || '').replace(/.*REFERENCE[:\s]*/i, '').trim()
+    : '';
+
+  // Laadreferentie: klantreferentie uit PLACE OF LOADING (export) of PLACE OF DELIVERY (import)
+  // Bijv. "LOGWISE B.V.REFERENCE:TBA" → "TBA"
+  const laadSecIdx = isImport ? podIdx : polIdx;
+  const laadreferentie = laadSecIdx >= 0
+    ? (ls[laadSecIdx + 1] || '').replace(/.*REFERENCE[:\s]*/i, '').trim()
     : '';
 
   // === Rederij & Bootnaam ===
@@ -286,7 +294,7 @@ export default async function parseB2L(buffer) {
       datum,
       tijd,
       referentie,
-      laadreferentie:    referentie,
+      laadreferentie,
       inleverreferentie: referentie,
       inleverBestemming: '',
 
