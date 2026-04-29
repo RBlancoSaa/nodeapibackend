@@ -674,11 +674,12 @@ if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes(
       const refLineIdx = blok.findIndex(r => /^Reference/i.test(r));
       const refLine    = refLineIdx >= 0 ? blok[refLineIdx] : '';
       let   refStr     = refLine.match(/Reference(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || '';
-      // Multi-line ref: "Reference(s): R1 /" gevolgd door "R2" op de volgende blokregel
-      if (refStr.endsWith('/') && refLineIdx + 1 < blok.length) {
+      // Multi-line ref: "Reference(s): R1 / R2 /" gevolgd door "R3" op de volgende blokregel
+      // Trailing spaties opruimen vóór de endsWith-check
+      if (refStr.trimEnd().endsWith('/') && refLineIdx + 1 < blok.length) {
         const nextLine = (blok[refLineIdx + 1] || '').trim();
         if (nextLine && !/^(Date:|Remark|Cargo:)/i.test(nextLine)) {
-          refStr = refStr + nextLine;
+          refStr = refStr.trimEnd() + ' ' + nextLine;
         }
       }
       const blokRefs = refStr.split(/\s*\/\s*/).map(r => r.trim()).filter(Boolean);

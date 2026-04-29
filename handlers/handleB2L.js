@@ -6,8 +6,9 @@ import path from 'path';
 import parseB2L from '../parsers/parseB2L.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, hasGmail } from '../utils/gmailTransport.js';
+import { logOpdracht } from '../utils/logOpdracht.js';
 
-export default async function handleB2L({ buffer, base64, filename }) {
+export default async function handleB2L({ buffer, base64, filename, fromEmail = '' }) {
   console.log(`📦 Verwerken van B2L-bestand: ${filename}`);
 
   const containers = await parseB2L(buffer);
@@ -41,8 +42,10 @@ export default async function handleB2L({ buffer, base64, filename }) {
       });
       console.log(`📧 B2L verstuurd: ${easyFilename}`);
       easyBestanden.push(easyFilename);
+      await logOpdracht({ bron: 'B2L', afzenderEmail: fromEmail, bestandsnaam: filename, container, easyBestand: easyFilename });
     } catch (err) {
       console.error(`❌ Fout bij B2L container ${container.containernummer}:`, err.message);
+      await logOpdracht({ bron: 'B2L', afzenderEmail: fromEmail, bestandsnaam: filename, container, status: 'FOUT', foutmelding: err.message });
     }
   }
   return easyBestanden;

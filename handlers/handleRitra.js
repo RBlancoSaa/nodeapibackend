@@ -6,8 +6,9 @@ import path from 'path';
 import parseRitra from '../parsers/parseRitra.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, hasGmail } from '../utils/gmailTransport.js';
+import { logOpdracht } from '../utils/logOpdracht.js';
 
-export default async function handleRitra({ buffer, base64, filename }) {
+export default async function handleRitra({ buffer, base64, filename, fromEmail = '' }) {
   console.log(`📦 Verwerken van Ritra-bestand: ${filename}`);
 
   const containers = await parseRitra(buffer);
@@ -41,8 +42,10 @@ export default async function handleRitra({ buffer, base64, filename }) {
       });
       console.log(`📧 Ritra verstuurd: ${easyFilename}`);
       easyBestanden.push(easyFilename);
+      await logOpdracht({ bron: 'Ritra', afzenderEmail: fromEmail, bestandsnaam: filename, container, easyBestand: easyFilename });
     } catch (err) {
       console.error(`❌ Fout bij Ritra container ${container.containernummer}:`, err.message);
+      await logOpdracht({ bron: 'Ritra', afzenderEmail: fromEmail, bestandsnaam: filename, container, status: 'FOUT', foutmelding: err.message });
     }
   }
   return easyBestanden;

@@ -6,8 +6,9 @@ import path from 'path';
 import parseJordex from '../parsers/parseJordex.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter } from '../utils/gmailTransport.js';
+import { logOpdracht } from '../utils/logOpdracht.js';
 
-export default async function handleJordex({ buffer, base64, filename }) {
+export default async function handleJordex({ buffer, base64, filename, fromEmail = '' }) {
   console.log(`📦 Verwerken van Jordex-bestand: ${filename}`);
 
   const containers = await parseJordex(buffer);
@@ -42,8 +43,10 @@ export default async function handleJordex({ buffer, base64, filename }) {
       });
       console.log(`📧 Jordex verstuurd: ${easyFilename}`);
       easyBestanden.push(easyFilename);
+      await logOpdracht({ bron: 'Jordex', afzenderEmail: fromEmail, bestandsnaam: filename, container, easyBestand: easyFilename });
     } catch (err) {
       console.error(`❌ Fout bij Jordex container ${container.containernummer}:`, err.message);
+      await logOpdracht({ bron: 'Jordex', afzenderEmail: fromEmail, bestandsnaam: filename, container, status: 'FOUT', foutmelding: err.message });
     }
   }
   return easyBestanden;

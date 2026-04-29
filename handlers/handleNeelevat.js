@@ -6,8 +6,9 @@ import path from 'path';
 import parseNeelevat from '../parsers/parseNeelevat.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter } from '../utils/gmailTransport.js';
+import { logOpdracht } from '../utils/logOpdracht.js';
 
-export default async function handleNeelevat({ buffer, base64, filename, mailSubject }) {
+export default async function handleNeelevat({ buffer, base64, filename, mailSubject, fromEmail = '' }) {
   console.log(`📦 Verwerken van Neelevat-bestand: ${filename}`);
 
   const containers = await parseNeelevat(buffer);
@@ -48,8 +49,10 @@ export default async function handleNeelevat({ buffer, base64, filename, mailSub
       });
       console.log(`📧 Neelevat verstuurd: ${easyFilename}`);
       easyBestanden.push(easyFilename);
+      await logOpdracht({ bron: 'Neelevat', afzenderEmail: fromEmail, bestandsnaam: filename, container, easyBestand: easyFilename });
     } catch (err) {
       console.error(`❌ Fout bij Neelevat container ${container.containernummer}:`, err.message);
+      await logOpdracht({ bron: 'Neelevat', afzenderEmail: fromEmail, bestandsnaam: filename, container, status: 'FOUT', foutmelding: err.message });
     }
   }
   return easyBestanden;

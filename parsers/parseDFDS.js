@@ -183,10 +183,18 @@ export default async function parseDFDS(buffer) {
   console.log('📍 Lossen:',  lossenLocNaam,  '|', lossenLocAdres);
   console.log('📍 Afzetten:', dropoffLocNaam, '|', dropoffLocAdres);
 
+  // Lossen adresboek lookup:
+  // 1. Gebruik lossenLocNaam uit de locatiesectie als naam
+  // 2. Adres: combineer lossenLocAdres (locatiesectie) en klantadres (PDF-header/factuuradres)
+  //    — klantadres bevat het volledige factuuradres (bijv. "PROFESSOR GERBRANDYWEG 17")
+  //    — dit is cruciaal voor locaties met meerdere vestigingen (bijv. 10 Steinweg-adressen)
+  const lossenZoekNaam  = lossenLocNaam  || klantnaam;
+  const lossenZoekAdres = lossenLocAdres || klantadres;
+
   const [pickupInfo, lossenAdresboek, lossenTerminal, dropoffInfo] = await Promise.all([
     getTerminalInfoMetFallback(pickupLocNaam),
-    getAdresboekEntry(lossenLocNaam, null, lossenLocAdres),  // adres uit PDF meegeven voor betere match
-    getTerminalInfoMetFallback(lossenLocNaam),               // fallback als niet in adresboek
+    getAdresboekEntry(lossenZoekNaam, null, lossenZoekAdres),
+    getTerminalInfoMetFallback(lossenLocNaam),
     getTerminalInfoMetFallback(dropoffLocNaam)
   ]);
 

@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import parseSteinweg from '../parsers/parseSteinweg.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, hasGmail } from '../utils/gmailTransport.js';
+import { logOpdracht } from '../utils/logOpdracht.js';
 
 async function sendSteinwegEmail({ ritnummer, attachments }) {
   const { transporter, from } = await getGmailTransporter();
@@ -37,7 +38,7 @@ async function uploadToQueue(filename, content) {
   if (error) throw new Error(`Queue upload mislukt voor ${filename}: ${error.message}`);
 }
 
-export default async function handleSteinweg({ route1Buffer, route2Buffer, route1Filename, route2Filename, emailBody, emailSubject, emailSource }) {
+export default async function handleSteinweg({ route1Buffer, route2Buffer, route1Filename, route2Filename, emailBody, emailSubject, emailSource, fromEmail = '' }) {
   const containers = await parseSteinweg({ route1Buffer, route2Buffer, emailBody, emailSubject });
 
   if (!containers || containers.length === 0) {
@@ -86,8 +87,10 @@ export default async function handleSteinweg({ route1Buffer, route2Buffer, route
       }
       easyBestanden.push(easyFilename);
       easyAttachments.push({ filename: easyFilename, path: easyPath });
+      await logOpdracht({ bron: 'Steinweg', afzenderEmail: fromEmail, bestandsnaam: route1Filename || '', container, easyBestand: easyFilename });
     } catch (err) {
       console.error(`❌ Fout bij ${container.containernummer}:`, err.message);
+      await logOpdracht({ bron: 'Steinweg', afzenderEmail: fromEmail, bestandsnaam: route1Filename || '', container, status: 'FOUT', foutmelding: err.message });
     }
   }
 

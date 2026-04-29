@@ -6,6 +6,7 @@ import path from 'path';
 import parseReservering from '../parsers/parseReservering.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter } from '../utils/gmailTransport.js';
+import { logOpdracht } from '../utils/logOpdracht.js';
 
 export default async function handleReservering({ subject, bodyText, from, date }) {
   console.log(`📋 Reservering email verwerken: "${subject}" van ${from}`);
@@ -42,7 +43,9 @@ export default async function handleReservering({ subject, bodyText, from, date 
     });
 
     console.log(`✅ Reservering .easy verstuurd: ${easyFilename}`);
+    await logOpdracht({ bron: 'Reservering', afzenderEmail: from, bestandsnaam: '', container, easyBestand: easyFilename });
   } catch (err) {
     console.error('❌ handleReservering fout:', err.message);
+    await logOpdracht({ bron: 'Reservering', afzenderEmail: from, bestandsnaam: '', container, status: 'FOUT', foutmelding: err.message });
   }
 }
