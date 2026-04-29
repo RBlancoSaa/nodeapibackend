@@ -24,8 +24,9 @@ const handlers = {
     handler: handleJordex
   },
   dfds: {
-    matchFile:    fn  => fn.includes('dfds') && fn.includes('transportorder'),
-    matchSender:  frm => /@dfds\.com/i.test(frm),
+    matchFile:    fn  => fn.includes('dfds') || (fn.includes('transport') && fn.includes('order') && !fn.includes('jordex')),
+    matchSender:  frm => /@dfds\.com/i.test(frm) || /@dfds-logistics\.com/i.test(frm) || /dfds.*maasvlakte/i.test(frm),
+    matchSubject: sub => /\bdfds\b/i.test(sub) || /\bSFIM\d{5,}\b/.test(sub),
     handler: handleDFDS
   },
   b2l: {

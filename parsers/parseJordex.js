@@ -183,7 +183,14 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
         if (!dl || /^(Pick|Drop|Extra\s+Info|Date:|Ref)/i.test(dl)) break;
         const gwm = dl.match(/GROSS\s+WEIGHT\s*[:\s]+(\d[\d.,]*)\s*KG/i);
         if (gwm) { gewicht = String(Math.round(parseFloat(gwm[1].replace(',', '.')))); continue; }
-        if (/[\d.,]+\s*m[³3]/i.test(dl)) continue;
+        if (/[\d.,]+\s*m[³3]/i.test(dl)) {
+          // Beschrijving kan aan het eind van dezelfde regel staan na het gewicht: "...25000kgFROZEN PORK"
+          const afterKg = dl.match(/[\d.,]+\s*kg\s*(.+)/i)?.[1]?.trim();
+          if (afterKg && afterKg.length > 3 && !/^(Pick|Drop|Extra|Date:|Ref)/i.test(afterKg)) {
+            descLines.push(afterKg);
+          }
+          continue;
+        }
         if (/^[\d.,]+\s*kg\s*$/i.test(dl)) continue; // alleen pure gewichtsregels, niet beschrijvingen met "250 KG" erin
         if (/^m[³3]$/i.test(dl)) continue;
         if (/^kg$/i.test(dl)) continue;
@@ -245,7 +252,7 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
         if (!dl) continue;
         if (/[\d.,]+\s*m[³3]/i.test(dl) || /[\d.,]+\s*kg/i.test(dl)) continue;
         if (/^\d+([.,]\d+)?$/.test(dl)) continue;
-        if (/^(Date:|Ref|Pick|Drop|Carrier|Vessel)/i.test(dl)) break;
+        if (/^(Date:|Ref|Pick|Drop|Carrier|Vessel|Extra\s+Info)/i.test(dl)) break;
         if (dl.length > 3) { lading = dl; break; }
       }
     }

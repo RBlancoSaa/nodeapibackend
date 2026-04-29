@@ -56,6 +56,19 @@ function parseDatum(str) {
   return `${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}-${yyyy}`;
 }
 
+/** Probeer datum uit e-mailonderwerp te halen, bijv. "29-04" of "29-04-2026" */
+function parseDateFromSubject(subject) {
+  const full = parseDatum(subject);
+  if (full) return full;
+  // Gedeeltelijke datum: "29-04" → huidig jaar toevoegen
+  const m = (subject || '').match(/\b(\d{1,2})[-.](\d{2})\b(?![-.\d])/);
+  if (m) {
+    const year = new Date().getFullYear();
+    return `${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}-${year}`;
+  }
+  return '';
+}
+
 function sizetypeToDescription(sizetype) {
   const s = String(sizetype || '').replace(/\s/g, '');
   if (/^22/.test(s)) return '20ft';
@@ -119,8 +132,13 @@ function parseRoute1(buffer) {
   const ordernummer = parseOrdernummer(rows);
   const fromLoc    = cellAfterLabel(rows, /^From\s*:/i).trim();
   const toLoc      = cellAfterLabel(rows, /^To\s*/i).trim();
-  const plannedLoading  = parseDatum(cellAfterLabel(rows, /^Planned Loading/i));
-  const plannedDelivery = parseDatum(cellAfterLabel(rows, /^Planned Delivery/i));
+  const plannedLoading  =
+    parseDatum(cellAfterLabel(rows, /^Planned\s*(Loading|Pickup|ETD|Date)\b/i)) ||
+    parseDatum(cellAfterLabel(rows, /^Loading\s*Date/i)) ||
+    parseDatum(cellAfterLabel(rows, /^ETA\b/i)) ||
+    parseDatum(cellAfterLabel(rows, /^ETD\b/i)) ||
+    parseDatum(cellAfterLabel(rows, /^Date\b/i));
+  const plannedDelivery = parseDatum(cellAfterLabel(rows, /^Planned\s*Delivery/i));
 
   const hdrIdx = findHeaderRowIdx(rows);
   if (hdrIdx < 0) return { ordernummer, from: fromLoc, to: toLoc, plannedLoading, plannedDelivery, rederij: '', containers: [] };
@@ -237,7 +255,8 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       getTerminalInfoMetFallback(r1.from),
       getTerminalInfoMetFallback(r1.to)
     ]);
-    const r1Datum = selectEarliestFutureDatum([r1.plannedLoading, r1.plannedDelivery]);
+    const r1Datum = selectEarliestFutureDatum([r1.plannedLoading, r1.plannedDelivery])
+      || parseDateFromSubject(emailSubject);
 
     for (const c1 of r1.containers) {
       const datum          = r1Datum;
