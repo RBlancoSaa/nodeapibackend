@@ -25,18 +25,29 @@ Gmail API
 
 ## Klanten en parsers
 
-| Klant       | Parser                    | Status      | Matchcriteria                              |
-|-------------|---------------------------|-------------|--------------------------------------------|
-| Jordex      | parsers/parseJordex.js    | ✅ Actief    | afzender `@jordex.com`, onderwerp `OE\d{5}` |
-| Neelevat    | parsers/parseNeelevat.js  | ✅ Actief    | afzender `@neele-vat.com`                  |
-| Ritra       | parsers/parseRitra.js     | ✅ Actief    | bestandsnaam `ritra`                       |
-| B2L         | parsers/parseB2L.js       | ✅ Actief    | afzender `@b2l.nl` / `@b2lcargocare.com`  |
-| DFDS        | parsers/parseDFDS.js      | ✅ Actief    | afzender `@dfds.com`                       |
-| Steinweg    | parsers/parseSteinweg.js  | ✅ Actief    | bestandsnaam `pickupnotice`/`steinweg`     |
-| KWE         | handlers/handleKWE.js     | ❌ Stub      | afzender `@kwe.com`                        |
-| Easyfresh   | handlers/handleEasyfresh.js | ❌ Stub    | afzender `@easyfresh.com`                  |
+| Klant       | Parser                      | Status       | Matchcriteria                                       |
+|-------------|-----------------------------|--------------|-----------------------------------------------------|
+| Jordex      | parsers/parseJordex.js      | ✅ Actief     | afzender `@jordex.com`, onderwerp `OE\d{5}`         |
+| Neelevat    | parsers/parseNeelevat.js    | ✅ Actief     | afzender `@neele-vat.com`                           |
+| Ritra       | parsers/parseRitra.js       | ✅ Actief     | bestandsnaam `ritra`                                |
+| B2L         | parsers/parseB2L.js         | ✅ Actief     | afzender `@b2l.nl` / `@b2lcargocare.com`            |
+| DFDS        | parsers/parseDFDS.js        | ✅ Actief     | afzender `@dfds.com`                                |
+| Steinweg    | parsers/parseSteinweg.js    | ✅ Actief     | bestandsnaam `pickupnotice`/`steinweg`              |
+| Steder      | parsers/parseSteder.js      | ✅ Actief     | afzender `@stedergroup.com`                         |
+| Eimskip     | parsers/parseEimskip.js     | ✅ Actief     | afzender `@eimskip.com`/`@eimskip.is`, `preferBody` |
+| KWE         | handlers/handleKWE.js       | ❌ Stub       | afzender `@kwe.com`                                 |
+| Easyfresh   | handlers/handleEasyfresh.js | ❌ Stub       | afzender `@easyfresh.com`                           |
 
 Handler-matching volgorde in `upload-from-inbox.js`: bestandsnaam → afzender → onderwerp.
+
+### preferBody architectuur (Eimskip)
+
+Eimskip emails bevatten meerdere PDF-bijlagen (Transportopdracht + andere docs). Om te voorkomen dat de handler 3× wordt aangeroepen (één per PDF), heeft de Eimskip config `preferBody: true`. Dit zorgt ervoor dat:
+- De PDF-per-bestand loop wordt **overgeslagen**
+- De handler wordt **één keer** aangeroepen met `bodyText` + `pdfAttachments: [alle PDFs]`
+- De handler zoekt zelf de Transportopdracht-PDF op aan de hand van bestandsnaam
+
+Eimskip opdrachten hebben altijd: Lossen van container bij klant, Opzetten bij terminal.
 
 ---
 
@@ -48,7 +59,24 @@ De Jordex PDF heeft drie vaste secties: **Pick-up terminal** → **Pick-up** (kl
 - **Format B** (droog, meerdere containers): meerdere `Cargo:` blokken elk met eigen `Date:` en `Reference:`
 - **Format C** (export/bulk): cargo-tabel BUITEN de Pick-up sectie, header `Type Number Seal number Colli Volume Weight Description`
 
+**Extra stops (bijladen):** Als een Jordex opdracht meerdere laadlocaties heeft, staat dit als "Extra stop" sectie in de PDF. Dit resulteert in **één** order met meerdere Laden-locaties (NIET aparte orders per laadlocatie). Geïmplementeerd in parseJordex.js met `extraStopBlokken`.
+
 Datum-extractie: zoekt eerst "Date: DD Mon YYYY HH:MM" (tekst), dan "Date: DD/MM/YYYY" (numeriek), dan in de volledige regels als pickupBlok leeg is.
+
+---
+
+## Rederij — KRITIEKE REGEL
+
+**De rederij MOET altijd uit de officiële `rederijen.json` lijst komen. Zelf invullen of een ruwe waarde doorsturen is VERBODEN.**
+
+Dit is essentieel voor de voormelding. Als de rederij niet herkend wordt:
+- `rederij` en `inleverRederij` worden **leeggemaakt** (lege string)
+- Er verschijnt een waarschuwing in de logs
+- Het .easy bestand wordt wel aangemaakt (zodat de gebruiker het kan corrigeren)
+
+Geïmplementeerd in:
+- `generateXmlFromJson.js` (regels ~140–150): lookup via `getRederijNaam()`, leegmaken bij mislukking
+- Elke individuele parser roept `getRederijNaam()` aan via `utils/lookups/terminalLookup.js`
 
 ---
 
@@ -63,7 +91,7 @@ Lookup volgorde bij `getTerminalInfoMetFallback(key)`:
 
 Bij `null`: de parser gebruikt de ruwe naam/adres uit de PDF voor de locatieregel, en voegt een melding toe aan `instructies`: `"Opzet-terminal niet in lijst: [naam]"`.
 
-**Auto-create is uitgeschakeld** — er wordt nooit automatisch een terminal aangemaakt. Nieuwe terminals moeten handmatig worden toegevoegd aan `op_afzetten.json` in Supabase Storage.
+**Auto-create is uitgeschakeld** — er wordt nooit automatisch een terminal aangemaakt.
 
 Score-systeem `berekenScore()`:
 - 100: exacte naam match
@@ -75,25 +103,27 @@ Score-systeem `berekenScore()`:
 
 ---
 
-## Supabase Storage (`referentielijsten` bucket)
+## XML-generatie (`services/generateXmlFromJson.js`)
 
-| Bestand           | Inhoud                                          |
-|-------------------|-------------------------------------------------|
-| `op_afzetten.json` | Terminallijst: naam, adres, postcode, plaats, land, portbase_code, bicsCode, voorgemeld, altNamen |
-| `containers.json` | Containertypes: code (ISO), label, altLabels    |
-| `rederijen.json`  | Rederijen: naam, code, altLabels                |
-| `klanten.json`    | Klantdata: Bedrijfsnaam, Adres, Postcode, etc.  |
-
-**Voorgemeld veld** in terminals: `"ja"` of `"nee"` — bepaalt of EasyTrip de pre-notificatie aanmaakt. Nieuwe/onbekende terminals krijgen geen waarde totdat ze handmatig worden ingevuld.
+- Ondersteunt **N locaties** (niet hardcoded op 3): `data.locaties.slice(1, -1)` voor tussenliggende stops, `data.locaties.at(-1)` voor Afzetten
+- `data.locaties[0]` = altijd Opzetten (terminal)
+- Gebruikt `data.containertypeCode` als dat al ingevuld is door de parser (voorkomt dubbele mapping)
+- `Voorgemeld` veld in XML komt uit `data.locaties[0/last].voorgemeld` (NIET hardcoded)
+- Rederij wordt via `getRederijNaam()` opgezocht; bij mislukking → leeg (zie rederij-regel hierboven)
+- Gooit een error als containertype niet gemapped kan worden → geen .easy bestand
 
 ---
 
-## XML-generatie (`services/generateXmlFromJson.js`)
+## Supabase Storage (`referentielijsten` bucket)
 
-- Gebruikt `data.containertypeCode` als dat al ingevuld is door de parser (voorkomt dubbele mapping)
-- Als `containertypeCode` leeg is, probeert `getContainerCodeFromOmschrijving()` de omschrijving te mappen
-- `Voorgemeld` veld in XML komt uit `data.locaties[0/2].voorgemeld` (NIET hardcoded)
-- Gooit een error als containertype niet gemapped kan worden → geen .easy bestand
+| Bestand            | Inhoud                                                                       |
+|--------------------|------------------------------------------------------------------------------|
+| `op_afzetten.json` | Terminallijst: naam, adres, postcode, plaats, land, portbase_code, bicsCode, voorgemeld, altNamen |
+| `containers.json`  | Containertypes: code (ISO), label, altLabels                                 |
+| `rederijen.json`   | Rederijen: naam, code, altLabels                                             |
+| `klanten.json`     | Klantdata: Bedrijfsnaam, Adres, Postcode, KVK, BTW, Telefoon etc.            |
+
+**Eimskip opdrachtgever:** hardcoded in parseEimskip.js als `EIMSKIP JAC. MEISNER CUSTOMS & WAREHOUSING B.V.` — voeg toe aan klanten.json zodra KVK/BTW/adres beschikbaar zijn.
 
 ---
 
@@ -103,7 +133,7 @@ Score-systeem `berekenScore()`:
 GMAIL_CLIENT_ID
 GMAIL_CLIENT_SECRET
 GMAIL_REFRESH_TOKEN
-RECIPIENT_EMAIL          (standaard = zelfde als from-adres)
+RECIPIENT_EMAIL          (standaard = opdrachten@tiarotransport.nl)
 SUPABASE_URL
 SUPABASE_SERVICE_KEY
 SUPABASE_LIST_PUBLIC_URL (publieke URL van de referentielijsten bucket)
@@ -117,8 +147,10 @@ SUPABASE_LIST_PUBLIC_URL (publieke URL van de referentielijsten bucket)
 2. `classifyEmail()` bepaalt type: `transport`, `reservering`, `update`, `onbekend`
 3. Updates worden overgeslagen
 4. Reserveringen gaan naar `handleReservering`
-5. Transport: per PDF-bijlage wordt `findHandler()` aangeroepen
-6. Handler parseert → genereert XML → stuurt email met `.easy` bestand
+5. Transport:
+   - **Normaal**: per PDF-bijlage wordt `findHandler()` aangeroepen
+   - **preferBody** (Eimskip): één aanroep met bodyText + alle PDFs als array
+6. Handler parseert → genereert XML → stuurt email met `.easy` bestand + originele PDF-bijlagen
 7. Alle mails worden als gelezen gemarkeerd
 8. Logboek wordt opgeslagen in Supabase tabel `verwerkingslog`
 
@@ -126,12 +158,12 @@ SUPABASE_LIST_PUBLIC_URL (publieke URL van de referentielijsten bucket)
 
 ## Bekende issues / TODO
 
-- **KWE parser** niet geïmplementeerd — gooit "Parser KWE is nog niet geïmplementeerd"
-- **Easyfresh parser** niet geïmplementeerd
-- **Neelevat opdrachtgever BTW/KVK** ontbreken in parseNeelevat.js (lege strings)
+- **KWE parser** niet geïmplementeerd — stub gooit fout
+- **Easyfresh parser** niet geïmplementeerd — stub gooit fout
+- **DFDS email-body parser** niet geïmplementeerd — DFDS stuurt soms plain-text emails zonder PDF (bijv. RADTEC/ADR/UN orders)
+- **Neelevat opdrachtgever BTW/KVK** ontbreken in parseNeelevat.js
+- **Eimskip klanten.json entry** ontbreekt nog — opdrachtgever KVK/BTW/adres hardcoded in parser
 - **Updates** worden overgeslagen, niet verwerkt
-- **parseB2L, parseDFDS, parseSteinweg** geven geen rawData mee aan terminal lookup (minder kritiek)
-- **Terminal lijst** moet handmatig worden aangevuld voor terminals die nog niet in `op_afzetten.json` staan (UWT, APM, Medrepair etc.)
 
 ---
 
@@ -140,23 +172,17 @@ SUPABASE_LIST_PUBLIC_URL (publieke URL van de referentielijsten bucket)
 1. **Nooit data invullen die niet in de PDF staat of in de referentielijst bevestigd is**
 2. Als een terminal niet gevonden wordt → naam/adres uit PDF gebruiken + melding in bijzonderheden
 3. Geen auto-create van terminals
-4. Wijzigingen altijd committen op branch `claude/jolly-bassi-e62a9a`, dan mergen naar `main` voor Vercel deploy
-5. Worktree pad: `C:\Users\rblan\OneDrive\Desktop\nodeapibackend\.claude\worktrees\jolly-bassi-e62a9a`
+4. **Rederij MOET uit de lijst komen** — bij mislukking leegmaken, nooit raw doorsturen
+5. Commits gaan rechtstreeks naar `main` (Vercel deployt automatisch)
 
 ---
 
 ## Git workflow
 
 ```bash
-# Werken in worktree
-cd C:\Users\rblan\OneDrive\Desktop\nodeapibackend\.claude\worktrees\jolly-bassi-e62a9a
-
-# Committen
+# Vanuit de projectmap:
 git add [bestanden]
-git commit -m "Omschrijving"
-
-# Pushen naar main (voor Vercel)
-cd C:\Users\rblan\OneDrive\Desktop\nodeapibackend
-git merge claude/jolly-bassi-e62a9a
-git push origin main
+git commit -m "omschrijving"
+git push
+# → Vercel deploy start automatisch
 ```
