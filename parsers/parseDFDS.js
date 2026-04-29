@@ -194,7 +194,7 @@ export default async function parseDFDS(buffer) {
   const [pickupInfo, lossenAdresboek, lossenTerminal, dropoffInfo] = await Promise.all([
     getTerminalInfoMetFallback(pickupLocNaam),
     getAdresboekEntry(lossenZoekNaam, null, lossenZoekAdres),  // klant in adresboek
-    getTerminalInfoMetFallback(lossenLocNaam),                  // terminal in op_afzetten
+    getTerminalInfoMetFallback(lossenLocNaam, lossenZoekAdres),  // terminal + adres als tiebreaker
     getTerminalInfoMetFallback(dropoffLocNaam)
   ]);
 

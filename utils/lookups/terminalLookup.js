@@ -61,17 +61,20 @@ async function getTerminalLijst() {
 
 /**
  * Berekent hoe goed `zoekterm` overeenkomt met een terminal-entry.
- * Adres-match weegt zwaarder dan naam (adres is uniek, naam kan variëren).
  *
  *   100 = exacte naam-match
- *    90 = genormaliseerde naam-match
- *    80 = naam bevat zoekterm of vice versa
+ *    80 = naam bevat zoekterm of vice versa (gelijkwaardige lengte)
+ *    55 = korte naam in lange zoekterm (< 50% lengteverhouding)
  *    65 = in altNamen gevonden
- *    50 = significante woordoverlap in naam
- *   +40 = exacte straatnaam-match in adres (bonus)
- *   +20 = gedeeltelijke straatnaam-match
+ *    75 = acroniem-match
+ *   +50 = exacte straatnaam-match via zoekAdres  ← altijd doorslaggevend
+ *   +25 = gedeeltelijke straatnaam-match via zoekAdres
+ *
+ * @param {string} zoek      - Naam zoals uit PDF
+ * @param {object} terminal  - Entry uit op_afzetten.json
+ * @param {string} [zoekAdres] - Adres uit PDF ter verificatie (optioneel maar zwaarst)
  */
-function berekenScore(zoek, terminal) {
+function berekenScore(zoek, terminal, zoekAdres = '') {
   if (!zoek) return 0;
   const nZoek = normStr(zoek);
   const nNaam = normStr(terminal.naam || '');
@@ -79,14 +82,13 @@ function berekenScore(zoek, terminal) {
 
   // Exacte naam
   if (nNaam && nNaam === nZoek) return 100;
+
   // Naam bevat zoekterm of omgekeerd
-  // Maar een kort entry-naam die in een lange zoekterm zit is een ZWAKKE match:
-  // "STEINWEG" scoort 80 bij zoek "C. STEINWEG BOTLEK TERMINAL BV" — dat is te hoog.
-  // Drempel: entry-naam < 50% van zoekterm lengte → containsscore = 55 (onder threshold 65)
+  // Korte entry-naam (< 50% van zoekterm) = zwakke match (bijv. "STEINWEG" bij zoek "C. STEINWEG BOTLEK TERMINAL BV")
   if (nNaam && (nNaam.includes(nZoek) || nZoek.includes(nNaam))) {
     const containsScore = (nZoek.includes(nNaam) && nNaam.length < nZoek.length * 0.5)
-      ? 55   // korte/generieke naam in lange zoekterm = zwakke match
-      : 80;  // gelijkwaardige of langere namen = sterke match
+      ? 55
+      : 80;
     score = Math.max(score, containsScore);
   }
 
@@ -103,7 +105,7 @@ function berekenScore(zoek, terminal) {
   });
   if (altHit) score = Math.max(score, 65);
 
-  // Acroniem-check: "uwt" = U[nited] W[aalhaven] T[erminals], "apm" = A[PM] T[erminals]...
+  // Acroniem-check
   if (nZoek.length >= 2 && nZoek.length <= 5) {
     const woorden = (terminal.naam || '').split(/\s+/).filter(w => w.length > 1);
     if (woorden.length >= nZoek.length) {
@@ -112,12 +114,13 @@ function berekenScore(zoek, terminal) {
     }
   }
 
-  // ★ Adres-bonus — dit is het meest betrouwbare kenmerk
-  const straatZ = straatNaam(zoek);
+  // ★ Adres-bonus via zoekAdres (extern meegegeven adres uit PDF)
+  // Dit is het meest betrouwbare kenmerk — altijd doorslaggevend als beide namen scoren
+  const straatZ = straatNaam(zoekAdres || zoek);   // bij voorkeur het echte adres
   const straatT = straatNaam(terminal.adres || '');
   if (straatZ && straatT) {
-    if (straatZ === straatT)                                          score += 40;
-    else if (straatT.includes(straatZ) || straatZ.includes(straatT)) score += 20;
+    if (straatZ === straatT)                                           score += 50;
+    else if (straatT.includes(straatZ) || straatZ.includes(straatT))  score += 25;
   }
 
   return score;
@@ -143,18 +146,18 @@ export async function getTerminalInfo(referentie) {
 
 // ─── Fuzzy lookup (naam + adres score) ────────────────────────────────────────
 
-export async function getTerminalInfoFallback(zoekwaarde) {
+export async function getTerminalInfoFallback(zoekwaarde, zoekAdres = '') {
   try {
     if (!zoekwaarde || typeof zoekwaarde !== 'string') return '0';
     const lijst = await getTerminalLijst();
 
     const beste = lijst
-      .map(item => ({ item, score: berekenScore(zoekwaarde, item) }))
+      .map(item => ({ item, score: berekenScore(zoekwaarde, item, zoekAdres) }))
       .filter(s => s.score >= 65)
       .sort((a, b) => b.score - a.score)[0];
 
     if (beste) {
-      console.log(`🔍 getTerminalInfoFallback("${zoekwaarde}") → ${beste.item.naam} (score ${beste.score})`);
+      console.log(`🔍 getTerminalInfoFallback("${zoekwaarde}"${zoekAdres ? ` @ ${zoekAdres.slice(0,30)}` : ''}) → ${beste.item.naam} (score ${beste.score})`);
       return beste.item;
     }
     return '0';
@@ -173,7 +176,7 @@ export async function getTerminalInfoFallback(zoekwaarde) {
  * @param {string} key  - Terminalnaam uit PDF
  * @returns {object|null}
  */
-export async function getTerminalInfoMetFallback(key) {
+export async function getTerminalInfoMetFallback(key, zoekAdres = '') {
   try {
     const zoek = (key || '').trim();
     if (!zoek) return null;
@@ -182,8 +185,8 @@ export async function getTerminalInfoMetFallback(key) {
     const exact = await getTerminalInfo(zoek);
     if (exact && exact !== '0') return exact;
 
-    // 2. Fuzzy naam+adres match (drempel 65 om valse matches te vermijden)
-    const fuzzy = await getTerminalInfoFallback(zoek);
+    // 2. Fuzzy naam+adres match — adres meegeven zodat het als tiebreaker werkt
+    const fuzzy = await getTerminalInfoFallback(zoek, zoekAdres);
     if (fuzzy && fuzzy !== '0') return fuzzy;
 
     console.log(`⚠️ Terminal niet gevonden in lijst: "${zoek}"`);
