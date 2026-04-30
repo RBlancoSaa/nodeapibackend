@@ -6,6 +6,7 @@ import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import Anthropic from '@anthropic-ai/sdk';
 import { enrichOrder } from '../utils/enrichOrder.js';
+import { getKlantData } from '../utils/lookups/terminalLookup.js';
 
 // ISO container type → EasyTrip omschrijving
 const ISO_TYPE = {
@@ -445,6 +446,9 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     }
   ];
 
+  // Klantdata van Eimskip ophalen (adres, BTW, KVK, etc.)
+  const klant = await getKlantData('eimskip');
+
   return [await enrichOrder({
     ritnummer,
     klantnaam:     lossenRaw?.naam     || '',
@@ -452,15 +456,14 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     klantpostcode: lossenRaw?.postcode || '',
     klantplaats:   lossenRaw?.plaats   || '',
 
-    // Opdrachtgever: voeg Eimskip toe in klanten.json voor volledige KVK/BTW/adres-gegevens
-    opdrachtgeverNaam:     'EIMSKIP JAC. MEISNER CUSTOMS & WAREHOUSING B.V.',
-    opdrachtgeverAdres:    '',
-    opdrachtgeverPostcode: '',
-    opdrachtgeverPlaats:   '',
-    opdrachtgeverTelefoon: '+31 10 269 1514',
-    opdrachtgeverEmail:    '',
-    opdrachtgeverBTW:      '',
-    opdrachtgeverKVK:      '',
+    opdrachtgeverNaam:     klant?.naam     || 'EIMSKIP JAC. MEISNER CUSTOMS & WAREHOUSING B.V.',
+    opdrachtgeverAdres:    klant?.adres    || '',
+    opdrachtgeverPostcode: klant?.postcode || '',
+    opdrachtgeverPlaats:   klant?.plaats   || '',
+    opdrachtgeverTelefoon: klant?.telefoon || '+31 10 269 1514',
+    opdrachtgeverEmail:    klant?.email    || '',
+    opdrachtgeverBTW:      klant?.btw      || '',
+    opdrachtgeverKVK:      klant?.kvk      || '',
 
     containernummer,
     containertype:    containertypeOms,
@@ -492,5 +495,5 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     tar: '', documentatie: '', tarra: '0', brix: '0',
 
     locaties
-  }, { bron: 'Eimskip' })];
+  }, { bron: 'Eimskip', klantKey: 'eimskip' })];
 }
