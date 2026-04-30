@@ -1,9 +1,9 @@
 // parsers/parseEimskip.js
 // Eimskip "Transportopdracht" PDF parser
 // Digitale PDF  → pdf-parse → parsePDFLines (regex op vaste opmaak)
-// Gescande PDF  → Claude Vision → directe JSON-extractie (geen regex nodig)
+// Gescande PDF  → Claude Vision → directe JSON-extractie (één API call, geen regex)
 import '../utils/fsPatch.js';
-import { extractPdfText } from '../utils/ocrPdf.js';
+import pdfParse from 'pdf-parse';
 import Anthropic from '@anthropic-ai/sdk';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
@@ -178,36 +178,36 @@ Lees alle velden zorgvuldig en geef ze terug als GELDIGE JSON. Geen extra tekst,
 
 Verplichte structuur:
 {
-  "ritnummer":        "eerste referentienummer (bijv. 120563)",
-  "laadreferentie":   "volledige referentieregel (bijv. '120563 - 520483')",
-  "bootnaam":         "naam van het schip / vessel",
-  "rederij":          "naam van de rederij / carrier (bijv. MAERSK, MSC, CMA CGM)",
-  "containernummer":  "containernummer EXACT formaat: 4 hoofdletters + 7 cijfers (bijv. TCLU5199341)",
-  "containertypeIso": "4-karakter ISO containercode (bijv. 22G1=20ft, 42G1=40ft, 45G1=40ftHC, 42R1=40ft reefer)",
+  "ritnummer":        "het opdrachtnummer / referentienummer (ALLEEN cijfers, bijv. '120563')",
+  "laadreferentie":   "volledige referentieregel met beide nummers (bijv. '120563 - 520483')",
+  "bootnaam":         "naam van het schip / vessel name",
+  "rederij":          "VERKORTE naam van de rederij — gebruik altijd de afkorting: MSC, MAERSK, CMA CGM, HAPAG-LLOYD, EVERGREEN, COSCO, ONE, YANG MING, ZIM, PIL — NOOIT de volledige juridische naam",
+  "containernummer":  "containernummer EXACT formaat: 4 hoofdletters + 7 cijfers aaneengesloten (bijv. TCLU5199341)",
+  "containertypeIso": "4-karakter ISO containercode naast het containernummer (bijv. 22G1=20ft std, 42G1=40ft std, 45G1=40ft HC, 42R1=40ft reefer)",
   "zegel":            "zegelnummer / seal number",
   "lading":           "goederenomschrijving (bijv. CT, STL, machinery)",
   "colli":            "aantal colli als string (bijv. '61')",
   "brutogewicht":     "gewicht in kg als string zonder eenheid (bijv. '5410')",
   "sec1": {
-    "naam":     "naam van de afhaal-/opzetterminal (bijv. ECT Delta, Euromax)",
-    "datum":    "datum formaat D-M-YYYY (bijv. 2-5-2026)",
-    "tijd":     "tijdstip HH:MM of leeg",
+    "naam":     "ALLEEN de naam van de afhaal-/opzetterminal, ZONDER datum of tijd (bijv. 'ECT Delta', 'Euromax Terminal')",
+    "datum":    "ophaaldatum formaat D-M-YYYY (bijv. 2-5-2026)",
+    "tijd":     "ophaaltijdstip HH:MM of leeg",
     "adres":    "straatnaam + huisnummer",
     "postcode": "postcode",
     "plaats":   "plaatsnaam",
     "land":     "2-letter landcode: NL, BE, DE, GB, FR"
   },
   "sec2": {
-    "naam":     "naam van het afleveradres / klant / bedrijf",
-    "datum":    "afleverdatum formaat D-M-YYYY",
-    "tijd":     "aflevertime HH:MM of leeg",
+    "naam":     "ALLEEN de naam van het bedrijf / klant op het afleveradres, ZONDER datum of tijd",
+    "datum":    "afleverdatum formaat D-M-YYYY (bijv. 1-5-2026)",
+    "tijd":     "aflevertime HH:MM (bijv. '14:00') of leeg",
     "adres":    "straatnaam + huisnummer",
     "postcode": "postcode",
     "plaats":   "plaatsnaam",
     "land":     "2-letter landcode"
   },
   "sec3": {
-    "naam":     "naam van de afzettterminal / depot",
+    "naam":     "ALLEEN de naam van de afzetterminal / leeg depot, ZONDER datum of tijd",
     "datum":    "datum formaat D-M-YYYY of leeg",
     "tijd":     "tijdstip HH:MM of leeg",
     "adres":    "straatnaam + huisnummer of leeg",
@@ -217,11 +217,13 @@ Verplichte structuur:
   }
 }
 
-Regels:
-- Gebruik lege string "" voor ontbrekende velden, nooit null of undefined
-- containernummer: ALTIJD 4 hoofdletters + 7 cijfers aaneengesloten (TCLU5199341 niet TCLU 519 9341)
-- containertypeIso: kijk naar ISO-code tussen haakjes naast het containernummer, of leid af uit omschrijving
-- datum formaat: dag-maand-jaar zonder voorloopnullen (2-5-2026 niet 02-05-2026)
+Strikte regels:
+- Gebruik lege string "" voor ontbrekende velden, NOOIT null of undefined
+- naam-velden: ALLEEN de bedrijfs-/terminalnaam, datum en tijd NOOIT toevoegen aan naam
+- containernummer: aaneengesloten, geen spaties (TCLU5199341 niet TCLU 519 9341)
+- ritnummer: ALLEEN het getal, geen tekst of zinnen
+- datum formaat: D-M-YYYY zonder voorloopnullen (1-5-2026 niet 01-05-2026)
+- rederij: altijd verkorte handelsnaam, nooit de volledige juridische naam
 - Geef ALLEEN geldige JSON terug, geen uitleg, geen markdown-backticks`;
 
   const message = await client.messages.create({
@@ -285,12 +287,28 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
   let pdfData = null;
   for (const att of sortedPdfs) {
     if (!att.buffer || !Buffer.isBuffer(att.buffer)) continue;
-    try {
-      const { lines, wasOcr } = await extractPdfText(att.buffer, 'Eimskip transportopdracht');
-      console.log(`📄 Eimskip PDF "${att.filename}" (${lines.length} regels${wasOcr ? ', GESCAND' : ''})`);
 
-      if (wasOcr) {
-        // Gescande PDF: gebruik Claude structured extraction — geen regex op OCR-tekst
+    // CMR-documenten overslaan — dit zijn vrachtbrieven, geen transportopdrachten
+    if (/\bCMR\b/i.test(att.filename || '')) {
+      console.log(`⏭️ CMR-document overgeslagen: ${att.filename}`);
+      continue;
+    }
+
+    try {
+      // Probeer digitale tekstextractie
+      let text = '';
+      try {
+        const parsed = await pdfParse(att.buffer);
+        text = parsed.text || '';
+      } catch (e) {
+        console.warn(`⚠️ pdf-parse fout voor "${att.filename}":`, e.message);
+      }
+
+      const isGescand = text.trim().length < 80;
+      console.log(`📄 Eimskip PDF "${att.filename}" (${text.trim().length} tekens${isGescand ? ' → GESCAND' : ''})`);
+
+      if (isGescand) {
+        // Gescande PDF: één Claude-call, directe JSON → geen parsePDFLines nodig
         console.log('🖼️ Gescande PDF → Claude structured JSON extractie');
         pdfData = await extractEimskipJsonFromPdf(att.buffer);
         if (pdfData?.containernummer) break;
@@ -299,7 +317,8 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
         continue;
       }
 
-      // Digitale PDF: gebruik bestaande regex-parser
+      // Digitale PDF: gebruik regex-parser
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
       const isTO = /transportopdracht|transport\s*(order|opdracht)/i.test(att.filename || '') ||
                    lines.some(l => /^transport\s*(order|opdracht)/i.test(l));
       if (isTO && lines.length > 10) {

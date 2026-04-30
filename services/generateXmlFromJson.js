@@ -107,7 +107,13 @@ export async function generateXmlFromJson(data) {
       : '⚠️ Containertype onbekend — handmatig invullen';
   }
   if (!data.datum) {
-    throw new Error('Datum ontbreekt. Bestand wordt niet gegenereerd.');
+    // Niet blokkeren — gebruik vandaag als fallback en noteer in instructies
+    console.warn('⚠️ Datum ontbreekt — gebruik huidige datum als fallback');
+    const nu = new Date();
+    data.datum = `${nu.getDate()}-${nu.getMonth() + 1}-${nu.getFullYear()}`;
+    data.instructies = data.instructies
+      ? `${data.instructies} | ⚠️ Datum onbekend — handmatig controleren`
+      : '⚠️ Datum onbekend — handmatig controleren';
   }
  if (!data.klantnaam) {
   console.warn('⚠️ Klantnaam ontbreekt – bestand wordt wel gegenereerd');
