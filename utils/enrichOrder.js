@@ -138,6 +138,13 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
       : melding;
   }
 
+  // Synchroniseer InleverBestemming vanuit de Afzetten locatie (ná terminal lookup)
+  // zodat InleverBestemming en Afzetten locatienaam altijd overeenkomen.
+  if (order.inleverBestemming !== undefined) {
+    const afzettenLoc = (order.locaties || []).find(l => (l.actie || '').toLowerCase() === 'afzetten');
+    if (afzettenLoc?.naam) order.inleverBestemming = afzettenLoc.naam;
+  }
+
   // Synchroniseer klantnaam/klantadres/etc vanuit de eerste Laden/Lossen locatie
   // (nadat enrichment de naam mogelijk heeft bijgewerkt vanuit het adresboek)
   // Zoek eerste niet-terminal locatie; sla OMRIJDER-placeholder over

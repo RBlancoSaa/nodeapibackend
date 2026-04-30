@@ -153,7 +153,7 @@ export async function getTerminalInfoFallback(zoekwaarde, zoekAdres = '') {
 
     const beste = lijst
       .map(item => ({ item, score: berekenScore(zoekwaarde, item, zoekAdres) }))
-      .filter(s => s.score >= 65)
+      .filter(s => s.score >= 100)   // drempel verhoogd: 65→100 voorkomt slechte fuzzy-matches
       .sort((a, b) => b.score - a.score)[0];
 
     if (beste) {

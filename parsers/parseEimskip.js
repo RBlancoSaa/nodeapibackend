@@ -441,7 +441,10 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
       adres:    afzetRaw?.adres    || '',
       postcode: afzetRaw?.postcode || '',
       plaats:   afzetRaw?.plaats   || '',
-      land:     normLand(afzetRaw?.land || 'NL')
+      land:     normLand(afzetRaw?.land || 'NL'),
+      // Sla terminal-lookup over: ruwe Claude-naam is betrouwbaarder dan fuzzy-match
+      // voor Eimskip return-depots die niet in de standaard terminalslijst staan.
+      _noTerminalLookup: true
     }
   ];
 
