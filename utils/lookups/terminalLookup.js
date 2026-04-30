@@ -504,7 +504,7 @@ export async function getKlantData(klantAlias) {
     const res   = await fetch(`${SUPABASE_LIST_URL}/klanten.json`);
     const lijst = await res.json();
     const gevonden = lijst.find(item =>
-      [item.Bedrijfsnaam, item.zoekcode, item.alias]
+      [item.Bedrijfsnaam, item.ZoekCode, item.zoekcode, item.alias]
         .filter(Boolean)
         .some(val => val.toLowerCase() === klantAlias.toLowerCase())
     );
