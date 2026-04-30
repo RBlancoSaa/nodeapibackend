@@ -165,10 +165,15 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
   // velden zelf; enrichOrder vult ze dan NIET opnieuw in.
   if (order.adrBedragChart === undefined) {
     try {
-      // Lookup-sleutel: klantKey (expliciet) → klantnaam (uit order, matcht dashboard) → bron (fallback)
-      const klantNaamKey = (order.klantnaam || '').toLowerCase().trim();
-      const paKey        = (klantKey || klantNaamKey || bron || '').toLowerCase().trim();
-      const afspraken    = paKey ? await getPrijsafspraken(paKey) : null;
+      // Twee-staps lookup:
+      // 1. klantKey (expliciet, bijv. Steinweg) of klantnaam (per-klant override)
+      // 2. bron (opdrachtgever-niveau, bijv. 'eimskip') als fallback
+      // getPrijsafspraken geeft null terug als er geen DB-entry is → dan proberen we bron
+      const klantNaamKey = (klantKey || (order.klantnaam || '')).toLowerCase().trim();
+      let afspraken = klantNaamKey ? await getPrijsafspraken(klantNaamKey) : null;
+      if (!afspraken && bron) afspraken = await getPrijsafspraken(bron.toLowerCase().trim());
+      // Nog steeds null → gebruik DEFAULTS inline
+      if (!afspraken) afspraken = { velden: {}, all_in: false, toeslag: () => 0, isPercent: () => false, toeslagText: () => '' };
 
       // Vul basistarief uit prijsafspraken als de parser het niet heeft gezet
       if (!parseFloat(order.tarief) && afspraken) {

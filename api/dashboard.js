@@ -126,6 +126,17 @@ export default async function handler(req, res) {
       .from('prijsafspraken').select('*').order('klant');
     const prijsafspraken = paRaw || [];
 
+    // ── Unieke bronnen ophalen (opdrachtgevers — lookup-sleutel in enrichOrder) ──
+    const { data: allBronnenRaw } = await supabase
+      .from('opdrachten_log').select('bron').not('bron', 'is', null).neq('bron', '');
+    const bronSet = new Set();
+    const allBronnen = [];
+    for (const r of (allBronnenRaw || [])) {
+      const b = (r.bron || '').trim();
+      if (b && !bronSet.has(b.toLowerCase())) { bronSet.add(b.toLowerCase()); allBronnen.push({ naam: b, plaats: '', bron: b, isBron: true }); }
+    }
+    allBronnen.sort((a, b) => a.naam.localeCompare(b.naam));
+
     // ── Alle unieke klant_naam waarden ophalen (over alle tijden) ────────────
     const { data: allKlantenRaw } = await supabase
       .from('opdrachten_log')
@@ -141,7 +152,7 @@ export default async function handler(req, res) {
       if (!naam || naam.toUpperCase() === 'OMRIJDER') continue;
       if (!klantNaamMap.has(naam)) klantNaamMap.set(naam, { naam, plaats: r.klant_plaats || '', bron: r.bron || '' });
     }
-    const allKlanten = [...klantNaamMap.values()];
+    const allKlanten = [...allBronnen, ...klantNaamMap.values()];
 
     // ── Data ophalen ─────────────────────────────────────────────────────────
     let qOp = supabase.from('opdrachten_log').select('*')
@@ -441,7 +452,8 @@ export default async function handler(req, res) {
           </td>`;
         }).join('');
 
-        const bronLabel = k.bron ? `<span class="tg-bron" style="background:${c}22;color:${c}">${esc(k.bron)}</span>` : '';
+        const bronLabel = k.bron && !k.isBron ? `<span class="tg-bron" style="background:${c}22;color:${c}">${esc(k.bron)}</span>` : '';
+        const bronTag   = k.isBron ? `<span style="font-size:10px;color:#9E8A75;font-style:italic">opdrachtgever</span>` : '';
 
         if (hidden) {
           return `<tr class="tg-row tg-row-hidden" data-klant="${esc(k.naam)}" data-velden="${esc(JSON.stringify(pa.velden||{}))}" data-allin="${allIn?'1':'0'}">
@@ -466,7 +478,7 @@ export default async function handler(req, res) {
             <span class="tg-dot" style="background:${c}"></span>
             <div>
               <div class="tg-naam-text">${esc(k.naam)}</div>
-              <div class="tg-naam-sub">${esc(k.plaats||'')} ${bronLabel}</div>
+              <div class="tg-naam-sub">${esc(k.plaats||'')} ${bronLabel}${bronTag}</div>
             </div>
           </td>
           <td class="tg-allin-cell">

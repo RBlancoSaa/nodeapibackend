@@ -48,10 +48,9 @@ export async function getPrijsafspraken(klantKey) {
       .single();
 
     if (error || !data) {
-      console.warn(`⚠️ Geen prijsafspraken voor "${key}" — gebruik defaults`);
-      const result = buildAfspraken({ klant: key, velden: DEFAULTS, all_in: false });
-      _cache.set(key, { data: result, exp: Date.now() + TTL });
-      return result;
+      // Geen DB-entry → null teruggeven zodat de aanroeper verder kan zoeken (bijv. bron-fallback)
+      _cache.set(key, { data: null, exp: Date.now() + TTL });
+      return null;
     }
 
     const result = buildAfspraken(data);
