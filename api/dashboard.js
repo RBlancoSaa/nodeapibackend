@@ -402,33 +402,57 @@ export default async function handler(req, res) {
         `<th class="tg-th ${c.terminal ? 'tg-th-term' : ''}" title="${c.terminal ? 'Terminal toeslag (vervalt bij all-in)' : ''}">${c.label}</th>`
       ).join('');
 
-      const bodyRows = allKlanten.map(k => {
-        const paKey = k.naam.toLowerCase();
-        const pa    = paByKlant[paKey] || {};
-        const velden = pa.velden || {};
+      // Splits in actief en verborgen
+      const actiefKlanten  = allKlanten.filter(k => !(paByKlant[k.naam.toLowerCase()]?.velden?._negeer));
+      const verborgenKlanten = allKlanten.filter(k =>  (paByKlant[k.naam.toLowerCase()]?.velden?._negeer));
+
+      function buildRow(k, hidden) {
+        const paKey  = k.naam.toLowerCase();
+        const pa     = paByKlant[paKey] || {};
+        const velden = { ...pa.velden };
+        delete velden._negeer; // strip intern veld uit weergave
         const allIn  = !!pa.all_in;
         const c      = BRON_COLORS[(k.bron || '').toLowerCase()] || '#94a3b8';
 
         const cells = T_COLS.map(col => {
-          const v       = velden[col.key] || {};
-          const chart   = v.chart ?? T_DEFAULTS[col.key] ?? 0;
-          const actief  = v.actief !== undefined ? !!v.actief : chart > 0;
-          const dimmed  = allIn && col.terminal;
-          return `<td class="tg-cell ${dimmed ? 'tg-dimmed' : ''} ${actief && !dimmed ? 'tg-active' : ''}">
+          const v      = velden[col.key] || {};
+          const chart  = v.chart ?? T_DEFAULTS[col.key] ?? 0;
+          const dimmed = allIn && col.terminal;
+          return `<td class="tg-cell ${dimmed ? 'tg-dimmed' : ''}">
             <input type="number" step="0.01" min="0" class="tg-inp" data-key="${col.key}"
               value="${dimmed ? '' : chart}"
               placeholder="${dimmed ? '—' : '0'}"
-              ${dimmed ? 'disabled' : ''}
+              ${dimmed || hidden ? 'disabled' : ''}
               oninput="tgChange(this)">
           </td>`;
         }).join('');
 
-        return `<tr class="tg-row" data-klant="${esc(k.naam)}" data-velden="${esc(JSON.stringify(velden))}" data-allin="${allIn ? '1' : '0'}">
+        const bronLabel = k.bron ? `<span class="tg-bron" style="background:${c}22;color:${c}">${esc(k.bron)}</span>` : '';
+
+        if (hidden) {
+          return `<tr class="tg-row tg-row-hidden" data-klant="${esc(k.naam)}" data-velden="${esc(JSON.stringify(pa.velden||{}))}" data-allin="${allIn?'1':'0'}">
+            <td class="tg-cb-cell"><input type="checkbox" class="tg-cb" onchange="tgSelChange()"></td>
+            <td class="tg-naam" colspan="2">
+              <span class="tg-dot" style="background:${c}"></span>
+              <div>
+                <div class="tg-naam-text" style="text-decoration:line-through;color:#94a3b8">${esc(k.naam)}</div>
+                <div class="tg-naam-sub">${esc(k.plaats||'')} ${bronLabel}</div>
+              </div>
+            </td>
+            <td colspan="${T_COLS.length}" style="color:#94a3b8;font-size:11px;font-style:italic;padding:0 12px">verborgen</td>
+            <td class="tg-save-cell">
+              <button class="tg-herstel-btn" onclick="tgHerstel(this,'${esc(token)}')" title="Herstel — zet weer zichtbaar">↩ Herstel</button>
+            </td>
+          </tr>`;
+        }
+
+        return `<tr class="tg-row" data-klant="${esc(k.naam)}" data-velden="${esc(JSON.stringify(pa.velden||{}))}" data-allin="${allIn?'1':'0'}">
+          <td class="tg-cb-cell"><input type="checkbox" class="tg-cb" onchange="tgSelChange()"></td>
           <td class="tg-naam">
             <span class="tg-dot" style="background:${c}"></span>
             <div>
               <div class="tg-naam-text">${esc(k.naam)}</div>
-              ${k.plaats ? `<div class="tg-naam-sub">${esc(k.plaats)}</div>` : ''}
+              <div class="tg-naam-sub">${esc(k.plaats||'')} ${bronLabel}</div>
             </div>
           </td>
           <td class="tg-allin-cell">
@@ -442,25 +466,55 @@ export default async function handler(req, res) {
           <td class="tg-save-cell">
             <button class="tg-save-btn" onclick="tgSave(this,'${esc(token)}')">💾</button>
             <span class="tg-ok" style="display:none">✓</span>
+            <button class="tg-hide-btn" onclick="tgVerberg(this,'${esc(token)}')" title="Verberg — geen klant / depot / fout">🚫</button>
           </td>
         </tr>`;
-      }).join('');
+      }
 
-      return `<div class="tg-info">
-        Alle laad/los-klanten uit verwerkte orders. Vul toeslagen in en klik 💾 per rij.
-        <strong>All-in</strong> = terminal toeslagen (grijs) worden niet apart in rekening gebracht.
+      const actiefRows   = actiefKlanten.map(k => buildRow(k, false)).join('');
+      const verborgenRows = verborgenKlanten.map(k => buildRow(k, true)).join('');
+      const hiddenBlock  = verborgenKlanten.length
+        ? `<tr class="tg-hidden-sep" id="tg-hidden-sep">
+             <td colspan="${T_COLS.length + 4}" class="tg-hidden-sep-cell">
+               <button class="tg-show-hidden-btn" onclick="tgToggleHidden(this)">
+                 👁 Toon ${verborgenKlanten.length} verborgen (depot / fout / geen klant)
+               </button>
+             </td>
+           </tr>
+           <tbody id="tg-hidden-rows" style="display:none">${verborgenRows}</tbody>`
+        : '';
+
+      return `
+      <div class="tg-toolbar">
+        <div class="tg-filter-wrap">
+          <span class="tg-filter-icon">🔍</span>
+          <input type="text" id="tg-filter-inp" class="tg-filter-inp"
+            placeholder="Filter op klant of bron..."
+            oninput="tgFilter(this.value)">
+        </div>
+        <div class="tg-bulk-bar" id="tg-bulk-bar" style="display:none">
+          <span id="tg-sel-count" style="font-size:12px;color:#475569;font-weight:600"></span>
+          <button class="tg-bulk-btn tg-bulk-hide" onclick="tgBulkVerberg('${esc(token)}')">🚫 Verberg geselecteerde</button>
+          <button class="tg-bulk-btn tg-bulk-cancel" onclick="tgDeselectAll()">✕ Deselecteer</button>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-left:auto">
+          <strong>All-in</strong> = terminal toeslagen grijs &nbsp;|&nbsp;
+          <strong>🚫</strong> = verbergen (depot, fout, geen klant)
+        </div>
       </div>
       <div class="tg-wrap">
         <table class="tg-table">
           <thead>
             <tr>
+              <th class="tg-th-cb"><input type="checkbox" id="tg-sel-all" onchange="tgSelAll(this)" title="Alles selecteren"></th>
               <th class="tg-th-naam">Klant / Adres</th>
               <th class="tg-th-allin">All-in</th>
               ${headerCols}
               <th class="tg-th-save"></th>
             </tr>
           </thead>
-          <tbody>${bodyRows}</tbody>
+          <tbody id="tg-body">${actiefRows}</tbody>
+          ${hiddenBlock}
         </table>
       </div>`;
     }
@@ -607,22 +661,38 @@ td           { padding: 8px 14px; vertical-align: middle; }
 .bron-nums   { min-width: 120px; font-size: 11px; text-align: right; }
 
 /* ── Tarieven grid ── */
-.tg-info   { background:#e0e7ff;border:1px solid #c7d2fe;border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:12px;color:#3730a3; }
+.tg-toolbar  { display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap; }
+.tg-filter-wrap { position:relative; }
+.tg-filter-icon { position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#94a3b8; }
+.tg-filter-inp  { padding:7px 12px 7px 32px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;background:white;color:#0f172a;outline:none;width:240px; }
+.tg-filter-inp:focus { border-color:#6366f1;box-shadow:0 0 0 3px #6366f133; }
+.tg-bulk-bar { display:flex;align-items:center;gap:8px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:6px 12px; }
+.tg-bulk-btn  { padding:5px 12px;font-size:11px;font-weight:600;border:none;border-radius:6px;cursor:pointer; }
+.tg-bulk-hide { background:#ef4444;color:white; }
+.tg-bulk-hide:hover { background:#dc2626; }
+.tg-bulk-cancel { background:#f1f5f9;color:#475569; }
+.tg-bulk-cancel:hover { background:#e2e8f0; }
 .tg-wrap   { overflow-x: auto; border-radius: 12px; border: 1px solid #e2e8f0; }
 .tg-table  { border-collapse: collapse; background: white; min-width: 100%; }
 .tg-table thead tr { background: #0f172a; position: sticky; top: 0; z-index: 2; }
 .tg-th     { padding: 9px 10px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .6px; white-space: nowrap; text-align: center; border-right: 1px solid #1e293b; }
+.tg-th-cb   { width:36px;padding:9px 10px; }
 .tg-th-naam  { text-align: left; min-width: 200px; padding: 9px 14px; }
 .tg-th-allin { min-width: 80px; }
-.tg-th-save  { width: 60px; }
+.tg-th-save  { width: 90px; }
 .tg-th-term  { color: #f59e0b; }
 .tg-row    { border-bottom: 1px solid #f1f5f9; }
 .tg-row:last-child { border-bottom: none; }
 .tg-row:hover { background: #f8fafc; }
+.tg-row-hidden { opacity:.55; }
+.tg-row.tg-selected { background:#eef2ff; }
+.tg-cb-cell { padding:6px 8px;text-align:center; }
+.tg-cb      { width:14px;height:14px;cursor:pointer;accent-color:#6366f1; }
 .tg-naam   { padding: 8px 14px; display: flex; align-items: center; gap: 10px; min-width: 200px; white-space: nowrap; }
 .tg-dot    { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .tg-naam-text { font-size: 12px; font-weight: 600; color: #0f172a; }
-.tg-naam-sub  { font-size: 10px; color: #94a3b8; margin-top: 1px; }
+.tg-naam-sub  { font-size: 10px; color: #94a3b8; margin-top: 1px; display:flex;align-items:center;gap:4px; }
+.tg-bron   { padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600; }
 .tg-allin-cell { padding: 6px 8px; text-align: center; }
 .tg-allin-btn { padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 20px; border: 1.5px solid #cbd5e1; background: white; color: #64748b; cursor: pointer; white-space: nowrap; transition: all .15s; }
 .tg-allin-btn:hover { border-color: #6366f1; color: #6366f1; }
@@ -631,15 +701,21 @@ td           { padding: 8px 14px; vertical-align: middle; }
 .tg-cell   { padding: 5px 6px; text-align: center; border-right: 1px solid #f1f5f9; }
 .tg-dimmed { background: #f8fafc; }
 .tg-dimmed .tg-inp { background: #f1f5f9; color: #cbd5e1; }
-.tg-active .tg-inp { color: #0f172a; }
-.tg-inp    { width: 68px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; text-align: right; background: white; color: #64748b; outline: none; transition: border-color .15s; }
+.tg-inp    { width: 68px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; text-align: right; background: white; color: #374151; outline: none; transition: border-color .15s; }
 .tg-inp:focus  { border-color: #6366f1; box-shadow: 0 0 0 2px #6366f133; }
-.tg-inp:disabled { cursor: default; }
+.tg-inp:disabled { cursor: default; background:#f8fafc; }
 .tg-save-cell  { padding: 5px 8px; text-align: center; white-space: nowrap; }
 .tg-save-btn   { padding: 5px 10px; background: #6366f1; color: white; border: none; border-radius: 7px; font-size: 12px; cursor: pointer; transition: background .15s; }
 .tg-save-btn:hover { background: #4f46e5; }
 .tg-save-btn:disabled { background: #94a3b8; cursor: default; }
-.tg-ok         { font-size: 13px; color: #10b981; font-weight: 700; margin-left: 4px; }
+.tg-ok         { font-size: 13px; color: #10b981; font-weight: 700; margin-left: 2px; }
+.tg-hide-btn   { margin-left:4px;padding:4px 7px;background:white;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;cursor:pointer;color:#94a3b8;transition:all .15s; }
+.tg-hide-btn:hover { background:#fee2e2;border-color:#fca5a5;color:#dc2626; }
+.tg-herstel-btn { padding:4px 10px;background:white;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;color:#6366f1;transition:all .15s; }
+.tg-herstel-btn:hover { background:#eef2ff;border-color:#6366f1; }
+.tg-hidden-sep-cell { padding:10px 14px; }
+.tg-show-hidden-btn { background:none;border:none;font-size:12px;color:#64748b;cursor:pointer;text-decoration:underline; }
+.tg-show-hidden-btn:hover { color:#0f172a; }
 </style>
 </head>
 <body>
@@ -723,32 +799,60 @@ if (!location.search.includes('tab=prijsafspraken')) {
 // ── Tarieven grid helpers ────────────────────────────────────────────────────
 const TG_TERMINAL_KEYS = new Set(['delta','euromax','rwg','botlek']);
 
+// Filter
+function tgFilter(q) {
+  const s = q.toLowerCase().trim();
+  document.querySelectorAll('#tg-body .tg-row').forEach(row => {
+    const text = (row.dataset.klant || '').toLowerCase();
+    const bron = (row.querySelector('.tg-bron')?.textContent || '').toLowerCase();
+    row.style.display = (!s || text.includes(s) || bron.includes(s)) ? '' : 'none';
+  });
+}
+
+// Selectie
+function tgSelAll(cb) {
+  document.querySelectorAll('#tg-body .tg-cb').forEach(c => {
+    if (c.closest('tr').style.display !== 'none') c.checked = cb.checked;
+  });
+  tgSelChange();
+}
+function tgSelChange() {
+  const sel  = [...document.querySelectorAll('#tg-body .tg-cb:checked')];
+  const bar  = document.getElementById('tg-bulk-bar');
+  const cnt  = document.getElementById('tg-sel-count');
+  bar.style.display = sel.length ? 'flex' : 'none';
+  if (cnt) cnt.textContent = sel.length + ' geselecteerd';
+  document.querySelectorAll('#tg-body .tg-row').forEach(row => {
+    row.classList.toggle('tg-selected', !!row.querySelector('.tg-cb:checked'));
+  });
+}
+function tgDeselectAll() {
+  document.querySelectorAll('#tg-body .tg-cb').forEach(c => c.checked = false);
+  document.getElementById('tg-sel-all').checked = false;
+  tgSelChange();
+}
+
+// All-in toggle
 function tgToggleAllIn(btn) {
-  const row    = btn.closest('tr');
-  const allIn  = row.dataset.allin !== '1';
+  const row   = btn.closest('tr');
+  const allIn = row.dataset.allin !== '1';
   row.dataset.allin = allIn ? '1' : '0';
   btn.classList.toggle('tg-allin-on', allIn);
   btn.textContent = allIn ? '✓ All-in' : 'All-in';
-
   row.querySelectorAll('.tg-inp').forEach(inp => {
     if (!TG_TERMINAL_KEYS.has(inp.dataset.key)) return;
     const cell = inp.closest('td');
     if (allIn) {
-      inp._prev = inp.value;
-      inp.value = '';
-      inp.placeholder = '—';
-      inp.disabled = true;
+      inp._prev = inp.value; inp.value = ''; inp.placeholder = '—'; inp.disabled = true;
       cell.classList.add('tg-dimmed');
-      cell.classList.remove('tg-active');
     } else {
-      inp.value = inp._prev ?? '0';
-      inp.placeholder = '0';
-      inp.disabled = false;
+      inp.value = inp._prev ?? '0'; inp.placeholder = '0'; inp.disabled = false;
       cell.classList.remove('tg-dimmed');
     }
   });
 }
 
+// Input change
 function tgChange(inp) {
   const row = inp.closest('tr');
   let v = {};
@@ -760,13 +864,12 @@ function tgChange(inp) {
   row.dataset.velden = JSON.stringify(v);
 }
 
+// Opslaan
 async function tgSave(btn, token) {
   const row    = btn.closest('tr');
   const klant  = row.dataset.klant;
   const all_in = row.dataset.allin === '1';
   const okEl   = row.querySelector('.tg-ok');
-
-  // Verzamel actuele waarden uit inputs
   let velden = {};
   try { velden = JSON.parse(row.dataset.velden || '{}'); } catch {}
   row.querySelectorAll('.tg-inp').forEach(inp => {
@@ -776,21 +879,83 @@ async function tgSave(btn, token) {
     velden[key].chart  = val;
     velden[key].actief = !inp.disabled && val > 0;
   });
-
+  delete velden._negeer; // niet meesturen bij normaal opslaan
   btn.disabled = true;
   try {
     const res = await fetch('/api/prijsafspraken?token=' + encodeURIComponent(token), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ klant, velden, all_in })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     if (okEl) { okEl.style.display = 'inline'; setTimeout(() => okEl.style.display = 'none', 2500); }
-  } catch(e) {
-    alert('Opslaan mislukt: ' + e.message);
-  } finally {
-    btn.disabled = false;
+  } catch(e) { alert('Opslaan mislukt: ' + e.message); }
+  finally { btn.disabled = false; }
+}
+
+// Verberg (rij markeren als geen klant / depot / fout)
+async function tgVerberg(btn, token) {
+  const row   = btn.closest('tr');
+  const klant = row.dataset.klant;
+  let velden  = {};
+  try { velden = JSON.parse(row.dataset.velden || '{}'); } catch {}
+  velden._negeer = true;
+  const all_in = row.dataset.allin === '1';
+  try {
+    const res = await fetch('/api/prijsafspraken?token=' + encodeURIComponent(token), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ klant, velden, all_in })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    row.style.opacity = '0';
+    setTimeout(() => location.reload(), 400);
+  } catch(e) { alert('Fout: ' + e.message); }
+}
+
+// Herstel verborgen rij
+async function tgHerstel(btn, token) {
+  const row   = btn.closest('tr');
+  const klant = row.dataset.klant;
+  let velden  = {};
+  try { velden = JSON.parse(row.dataset.velden || '{}'); } catch {}
+  delete velden._negeer;
+  const all_in = row.dataset.allin === '1';
+  try {
+    const res = await fetch('/api/prijsafspraken?token=' + encodeURIComponent(token), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ klant, velden, all_in })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    location.reload();
+  } catch(e) { alert('Fout: ' + e.message); }
+}
+
+// Bulk verbergen
+async function tgBulkVerberg(token) {
+  const selected = [...document.querySelectorAll('#tg-body .tg-cb:checked')]
+    .map(cb => cb.closest('tr'));
+  if (!selected.length) return;
+  if (!confirm(selected.length + ' rijen verbergen?')) return;
+  for (const row of selected) {
+    let velden = {};
+    try { velden = JSON.parse(row.dataset.velden || '{}'); } catch {}
+    velden._negeer = true;
+    await fetch('/api/prijsafspraken?token=' + encodeURIComponent(token), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ klant: row.dataset.klant, velden, all_in: row.dataset.allin === '1' })
+    });
   }
+  location.reload();
+}
+
+// Toon/verberg hidden sectie
+function tgToggleHidden(btn) {
+  const tbody = document.getElementById('tg-hidden-rows');
+  if (!tbody) return;
+  const visible = tbody.style.display !== 'none';
+  tbody.style.display = visible ? 'none' : '';
+  btn.textContent = visible
+    ? '👁 Toon ' + tbody.querySelectorAll('tr').length + ' verborgen (depot / fout / geen klant)'
+    : '🙈 Verberg verborgen rijen';
 }
 </script>
 </body>
