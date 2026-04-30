@@ -167,6 +167,12 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
     try {
       const paKey      = (klantKey || bron || '').toLowerCase().trim();
       const afspraken  = paKey ? await getPrijsafspraken(paKey) : null;
+
+      // Vul basistarief uit prijsafspraken als de parser het niet heeft gezet
+      if (!parseFloat(order.tarief) && afspraken) {
+        const baseTarief = afspraken.velden?.tarief?.chart ?? 0;
+        if (baseTarief > 0) order.tarief = baseTarief;
+      }
       const tarief     = parseFloat(order.tarief) || 0;
 
       // ADR

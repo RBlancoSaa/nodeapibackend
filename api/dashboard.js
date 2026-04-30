@@ -371,6 +371,7 @@ export default async function handler(req, res) {
     // ── Tarieven grid (spreadsheet-view) ─────────────────────────────────────
     // Kolom-definitie: key, label, terminal (= valt weg bij all-in)
     const T_COLS = [
+      { key: 'tarief',     label: 'Tarief',       terminal: false },
       { key: 'diesel',     label: 'Diesel',      terminal: false },
       { key: 'delta',      label: 'ECT Delta',   terminal: true  },
       { key: 'euromax',    label: 'Euromax',      terminal: true  },
@@ -385,6 +386,7 @@ export default async function handler(req, res) {
       { key: 'blanco2',    label: 'Blanco 2',     terminal: false },
     ];
     const T_DEFAULTS = {
+      tarief: 0,
       diesel: 9, delta: 28.5, euromax: 28.5, rwg: 31,
       botlek: 0, adr: 10, genset: 100, gasmeten: 55,
       extra_stop: 55, wacht_uur: 0, blanco1: 0, blanco2: 0,

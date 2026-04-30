@@ -18,6 +18,7 @@ const TTL = 60_000;       // 60 seconden
 // Standaard-toeslagen als er geen record in Supabase is
 // isPercent: true → chart is een percentage van het basistarief (bijv. ADR = 10%)
 const DEFAULTS = {
+  tarief:     { chart: 0,    label: 'Basistarief',        actief: true  },
   diesel:     { chart: 9,    label: 'Diesel toeslag',    actief: true  },
   delta:      { chart: 28.5, label: 'ECT Delta toeslag', actief: true  },
   euromax:    { chart: 28.5, label: 'Euromax toeslag',   actief: true  },
