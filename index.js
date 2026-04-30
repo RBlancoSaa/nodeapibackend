@@ -13,6 +13,8 @@ const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
+app.get('/', (req, res) => res.redirect('/api/dashboard' + (req.query.token ? '?token=' + encodeURIComponent(req.query.token) : '')));
+
 app.post('/api/parse-uploaded-pdf', parsePdfHandler);
 app.post('/api/generate-easy-files', generateEasyHandler);
 app.get('/api/upload-from-inbox', uploadFromInboxHandler);
