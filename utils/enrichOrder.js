@@ -165,8 +165,10 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
   // velden zelf; enrichOrder vult ze dan NIET opnieuw in.
   if (order.adrBedragChart === undefined) {
     try {
-      const paKey      = (klantKey || bron || '').toLowerCase().trim();
-      const afspraken  = paKey ? await getPrijsafspraken(paKey) : null;
+      // Lookup-sleutel: klantKey (expliciet) → klantnaam (uit order, matcht dashboard) → bron (fallback)
+      const klantNaamKey = (order.klantnaam || '').toLowerCase().trim();
+      const paKey        = (klantKey || klantNaamKey || bron || '').toLowerCase().trim();
+      const afspraken    = paKey ? await getPrijsafspraken(paKey) : null;
 
       // Vul basistarief uit prijsafspraken als de parser het niet heeft gezet
       if (!parseFloat(order.tarief) && afspraken) {
