@@ -6,6 +6,28 @@ import { enrichOrder } from '../utils/enrichOrder.js';
 import { berekenVolTarief, berekenLeegTarief, berekenPairs } from '../utils/steinwegTarieven.js';
 import { getPrijsafspraken } from '../utils/getPrijsafspraken.js';
 
+/**
+ * Berekent de order-specifieke toeslagen (ADR, genset, gasmeten, extra stop)
+ * op basis van de afspraken en order-kenmerken.
+ *
+ * @param {object} opts
+ * @param {number}  opts.tarief       - Basistarief (nodig voor ADR % berekening)
+ * @param {boolean} opts.heeftAdr     - true als ADR/IMO aanwezig
+ * @param {boolean} opts.heeftGenset  - true als genset vereist
+ * @param {boolean} opts.heeftGasmeten- true als gasmeten vereist
+ * @param {number}  opts.extraStops   - aantal extra laden/lossen stops (boven de standaard 1)
+ * @param {object}  afspraken         - result van getPrijsafspraken()
+ */
+function calcOrderToeslagen({ tarief, heeftAdr, heeftGenset, heeftGasmeten, extraStops }, afspraken) {
+  const adrPercent     = afspraken?.toeslag('adr') ?? 0;           // percentage (bijv. 10)
+  const adrBedrag      = heeftAdr  ? (afspraken?.toeslag('adr', tarief) ?? 0) : 0;
+  const adrToeslag     = heeftAdr  ? adrPercent  : 0;              // % in XML veld
+  const genChart       = heeftGenset   ? (afspraken?.toeslag('genset')   ?? 0) : 0;
+  const gasMetenChart  = heeftGasmeten ? (afspraken?.toeslag('gasmeten') ?? 0) : 0;
+  const extraStopChart = extraStops > 0 ? (afspraken?.toeslag('extra_stop') ?? 0) * extraStops : 0;
+  return { adrToeslagChart: adrToeslag, adrBedragChart: adrBedrag, genChart, gasMetenChart, extraStopChart };
+}
+
 function normLand(val) {
   const s = (val || '').trim().toUpperCase();
   if (!s) return 'NL';
@@ -302,7 +324,9 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       const gewicht          = String(Math.round(parseFloat(c1.gewicht) || 0));
 
       // Tariefberekening voor volle container
-      const fin = berekenVolTarief(r1.from, r1.to, containerTypeStr, afspraken);
+      const fin     = berekenVolTarief(r1.from, r1.to, containerTypeStr, afspraken);
+      const heeftAdr = !!(c1.imo && c1.imo !== '');
+      const extra   = calcOrderToeslagen({ tarief: fin.tarief, heeftAdr, heeftGenset: false, heeftGasmeten: false, extraStops: 0 }, afspraken);
 
       // Omrijder: Opzetten (terminal) → Lossen (OMRIJDER) → Afzetten (Steinweg)
       const locaties = [
@@ -357,7 +381,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         laadreferentie:    '',
         inleverreferentie: steinwegRef,           // referentie bij Steinweg afzetten
         inleverBestemming: '',
-        adr:           c1.imo && c1.imo !== '' ? 'Waar' : 'Onwaar',
+        adr:           heeftAdr ? 'Waar' : 'Onwaar',
         ladenOfLossen: 'Lossen',
         instructies,
         tar: '', documentatie: '', tarra: '0', brix: '0',
@@ -370,6 +394,12 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         blanco1Text:         fin.blanco1Text,
         blanco2Chart:        fin.blanco2Chart,
         blanco2Text:         fin.blanco2Text,
+        botlekChart:         fin.botlekChart       ?? 0,
+        adrToeslagChart:     extra.adrToeslagChart,
+        adrBedragChart:      extra.adrBedragChart,
+        genChart:            extra.genChart,
+        gasMetenChart:       extra.gasMetenChart,
+        extraStopChart:      extra.extraStopChart,
         locaties
       }, { bron: 'Steinweg' }));
     }
@@ -453,7 +483,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         ladenOfLossen: 'Lossen',
         instructies,
         tar: '', documentatie: '', tarra: '0', brix: '0',
-        // Financieel
+        // Financieel (lege containers hebben geen ADR/genset/gasmeten)
         tarief:              fin.tarief,
         dieselToeslagChart:  fin.dieselToeslagChart,
         deltaChart:          fin.deltaChart,
@@ -462,6 +492,12 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         blanco1Text:         fin.blanco1Text,
         blanco2Chart:        fin.blanco2Chart,
         blanco2Text:         fin.blanco2Text,
+        botlekChart:         fin.botlekChart       ?? 0,
+        adrToeslagChart:     0,
+        adrBedragChart:      0,
+        genChart:            0,
+        gasMetenChart:       0,
+        extraStopChart:      0,
         locaties
       }, { bron: 'Steinweg' }));
     }

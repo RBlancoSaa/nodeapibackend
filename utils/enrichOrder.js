@@ -27,11 +27,12 @@ import {
   normLand,
   cleanFloat
 } from './lookups/terminalLookup.js';
+import { getPrijsafspraken } from './getPrijsafspraken.js';
 
 // Acties die een terminal zijn (Opzetten / Afzetten)
 const TERMINAL_ACTIES = new Set(['opzetten', 'afzetten']);
 
-export async function enrichOrder(order, { bron = '' } = {}) {
+export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
   const tag = bron ? `[${bron}]` : '';
 
   // ── 1. Rederij ────────────────────────────────────────────────────────────
@@ -149,6 +150,53 @@ export async function enrichOrder(order, { bron = '' } = {}) {
     if (order.klantadres    !== undefined) order.klantadres    = klantLoc.adres    || order.klantadres;
     if (order.klantpostcode !== undefined) order.klantpostcode = klantLoc.postcode || order.klantpostcode;
     if (order.klantplaats   !== undefined) order.klantplaats   = klantLoc.plaats   || order.klantplaats;
+  }
+
+  // ── 5. Toeslagen (ADR, genset, gasmeten, extra stop) ─────────────────────
+  // Alleen berekenen als de parser ze nog niet zelf heeft ingevuld.
+  // Parsers die al specifiekere kennis hebben (bijv. Steinweg) zetten deze
+  // velden zelf; enrichOrder vult ze dan NIET opnieuw in.
+  if (order.adrBedragChart === undefined) {
+    try {
+      const paKey      = (klantKey || bron || '').toLowerCase().trim();
+      const afspraken  = paKey ? await getPrijsafspraken(paKey) : null;
+      const tarief     = parseFloat(order.tarief) || 0;
+
+      // ADR
+      const heeftAdr   = order.adr === 'Waar';
+      order.adrToeslagChart = heeftAdr && afspraken ? afspraken.toeslag('adr')         : 0;
+      order.adrBedragChart  = heeftAdr && afspraken ? afspraken.toeslag('adr', tarief) : 0;
+
+      // Genset
+      const heeftGenset = order.genset === 'Waar';
+      order.genChart    = heeftGenset && afspraken ? afspraken.toeslag('genset') : 0;
+
+      // Gasmeten
+      const heeftGasmeten = order.gasmeten === 'Waar';
+      order.gasMetenChart = heeftGasmeten && afspraken ? afspraken.toeslag('gasmeten') : 0;
+
+      // Extra stops: extra laden/lossen boven de standaard 1 stop
+      const klantStops = (order.locaties || []).filter(l => {
+        const a = (l.actie || '').toLowerCase();
+        return (a === 'laden' || a === 'lossen') && (l.naam || '').toUpperCase() !== 'OMRIJDER';
+      }).length;
+      const extraStops      = Math.max(0, klantStops - 1);
+      order.extraStopChart  = extraStops > 0 && afspraken
+        ? afspraken.toeslag('extra_stop') * extraStops
+        : 0;
+
+      // Botlek (als nog niet gezet door de tariefberekening)
+      if (order.botlekChart === undefined) order.botlekChart = 0;
+
+    } catch (e) {
+      console.warn(`⚠️ ${tag} Toeslagen berekening mislukt:`, e.message);
+      order.adrToeslagChart = order.adrToeslagChart ?? 0;
+      order.adrBedragChart  = order.adrBedragChart  ?? 0;
+      order.genChart        = order.genChart        ?? 0;
+      order.gasMetenChart   = order.gasMetenChart   ?? 0;
+      order.extraStopChart  = order.extraStopChart  ?? 0;
+      order.botlekChart     = order.botlekChart     ?? 0;
+    }
   }
 
   return order;

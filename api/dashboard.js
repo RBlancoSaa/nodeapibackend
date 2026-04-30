@@ -385,9 +385,11 @@ export default async function handler(req, res) {
     ];
     const T_DEFAULTS = {
       diesel: 9, delta: 28.5, euromax: 28.5, rwg: 31,
-      botlek: 0, adr: 0, genset: 0, gasmeten: 0,
-      extra_stop: 0, wacht_uur: 0, blanco1: 0, blanco2: 0,
+      botlek: 0, adr: 10, genset: 100, gasmeten: 55,
+      extra_stop: 55, wacht_uur: 0, blanco1: 0, blanco2: 0,
     };
+    // ADR is een percentage — toon als "%" in de kolom
+    const T_PERCENT_KEYS = new Set(['adr']);
 
     // prijsafspraken geïndexeerd op klant (lowercase)
     const paByKlant = {};
@@ -398,9 +400,13 @@ export default async function handler(req, res) {
         return `<div class="empty">Nog geen verwerkte orders — laad/los-klanten verschijnen hier automatisch.</div>`;
       }
 
-      const headerCols = T_COLS.map(c =>
-        `<th class="tg-th ${c.terminal ? 'tg-th-term' : ''}" title="${c.terminal ? 'Terminal toeslag (vervalt bij all-in)' : ''}">${c.label}</th>`
-      ).join('');
+      const headerCols = T_COLS.map(c => {
+        const hint = c.terminal ? 'Terminal toeslag (vervalt bij all-in)'
+                   : c.key === 'adr' ? 'Percentage van basistarief (bijv. 10 = 10%)'
+                   : '';
+        const suffix = T_PERCENT_KEYS.has(c.key) ? ' <span style="font-size:9px;opacity:.7">%</span>' : '';
+        return `<th class="tg-th ${c.terminal ? 'tg-th-term' : ''}" title="${hint}">${c.label}${suffix}</th>`;
+      }).join('');
 
       // Splits in actief en verborgen
       const actiefKlanten  = allKlanten.filter(k => !(paByKlant[k.naam.toLowerCase()]?.velden?._negeer));
@@ -415,15 +421,20 @@ export default async function handler(req, res) {
         const c      = BRON_COLORS[(k.bron || '').toLowerCase()] || '#94a3b8';
 
         const cells = T_COLS.map(col => {
-          const v      = velden[col.key] || {};
-          const chart  = v.chart ?? T_DEFAULTS[col.key] ?? 0;
-          const dimmed = allIn && col.terminal;
+          const v       = velden[col.key] || {};
+          const chart   = v.chart ?? T_DEFAULTS[col.key] ?? 0;
+          const dimmed  = allIn && col.terminal;
+          const isPct   = T_PERCENT_KEYS.has(col.key);
           return `<td class="tg-cell ${dimmed ? 'tg-dimmed' : ''}">
-            <input type="number" step="0.01" min="0" class="tg-inp" data-key="${col.key}"
-              value="${dimmed ? '' : chart}"
-              placeholder="${dimmed ? '—' : '0'}"
-              ${dimmed || hidden ? 'disabled' : ''}
-              oninput="tgChange(this)">
+            <div style="display:flex;align-items:center;gap:2px">
+              <input type="number" step="${isPct ? '1' : '0.01'}" min="0" class="tg-inp" data-key="${col.key}"
+                value="${dimmed ? '' : chart}"
+                placeholder="${dimmed ? '—' : '0'}"
+                style="width:${isPct ? '52px' : '68px'}"
+                ${dimmed || hidden ? 'disabled' : ''}
+                oninput="tgChange(this)">
+              ${isPct ? '<span style="font-size:11px;color:#94a3b8">%</span>' : ''}
+            </div>
           </td>`;
         }).join('');
 
