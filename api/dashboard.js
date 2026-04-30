@@ -366,6 +366,7 @@ export default async function handler(req, res) {
       { id: 'overgeslagen',    label: 'Overgeslagen',  icon: '⏭',  count: skipVl },
       { id: 'fouten',          label: 'Fouten',        icon: '⚠️', count: foutOp + foutVl, alert: true },
       { id: 'prijsafspraken',  label: 'Tarieven',      icon: '💶' },
+      { id: 'bestemmingen',   label: 'Per bestemming', icon: '📍' },
     ];
 
     function tabNav() {
@@ -408,6 +409,13 @@ export default async function handler(req, res) {
     // prijsafspraken geïndexeerd op klant (lowercase)
     const paByKlant = {};
     for (const pa of prijsafspraken) paByKlant[(pa.klant || '').toLowerCase()] = pa;
+
+    // Per-bestemming tarieven data voor JS (embed als BT_DATA in script-tag)
+    const btDataForJs = {};
+    for (const k of allKlanten) {
+      const pa = paByKlant[k.naam.toLowerCase()] || {};
+      btDataForJs[k.naam] = pa.velden?._tarieven || [];
+    }
 
     function prijsafsprakenTab() {
       if (!allKlanten.length) {
@@ -545,6 +553,57 @@ export default async function handler(req, res) {
       </div>`;
     }
 
+    function bestemmingentab() {
+      const klantOptions = allKlanten.map(k =>
+        `<option value="${esc(k.naam)}">${esc(k.naam)}${k.isBron ? ' (opdrachtgever)' : ''}</option>`
+      ).join('');
+
+      return `
+      <div class="bt-page">
+        <div class="bt-header-bar">
+          <div>
+            <div class="bt-title">Tarieven per bestemming</div>
+            <div class="bt-desc">Stel per klant een tarief in per laad-/losplaats. Dit overschrijft het standaard basistarief bij matching.</div>
+          </div>
+          <div class="bt-sel-wrap">
+            <label class="bt-sel-label">Klant / opdrachtgever</label>
+            <select id="bt-klant-sel" class="bt-klant-sel" onchange="btSelectKlant(this.value, '${esc(token)}')">
+              <option value="">— Kies een klant —</option>
+              ${klantOptions}
+            </select>
+          </div>
+        </div>
+
+        <div id="bt-container" style="display:none">
+          <div class="bt-card">
+            <div class="bt-table-wrap">
+              <table class="bt-table">
+                <thead>
+                  <tr>
+                    <th class="bt-th">Bestemming / Laad- of losplaats</th>
+                    <th class="bt-th bt-th-tarief">Tarief (€)</th>
+                    <th class="bt-th bt-th-del"></th>
+                  </tr>
+                </thead>
+                <tbody id="bt-body"></tbody>
+              </table>
+            </div>
+            <div class="bt-footer">
+              <button class="bt-add-btn" onclick="btAddRow()">＋ Bestemming toevoegen</button>
+              <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+                <span class="bt-ok" id="bt-ok" style="display:none">✓ Opgeslagen</span>
+                <button class="bt-save-btn" id="bt-save-btn" onclick="btSave('${esc(token)}')">💾 Opslaan</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="bt-placeholder" class="bt-placeholder">
+          Selecteer een klant om bestemmingstarife­ven te beheren.
+        </div>
+      </div>`;
+    }
+
     function tabContent() {
       switch (tab) {
         case 'runs':           return `<div class="runs-list">${runsList()}</div>`;
@@ -552,6 +611,7 @@ export default async function handler(req, res) {
         case 'overgeslagen':   return overgeslagenTable();
         case 'fouten':         return foutenTable();
         case 'prijsafspraken': return prijsafsprakenTab();
+        case 'bestemmingen':   return bestemmingentab();
         default:               return opdrachtenTable();
       }
     }
@@ -764,6 +824,43 @@ td           { padding: 8px 14px; vertical-align: middle; }
 .tg-hidden-sep-cell { padding:10px 14px; }
 .tg-show-hidden-btn { background:none;border:none;font-size:12px;color:var(--text-med);cursor:pointer;text-decoration:underline; }
 .tg-show-hidden-btn:hover { color:var(--text); }
+
+/* ── Per-bestemming tarieven ── */
+.bt-page         { max-width: 860px; }
+.bt-header-bar   { display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:20px;flex-wrap:wrap; }
+.bt-title        { font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px; }
+.bt-desc         { font-size:12px;color:var(--text-muted); }
+.bt-sel-wrap     { display:flex;flex-direction:column;gap:4px;min-width:260px; }
+.bt-sel-label    { font-size:11px;font-weight:600;color:var(--text-med);text-transform:uppercase;letter-spacing:.6px; }
+.bt-klant-sel    { padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--card);color:var(--text);outline:none;cursor:pointer; }
+.bt-klant-sel:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(139,26,46,.12); }
+.bt-card         { background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(44,26,15,.04); }
+.bt-table-wrap   { overflow-x:auto; }
+.bt-table        { width:100%;border-collapse:collapse; }
+.bt-table thead tr { background:var(--sidebar); }
+.bt-th           { padding:9px 14px;font-size:10px;font-weight:700;color:#B8A090;text-transform:uppercase;letter-spacing:.6px;text-align:left;white-space:nowrap; }
+.bt-th-tarief    { width:140px;text-align:right; }
+.bt-th-del       { width:44px; }
+.bt-row          { border-bottom:1px solid var(--border-light); }
+.bt-row:last-child { border-bottom:none; }
+.bt-row:hover    { background:var(--light-bg); }
+.bt-td           { padding:6px 10px;vertical-align:middle; }
+.bt-inp-plaats   { width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:white;color:var(--text);outline:none; }
+.bt-inp-plaats:focus { border-color:var(--accent);box-shadow:0 0 0 2px rgba(139,26,46,.12); }
+.bt-tarief-cell  { display:flex;align-items:center;gap:5px;justify-content:flex-end; }
+.bt-eur-sign     { color:var(--text-muted);font-size:13px; }
+.bt-inp-tarief   { width:90px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:13px;text-align:right;background:white;color:var(--text);outline:none; }
+.bt-inp-tarief:focus { border-color:var(--accent);box-shadow:0 0 0 2px rgba(139,26,46,.12); }
+.bt-del-btn      { padding:4px 9px;background:var(--card);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;color:var(--text-muted);transition:all .15s; }
+.bt-del-btn:hover { background:#FAD7D7;border-color:#E8AAAA;color:#8B1A1A; }
+.bt-footer       { display:flex;align-items:center;padding:10px 14px;border-top:1px solid var(--border-light);background:var(--light-bg); }
+.bt-add-btn      { padding:6px 14px;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;color:var(--accent);transition:all .15s; }
+.bt-add-btn:hover { background:var(--accent-light);border-color:var(--accent); }
+.bt-save-btn     { padding:6px 16px;background:var(--accent);color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s; }
+.bt-save-btn:hover { background:var(--accent-hov); }
+.bt-save-btn:disabled { background:var(--text-muted);cursor:default; }
+.bt-ok           { font-size:12px;color:#2D7A4F;font-weight:700; }
+.bt-placeholder  { padding:60px 20px;text-align:center;color:var(--text-muted);font-size:14px; }
 </style>
 </head>
 <body>
@@ -783,6 +880,7 @@ td           { padding: 8px 14px; vertical-align: middle; }
     <a href="${base}&periode=${periode}&tab=fouten"       class="sb-link ${tab==='fouten'?'active':''}">⚠️ Fouten ${(foutOp+foutVl)>0 ? `<span class="sb-cnt err">${foutOp+foutVl}</span>` : `<span class="sb-cnt">0</span>`}</a>
     <div class="sb-section" style="margin-top:12px">Beheer</div>
     <a href="${base}&tab=prijsafspraken" class="sb-link ${tab==='prijsafspraken'?'active':''}">💶 Tarieven</a>
+    <a href="${base}&tab=bestemmingen"  class="sb-link ${tab==='bestemmingen'?'active':''}">📍 Per bestemming</a>
     <div class="sb-section" style="margin-top:12px">Periode</div>
     ${[
       ['vandaag',      '☀️ Vandaag'],
@@ -808,7 +906,8 @@ td           { padding: 8px 14px; vertical-align: middle; }
         tab === 'opdrachten'     ? '📦 Opdrachten' :
         tab === 'overgeslagen'   ? '⏭ Overgeslagen emails' :
         tab === 'fouten'         ? '⚠️ Fouten' :
-        tab === 'prijsafspraken' ? '💶 Tarieven per klant' : '📦 Opdrachten'
+        tab === 'prijsafspraken' ? '💶 Tarieven per klant' :
+        tab === 'bestemmingen'   ? '📍 Tarieven per bestemming' : '📦 Opdrachten'
       }</span>
       <span style="font-size:11px;color:#9E8A75">${periodeLabel(periode)}</span>
     </div>
@@ -839,9 +938,100 @@ td           { padding: 8px 14px; vertical-align: middle; }
 
 </div><!-- /layout -->
 <script>
-// Auto-refresh elke 90 seconden (niet op prijsafspraken tab — voorkomt verlies van aanpassingen)
-if (!location.search.includes('tab=prijsafspraken')) {
+// Auto-refresh elke 90 seconden (niet op tarieven-tabs — voorkomt verlies van aanpassingen)
+const _noRefreshTabs = ['tab=prijsafspraken', 'tab=bestemmingen'];
+if (!_noRefreshTabs.some(t => location.search.includes(t))) {
   setTimeout(() => location.reload(), 90000);
+}
+
+// ── Per-bestemming tarieven ──────────────────────────────────────────────────
+const BT_DATA = ${JSON.stringify(btDataForJs).replace(/<\//g, '<\\/')};
+let btCurrentKlant = null;
+
+function btSelectKlant(klant) {
+  btCurrentKlant = klant;
+  const container   = document.getElementById('bt-container');
+  const placeholder = document.getElementById('bt-placeholder');
+  if (!klant) {
+    container.style.display   = 'none';
+    placeholder.style.display = '';
+    return;
+  }
+  container.style.display   = '';
+  placeholder.style.display = 'none';
+  btRenderRows(BT_DATA[klant] || []);
+}
+
+function btRenderRows(tarieven) {
+  const tbody = document.getElementById('bt-body');
+  tbody.innerHTML = '';
+  for (const t of tarieven) {
+    tbody.appendChild(btMakeRow(t.plaats || '', t.tarief ?? ''));
+  }
+}
+
+function btMakeRow(plaats, tarief) {
+  const tr = document.createElement('tr');
+  tr.className = 'bt-row';
+  const td1 = document.createElement('td');
+  td1.className = 'bt-td';
+  td1.innerHTML = '<input type="text" class="bt-inp-plaats" placeholder="bijv. Brussel of Rotterdam">';
+  td1.querySelector('input').value = plaats;
+
+  const td2 = document.createElement('td');
+  td2.className = 'bt-td';
+  td2.innerHTML = '<div class="bt-tarief-cell"><span class="bt-eur-sign">€</span><input type="number" class="bt-inp-tarief" step="0.01" min="0" placeholder="0.00"></div>';
+  td2.querySelector('input').value = tarief !== '' ? tarief : '';
+
+  const td3 = document.createElement('td');
+  td3.className = 'bt-td';
+  td3.innerHTML = '<button class="bt-del-btn" title="Verwijder">✕</button>';
+  td3.querySelector('button').addEventListener('click', () => tr.remove());
+
+  tr.appendChild(td1);
+  tr.appendChild(td2);
+  tr.appendChild(td3);
+  return tr;
+}
+
+function btAddRow() {
+  const tbody = document.getElementById('bt-body');
+  tbody.appendChild(btMakeRow('', ''));
+  tbody.lastElementChild.querySelector('.bt-inp-plaats').focus();
+}
+
+async function btSave(token) {
+  if (!btCurrentKlant) return;
+  const rows = [...document.querySelectorAll('#bt-body .bt-row')];
+  const tarieven = rows
+    .map(row => ({
+      plaats: row.querySelector('.bt-inp-plaats').value.trim(),
+      tarief: parseFloat(row.querySelector('.bt-inp-tarief').value) || 0
+    }))
+    .filter(t => t.plaats && t.tarief > 0);
+
+  const saveBtn = document.getElementById('bt-save-btn');
+  const okEl    = document.getElementById('bt-ok');
+  saveBtn.disabled = true;
+  try {
+    // Laad bestaande velden op zodat toeslagen etc. behouden blijven
+    const getRes = await fetch('/api/prijsafspraken?token=' + encodeURIComponent(token));
+    if (!getRes.ok) throw new Error('Laden mislukt (' + getRes.status + ')');
+    const allPa   = await getRes.json();
+    const existing = allPa.find(p => (p.klant || '').toLowerCase() === btCurrentKlant.toLowerCase()) || {};
+    const velden  = { ...(existing.velden || {}), _tarieven: tarieven };
+
+    const res = await fetch('/api/prijsafspraken?token=' + encodeURIComponent(token), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ klant: btCurrentKlant, velden, all_in: existing.all_in || false })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    // Lokale cache bijwerken
+    BT_DATA[btCurrentKlant] = tarieven;
+    if (okEl) { okEl.style.display = 'inline'; setTimeout(() => okEl.style.display = 'none', 2500); }
+  } catch(e) { alert('Opslaan mislukt: ' + e.message); }
+  finally { saveBtn.disabled = false; }
 }
 
 // ── Tarieven grid helpers ────────────────────────────────────────────────────

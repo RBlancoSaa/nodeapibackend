@@ -180,6 +180,19 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
         const baseTarief = afspraken.velden?.tarief?.chart ?? 0;
         if (baseTarief > 0) order.tarief = baseTarief;
       }
+
+      // Per-bestemming tarief overschrijft basistarief als er een match is op klantplaats
+      if (afspraken?.velden?._tarieven?.length && order.klantplaats) {
+        const plaatsLower = (order.klantplaats || '').toLowerCase().trim();
+        const btMatch = afspraken.velden._tarieven.find(t =>
+          (t.plaats || '').toLowerCase().trim() === plaatsLower
+        );
+        if (btMatch?.tarief > 0) {
+          order.tarief = btMatch.tarief;
+          console.log(`${tag} Per-bestemming tarief voor "${order.klantplaats}": €${btMatch.tarief}`);
+        }
+      }
+
       const tarief     = parseFloat(order.tarief) || 0;
 
       // ADR
