@@ -212,7 +212,7 @@ const LEEG = {
  * @param {string} sizeStr       - '20ft' | '40ft' | '45ft HC' etc.
  * @returns {object} financieel-object voor enrichOrder/generateXml
  */
-export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr) {
+export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr, afspraken = null) {
   const terminalKeyVol = normTerminalKeyVol(terminalNaam);
   const zone           = detectZone(bestemmingNaam) || 'waalhaven'; // default Waalhaven
   const ft             = sizeStr.startsWith('20') ? 'ft20' : 'ft40';
@@ -222,26 +222,27 @@ export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr) {
     tarief = VOL[terminalKeyVol][zone][ft] ?? 0;
   }
   // Terminal-specifieke toeslag (altijd vol bedrag — Route 1 containers rijden nooit gepaard)
-  const termKeyVol = normTerminalKey(terminalNaam);
+  const termKeyVol     = normTerminalKey(terminalNaam);
+  const dieselChart    = afspraken ? afspraken.toeslag('diesel') : 9;
   let deltaChart   = 0;
   let euromaxChart = 0;
   let blanco2Chart = 0;
   let blanco2Text  = '';
 
   if (termKeyVol === 'ect_delta') {
-    deltaChart = 28.50;
+    deltaChart = afspraken ? afspraken.toeslag('delta') : 28.50;
   } else if (termKeyVol === 'emx') {
-    euromaxChart = 28.50;
+    euromaxChart = afspraken ? afspraken.toeslag('euromax') : 28.50;
   } else if (termKeyVol === 'rwg') {
-    blanco2Chart = 31;
+    blanco2Chart = afspraken ? afspraken.toeslag('rwg') : 31;
     blanco2Text  = 'RWG toeslag';
   }
 
-  console.log(`💰 Vol tarief: "${terminalNaam}" (${terminalKeyVol}) → zone="${zone}" ${ft} → €${tarief} | delta=${deltaChart} emx=${euromaxChart} rwg=${blanco2Chart}`);
+  console.log(`💰 Vol tarief: "${terminalNaam}" (${terminalKeyVol}) → zone="${zone}" ${ft} → €${tarief} | diesel=${dieselChart} delta=${deltaChart} emx=${euromaxChart} rwg=${blanco2Chart}`);
 
   return {
     tarief,
-    dieselToeslagChart: 9,
+    dieselToeslagChart: dieselChart,
     deltaChart,
     euromaxChart,
     blanco1Chart: 0,
@@ -260,7 +261,7 @@ export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr) {
  * @param {boolean} isPaired  - true als container in een setje van 2 rijdt
  * @returns {object} financieel-object voor enrichOrder/generateXml
  */
-export function berekenLeegTarief(depotNaam, opzetNaam, sizeStr, isPaired) {
+export function berekenLeegTarief(depotNaam, opzetNaam, sizeStr, isPaired, afspraken = null) {
   const depotKey = normDepotKey(depotNaam);
   const zone     = detectZone(opzetNaam) || 'waalhaven'; // default Waalhaven
   const ft       = sizeStr.startsWith('20') ? 'ft20' : 'ft40';
@@ -273,25 +274,28 @@ export function berekenLeegTarief(depotNaam, opzetNaam, sizeStr, isPaired) {
   console.log(`💰 Leeg tarief: depot="${depotNaam}" (${depotKey}) zone="${zone}" ${ft} pair=${isPaired} → €${tarief}`);
 
   // Terminal-specifieke toeslag bij afzetdepot (gehalveerd bij setje)
-  // Geen congestie toeslag meer
   const depotTerminalKey = normTerminalKey(depotNaam);
+  const dieselChart      = afspraken ? afspraken.toeslag('diesel') : 9;
+  const deltaBase        = afspraken ? afspraken.toeslag('delta')   : 28.50;
+  const euromaxBase      = afspraken ? afspraken.toeslag('euromax') : 28.50;
+  const rwgBase          = afspraken ? afspraken.toeslag('rwg')     : 31;
   let deltaChart   = 0;
   let euromaxChart = 0;
   let blanco2Chart = 0;
   let blanco2Text  = '';
 
   if (depotTerminalKey === 'ect_delta') {
-    deltaChart = isPaired ? 28.50 / 2 : 28.50;
+    deltaChart = isPaired ? deltaBase / 2 : deltaBase;
   } else if (depotTerminalKey === 'emx') {
-    euromaxChart = isPaired ? 28.50 / 2 : 28.50;
+    euromaxChart = isPaired ? euromaxBase / 2 : euromaxBase;
   } else if (depotTerminalKey === 'rwg') {
-    blanco2Chart = isPaired ? 15.50 : 31;
+    blanco2Chart = isPaired ? rwgBase / 2 : rwgBase;
     blanco2Text  = 'RWG toeslag';
   }
 
   return {
     tarief,
-    dieselToeslagChart: 9,
+    dieselToeslagChart: dieselChart,
     deltaChart,
     euromaxChart,
     blanco1Chart: 0,

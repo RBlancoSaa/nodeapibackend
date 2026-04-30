@@ -7,6 +7,7 @@ import processSteinwegQueueHandler from './api/process-steinweg-queue.js';
 import testSteinwegHandler from './api/test-steinweg.js';
 import inspectPdfHandler from './api/inspect-pdf.js';
 import dashboardHandler from './api/dashboard.js';
+import prijsafsprakenHandler from './api/prijsafspraken.js';
 
 const app = express();
 app.use(express.json());
@@ -20,6 +21,8 @@ app.get('/api/test-steinweg', testSteinwegHandler);
 app.post('/api/test-steinweg', testSteinwegHandler);
 app.get('/api/inspect-pdf', inspectPdfHandler);
 app.get('/api/dashboard', dashboardHandler);
+app.get('/api/prijsafspraken', prijsafsprakenHandler);
+app.post('/api/prijsafspraken', prijsafsprakenHandler);
 
 app.listen(PORT, () => {
   console.log(`Server draait op poort ${PORT}`);

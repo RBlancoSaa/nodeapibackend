@@ -4,6 +4,7 @@ import XLSX from 'xlsx';
 import { getKlantData } from '../utils/lookups/terminalLookup.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 import { berekenVolTarief, berekenLeegTarief, berekenPairs } from '../utils/steinwegTarieven.js';
+import { getPrijsafspraken } from '../utils/getPrijsafspraken.js';
 
 function normLand(val) {
   const s = (val || '').trim().toUpperCase();
@@ -268,7 +269,8 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
   const ordernummer = r1?.ordernummer || r2?.ordernummer || '';
   const rederijRaw  = r1?.rederij    || r2?.rederij    || '';
 
-  const klant = await getKlantData('steinweg');
+  const klant      = await getKlantData('steinweg');
+  const afspraken  = await getPrijsafspraken('steinweg');
   const instructies = [emailSubject, emailBody]
     .map(s => (s || '').trim())
     .filter(Boolean)
@@ -300,7 +302,7 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
       const gewicht          = String(Math.round(parseFloat(c1.gewicht) || 0));
 
       // Tariefberekening voor volle container
-      const fin = berekenVolTarief(r1.from, r1.to, containerTypeStr);
+      const fin = berekenVolTarief(r1.from, r1.to, containerTypeStr, afspraken);
 
       // Omrijder: Opzetten (terminal) → Lossen (OMRIJDER) → Afzetten (Steinweg)
       const locaties = [
@@ -393,7 +395,8 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         c2.returnDepot || c2.destination || '',
         r2.from,
         containerTypeStr,
-        isPaired
+        isPaired,
+        afspraken
       );
 
       // Omrijder: Opzetten (Steinweg) → Lossen (OMRIJDER) → Afzetten (return depot)
