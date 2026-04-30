@@ -44,7 +44,8 @@ export async function getPrijsafspraken(klantKey) {
     const { data, error } = await supabase
       .from('prijsafspraken')
       .select('*')
-      .eq('klant', key)
+      .ilike('klant', key)   // case-insensitive: 'Eimskip' == 'eimskip'
+      .limit(1)
       .single();
 
     if (error || !data) {

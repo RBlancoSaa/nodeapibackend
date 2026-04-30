@@ -22,7 +22,11 @@ export default async function handler(req, res) {
 
   // ── POST: upsert één klant ───────────────────────────────────────────────
   if (req.method === 'POST') {
-    const { klant, velden, all_in } = req.body || {};
+    const body = req.body || {};
+    // Altijd lowercase opslaan zodat enrichOrder (die ook lowercase zoekt) altijd matcht
+    const klant  = (body.klant || '').toLowerCase().trim();
+    const velden = body.velden;
+    const all_in = body.all_in;
     if (!klant) return res.status(400).json({ error: 'klant is verplicht' });
 
     const { error } = await supabase
