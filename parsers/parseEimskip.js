@@ -1,9 +1,10 @@
 // parsers/parseEimskip.js
 // Eimskip "Transportopdracht" PDF parser
-// Probeert eerst tekst te extraheren met pdf-parse.
-// Als de PDF gescand is (geen tekst), valt het terug op Claude Vision OCR via ocrPdf.js
+// Digitale PDF  → pdf-parse → parsePDFLines (regex op vaste opmaak)
+// Gescande PDF  → Claude Vision → directe JSON-extractie (geen regex nodig)
 import '../utils/fsPatch.js';
 import { extractPdfText } from '../utils/ocrPdf.js';
+import Anthropic from '@anthropic-ai/sdk';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
 // ISO container type → EasyTrip omschrijving
@@ -162,6 +163,90 @@ function parsePDFLines(pls) {
 }
 
 
+// ── Claude: directe JSON-extractie uit gescande Eimskip-PDF ──────────────
+// Gebruikt Claude Vision met een Eimskip-specifieke prompt.
+// Geeft exact dezelfde structuur terug als parsePDFLines().
+async function extractEimskipJsonFromPdf(pdfBuffer) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY ontbreekt');
+
+  const client = new Anthropic({ apiKey });
+  const b64    = pdfBuffer.toString('base64');
+
+  const prompt = `Dit is een gescande Eimskip transportopdracht (Nederlands/Engels).
+Lees alle velden zorgvuldig en geef ze terug als GELDIGE JSON. Geen extra tekst, alleen JSON.
+
+Verplichte structuur:
+{
+  "ritnummer":        "eerste referentienummer (bijv. 120563)",
+  "laadreferentie":   "volledige referentieregel (bijv. '120563 - 520483')",
+  "bootnaam":         "naam van het schip / vessel",
+  "rederij":          "naam van de rederij / carrier (bijv. MAERSK, MSC, CMA CGM)",
+  "containernummer":  "containernummer EXACT formaat: 4 hoofdletters + 7 cijfers (bijv. TCLU5199341)",
+  "containertypeIso": "4-karakter ISO containercode (bijv. 22G1=20ft, 42G1=40ft, 45G1=40ftHC, 42R1=40ft reefer)",
+  "zegel":            "zegelnummer / seal number",
+  "lading":           "goederenomschrijving (bijv. CT, STL, machinery)",
+  "colli":            "aantal colli als string (bijv. '61')",
+  "brutogewicht":     "gewicht in kg als string zonder eenheid (bijv. '5410')",
+  "sec1": {
+    "naam":     "naam van de afhaal-/opzetterminal (bijv. ECT Delta, Euromax)",
+    "datum":    "datum formaat D-M-YYYY (bijv. 2-5-2026)",
+    "tijd":     "tijdstip HH:MM of leeg",
+    "adres":    "straatnaam + huisnummer",
+    "postcode": "postcode",
+    "plaats":   "plaatsnaam",
+    "land":     "2-letter landcode: NL, BE, DE, GB, FR"
+  },
+  "sec2": {
+    "naam":     "naam van het afleveradres / klant / bedrijf",
+    "datum":    "afleverdatum formaat D-M-YYYY",
+    "tijd":     "aflevertime HH:MM of leeg",
+    "adres":    "straatnaam + huisnummer",
+    "postcode": "postcode",
+    "plaats":   "plaatsnaam",
+    "land":     "2-letter landcode"
+  },
+  "sec3": {
+    "naam":     "naam van de afzettterminal / depot",
+    "datum":    "datum formaat D-M-YYYY of leeg",
+    "tijd":     "tijdstip HH:MM of leeg",
+    "adres":    "straatnaam + huisnummer of leeg",
+    "postcode": "postcode of leeg",
+    "plaats":   "plaatsnaam of leeg",
+    "land":     "2-letter landcode: NL, BE, DE"
+  }
+}
+
+Regels:
+- Gebruik lege string "" voor ontbrekende velden, nooit null of undefined
+- containernummer: ALTIJD 4 hoofdletters + 7 cijfers aaneengesloten (TCLU5199341 niet TCLU 519 9341)
+- containertypeIso: kijk naar ISO-code tussen haakjes naast het containernummer, of leid af uit omschrijving
+- datum formaat: dag-maand-jaar zonder voorloopnullen (2-5-2026 niet 02-05-2026)
+- Geef ALLEEN geldige JSON terug, geen uitleg, geen markdown-backticks`;
+
+  const message = await client.messages.create({
+    model:      'claude-opus-4-5',
+    max_tokens: 1500,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+        { type: 'text', text: prompt }
+      ]
+    }]
+  });
+
+  const raw = (message.content[0]?.text || '').trim();
+  console.log('🤖 Claude Eimskip OCR:\n', raw.slice(0, 800));
+
+  // Strip eventuele markdown code-fences
+  const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+  const data    = JSON.parse(jsonStr);
+
+  console.log(`✅ Claude extractie: container=${data.containernummer} type=${data.containertypeIso} klant="${data.sec2?.naam}"`);
+  return data;
+}
+
 // Fallback: adres uit email body (na "leveren in [STAD]:")
 function extractAdresUitBody(lines) {
   const trigIdx = lines.findIndex(l => l.endsWith(':') && /leveren/i.test(l));
@@ -202,17 +287,19 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     if (!att.buffer || !Buffer.isBuffer(att.buffer)) continue;
     try {
       const { lines, wasOcr } = await extractPdfText(att.buffer, 'Eimskip transportopdracht');
-      console.log(`📄 Eimskip PDF "${att.filename}" (${lines.length} regels${wasOcr ? ', via Claude OCR' : ''})`);
+      console.log(`📄 Eimskip PDF "${att.filename}" (${lines.length} regels${wasOcr ? ', GESCAND' : ''})`);
 
       if (wasOcr) {
-        // Claude heeft de ruwe tekst al gelezen — parseer als normale regels
-        pdfData = parsePDFLines(lines);
-        if (pdfData.containernummer) break;
-        console.warn('⚠️ OCR-tekst geparsed maar geen containernummer gevonden');
+        // Gescande PDF: gebruik Claude structured extraction — geen regex op OCR-tekst
+        console.log('🖼️ Gescande PDF → Claude structured JSON extractie');
+        pdfData = await extractEimskipJsonFromPdf(att.buffer);
+        if (pdfData?.containernummer) break;
+        console.warn('⚠️ Claude extractie leverde geen containernummer op');
+        pdfData = null;
         continue;
       }
 
-      // Herken transportopdracht (digitale PDF)
+      // Digitale PDF: gebruik bestaande regex-parser
       const isTO = /transportopdracht|transport\s*(order|opdracht)/i.test(att.filename || '') ||
                    lines.some(l => /^transport\s*(order|opdracht)/i.test(l));
       if (isTO && lines.length > 10) {
