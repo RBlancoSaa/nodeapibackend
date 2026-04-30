@@ -220,10 +220,12 @@ Verplichte structuur:
 Strikte regels:
 - Gebruik lege string "" voor ontbrekende velden, NOOIT null of undefined
 - naam-velden: ALLEEN de bedrijfs-/terminalnaam, datum en tijd NOOIT toevoegen aan naam
+- naam-velden: NOOIT een getal of '0' als waarde — als de naam niet leesbaar is gebruik lege string ""
 - containernummer: aaneengesloten, geen spaties (TCLU5199341 niet TCLU 519 9341)
 - ritnummer: ALLEEN het getal, geen tekst of zinnen
 - datum formaat: D-M-YYYY zonder voorloopnullen (1-5-2026 niet 01-05-2026)
 - rederij: altijd verkorte handelsnaam, nooit de volledige juridische naam
+- brutogewicht: ALLEEN het getal zonder decimalen (5410 niet 5410.00)
 - Geef ALLEEN geldige JSON terug, geen uitleg, geen markdown-backticks`;
 
   const message = await client.messages.create({
@@ -245,21 +247,72 @@ Strikte regels:
   const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
   const data    = JSON.parse(jsonStr);
 
+  // Saniteer naam-velden: puur numerieke waarden of '0' worden lege string
+  // (Claude geeft soms een getal terug als de naam niet leesbaar is)
+  const sanitizeNaam = (v) => (!v || /^\d+$/.test(String(v).trim())) ? '' : String(v).trim();
+  if (data.sec1) data.sec1.naam = sanitizeNaam(data.sec1.naam);
+  if (data.sec2) data.sec2.naam = sanitizeNaam(data.sec2.naam);
+  if (data.sec3) data.sec3.naam = sanitizeNaam(data.sec3.naam);
+
   console.log(`✅ Claude extractie: container=${data.containernummer} type=${data.containertypeIso} klant="${data.sec2?.naam}"`);
   return data;
 }
 
-// Fallback: adres uit email body (na "leveren in [STAD]:")
+// Fallback: naam + adres uit email body (na "leveren bij/in/op/te NAAM:" of "leveren:")
+// Structuur in Eimskip-mail:
+//   Leveren bij:          ← trigger  (of "Leveren bij XYZ BV:" dan zit naam in trigger)
+//   COMPANY NAME          ← naam     (als niet in trigger)
+//   Straatnaam 12         ← adres
+//   1234 AB Rotterdam     ← postcode + stad
+//   Netherlands           ← land (optioneel)
 function extractAdresUitBody(lines) {
   const trigIdx = lines.findIndex(l => l.endsWith(':') && /leveren/i.test(l));
   if (trigIdx < 0) return null;
+
+  // Probeer naam uit de trigger-regel zelf te halen:
+  // bijv. "Gelieve te leveren bij XYZ B.V.:" → "XYZ B.V."
+  const trigLine      = lines[trigIdx] || '';
+  const naamUitTrigger = trigLine
+    .replace(/:$/, '')
+    .replace(/^.*?leveren\s+(?:bij|op|in|te|aan)\s*/i, '')
+    .trim();
+
+  // Verzamel tot 5 regels na trigger
   const bl = [];
-  for (let i = trigIdx + 1; i < lines.length && bl.length < 3; i++) {
+  for (let i = trigIdx + 1; i < lines.length && bl.length < 5; i++) {
     if (lines[i].trim()) bl.push(lines[i].trim());
   }
-  if (bl.length < 2) return null;
-  const { postcode, plaats } = parsePostcodeStad(bl[1] || '');
-  return { naam: '', adres: bl[0], postcode, plaats, land: normLand(bl[2] || '') || 'BE' };
+  if (bl.length < 1) return null;
+
+  // Detecteer of een regel een straatadres is (bevat huisnummer zoals "Straat 12")
+  const isAdresRegel = (s) => /\b\d+\b/.test(s) && /[A-Za-z]{3}/.test(s) && /\s\d/.test(s);
+
+  let naam = '', adres = '', pcStad = '', landRaw = '';
+
+  if (naamUitTrigger.length > 2) {
+    // Naam staat in de trigger-regel zelf
+    naam    = naamUitTrigger;
+    adres   = bl[0] || '';
+    pcStad  = bl[1] || '';
+    landRaw = bl[2] || '';
+  } else if (bl[0] && !isAdresRegel(bl[0])) {
+    // Eerste regel na trigger is geen adres → bedrijfsnaam
+    naam    = bl[0];
+    adres   = bl[1] || '';
+    pcStad  = bl[2] || '';
+    landRaw = bl[3] || '';
+  } else {
+    // Geen naam gevonden — adres begint direct
+    naam    = '';
+    adres   = bl[0];
+    pcStad  = bl[1] || '';
+    landRaw = bl[2] || '';
+  }
+
+  if (!adres && !pcStad) return null;
+  const { postcode, plaats } = parsePostcodeStad(pcStad);
+  console.log(`📬 Body-extractie: naam="${naam}" adres="${adres}" pc="${postcode}" plaats="${plaats}"`);
+  return { naam, adres, postcode, plaats, land: normLand(landRaw) || 'BE' };
 }
 
 export default async function parseEimskip({ bodyText, mailSubject, pdfAttachments = [] }) {
@@ -341,7 +394,9 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
   const laadreferentie   = pdfData?.laadreferentie  || '';
   const ritnummer        = pdfData?.ritnummer       || '';
   const lading           = pdfData?.lading          || '';
-  const brutogewicht     = pdfData?.brutogewicht    || '0';
+  // Gewicht: verwijder decimalen (Claude geeft soms "5410.00")
+  const rawGewicht       = pdfData?.brutogewicht    || '0';
+  const brutogewicht     = String(Math.round(parseFloat(rawGewicht.replace(',', '.')) || 0));
   const colli            = pdfData?.colli           || '0';
 
   // Containertype: van ISO code naar EasyTrip-omschrijving
@@ -353,7 +408,12 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
   }
 
   // Locatie-data uit secties
-  const lossenRaw = pdfData?.sec2 || extractAdresUitBody(bodyLines);
+  // sec2 heeft prioriteit; als de naam ontbreekt na OCR → vul aan vanuit email-body
+  const bodyAdres  = extractAdresUitBody(bodyLines);
+  const sec2Raw    = pdfData?.sec2 || null;
+  const lossenRaw  = sec2Raw
+    ? { ...sec2Raw, naam: sec2Raw.naam || bodyAdres?.naam || '' }
+    : (bodyAdres || null);
   const opzetRaw  = pdfData?.sec1;
   const afzetRaw  = pdfData?.sec3;
 
@@ -411,7 +471,7 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     referentie:        containernummer,
     laadreferentie,
     inleverreferentie: '',
-    inleverBestemming: '',
+    inleverBestemming: afzetRaw?.naam || '',
 
     rederijRaw,
     rederij:         '',
