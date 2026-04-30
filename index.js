@@ -24,6 +24,12 @@ app.get('/api/dashboard', dashboardHandler);
 app.get('/api/prijsafspraken', prijsafsprakenHandler);
 app.post('/api/prijsafspraken', prijsafsprakenHandler);
 
-app.listen(PORT, () => {
-  console.log(`Server draait op poort ${PORT}`);
-});
+// Lokaal draaien: start de server
+// Op Vercel: app wordt geëxporteerd en via vercel.json gerouteerd (geen listen nodig)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server draait op poort ${PORT}`);
+  });
+}
+
+export default app;
