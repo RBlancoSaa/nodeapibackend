@@ -1,6 +1,6 @@
 // parsers/parseSteder.js
 import '../utils/fsPatch.js';
-import pdfParse from 'pdf-parse';
+import { extractPdfText } from '../utils/ocrPdf.js';
 import { getKlantData, normLand, cleanFloat } from '../utils/lookups/terminalLookup.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
@@ -49,8 +49,7 @@ function extractSection(ls, startIdx) {
 export default async function parseSteder(buffer) {
   if (!buffer || !Buffer.isBuffer(buffer)) return [];
 
-  const { text } = await pdfParse(buffer);
-  const ls = text.split('\n').map(r => r.trim()).filter(Boolean);
+  const { lines: ls } = await extractPdfText(buffer, 'Steder transportopdracht');
   console.log('📋 Steder regels:\n', ls.map((r, i) => `[${i}] ${r}`).join('\n'));
 
   // Helper: waarde achter label of op volgende regel

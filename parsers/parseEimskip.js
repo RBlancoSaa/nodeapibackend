@@ -1,17 +1,9 @@
 // parsers/parseEimskip.js
 // Eimskip "Transportopdracht" PDF parser
-// PDF structuur:
-//   Referentie → :NNNNN - NNNNN -
-//   Schip: \n NAAM
-//   Rederij: NAAM
-//   Container: XXXUNNNNNNN (ISO_CODE)
-//   Rederij zegel: ZEGEL
-//   Goederen omschrijving... → STC61  CT 5410.00
-//   1. Terminal depot → Opzetten
-//   2. Delivery address → Lossen (met klantnaam)
-//   3. Terminal depot → Afzetten
+// Probeert eerst tekst te extraheren met pdf-parse.
+// Als de PDF gescand is (geen tekst), valt het terug op Claude Vision OCR via ocrPdf.js
 import '../utils/fsPatch.js';
-import pdfParse from 'pdf-parse';
+import { extractPdfText } from '../utils/ocrPdf.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
 // ISO container type → EasyTrip omschrijving
@@ -169,6 +161,7 @@ function parsePDFLines(pls) {
            zegel, lading, brutogewicht, colli, sec1, sec2, sec3 };
 }
 
+
 // Fallback: adres uit email body (na "leveren in [STAD]:")
 function extractAdresUitBody(lines) {
   const trigIdx = lines.findIndex(l => l.endsWith(':') && /leveren/i.test(l));
@@ -208,17 +201,24 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
   for (const att of sortedPdfs) {
     if (!att.buffer || !Buffer.isBuffer(att.buffer)) continue;
     try {
-      const { text } = await pdfParse(att.buffer);
-      const pls = text.split('\n').map(l => l.trim()).filter(Boolean);
-      console.log(`📄 Eimskip PDF "${att.filename}" (${pls.length} regels):\n`,
-        pls.slice(0, 55).map((r, i) => `[${i}] ${r}`).join('\n'));
+      const { lines, wasOcr } = await extractPdfText(att.buffer, 'Eimskip transportopdracht');
+      console.log(`📄 Eimskip PDF "${att.filename}" (${lines.length} regels${wasOcr ? ', via Claude OCR' : ''})`);
 
-      // Herken transportopdracht
+      if (wasOcr) {
+        // Claude heeft de ruwe tekst al gelezen — parseer als normale regels
+        pdfData = parsePDFLines(lines);
+        if (pdfData.containernummer) break;
+        console.warn('⚠️ OCR-tekst geparsed maar geen containernummer gevonden');
+        continue;
+      }
+
+      // Herken transportopdracht (digitale PDF)
       const isTO = /transportopdracht|transport\s*(order|opdracht)/i.test(att.filename || '') ||
-                   pls.some(l => /^transport\s*(order|opdracht)/i.test(l));
-      if (isTO && pls.length > 10) {
-        pdfData = parsePDFLines(pls);
-        if (pdfData.containernummer) break;  // PDF succesvol geparsed
+                   lines.some(l => /^transport\s*(order|opdracht)/i.test(l));
+      if (isTO && lines.length > 10) {
+        console.log(`📋 Regels:\n`, lines.slice(0, 55).map((r, i) => `[${i}] ${r}`).join('\n'));
+        pdfData = parsePDFLines(lines);
+        if (pdfData.containernummer) break;
       }
     } catch (e) {
       console.warn(`⚠️ Kon PDF "${att.filename}" niet parsen:`, e.message);

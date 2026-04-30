@@ -1,6 +1,6 @@
 // parsers/parseRitra.js
 import '../utils/fsPatch.js';
-import pdfParse from 'pdf-parse';
+import { extractPdfText } from '../utils/ocrPdf.js';
 import { normLand, cleanFloat, getKlantData } from '../utils/lookups/terminalLookup.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
@@ -21,8 +21,7 @@ function splitPCPlaats(raw) {
 export default async function parseRitra(buffer) {
   if (!buffer || !Buffer.isBuffer(buffer)) return [];
 
-  const { text } = await pdfParse(buffer);
-  const ls = text.split('\n').map(r => r.trim()).filter(Boolean);
+  const { lines: ls } = await extractPdfText(buffer, 'Ritra transportopdracht');
   console.log('📋 Ritra regels:\n', ls.map((r, i) => `[${i}] ${r}`).join('\n'));
 
   // === Ritnummer ===

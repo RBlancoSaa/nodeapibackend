@@ -1,6 +1,6 @@
 // parsers/parseB2L.js
 import '../utils/fsPatch.js';
-import pdfParse from 'pdf-parse';
+import { extractPdfText } from '../utils/ocrPdf.js';
 import { getKlantData, normLand } from '../utils/lookups/terminalLookup.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
@@ -48,12 +48,10 @@ function safeAdres(arr, idx) {
 export default async function parseB2L(buffer) {
   if (!buffer || !Buffer.isBuffer(buffer)) return [];
 
-  const { text } = await pdfParse(buffer);
+  const { lines: rawLs } = await extractPdfText(buffer, 'B2L transportopdracht');
   // Dedupliceer identieke regels (PDF bevat soms 3× dezelfde paginakoptekst)
   const seen = new Set();
-  const ls = text.split('\n')
-    .map(r => r.trim())
-    .filter(r => r && !seen.has(r) && seen.add(r));
+  const ls = rawLs.filter(r => r && !seen.has(r) && seen.add(r));
   console.log('📋 B2L regels:\n', ls.map((r, i) => `[${i}] ${r}`).join('\n'));
 
   // === Referentie / ritnummer ===

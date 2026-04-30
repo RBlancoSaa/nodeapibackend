@@ -1,6 +1,7 @@
 // 📁 parsers/parseDFDS.js
 import '../utils/fsPatch.js';
 import PDFParser from 'pdf2json';
+import { extractPdfText } from '../utils/ocrPdf.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
 function extractLinesPdf2Json(buffer) {
@@ -50,7 +51,30 @@ function parseAdresRegel(r) {
 }
 
 export default async function parseDFDS(buffer) {
-  const regels = await extractLinesPdf2Json(buffer);
+  if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
+    throw new Error('empty PDF buffer, nothing to parse.');
+  }
+
+  // Probeer pdf2json eerst (behoudt positie-info die DFDS nodig heeft)
+  // Als dat weinig oplevert (gescand), val terug op ocrPdf (Claude Vision)
+  let regels;
+  try {
+    regels = await extractLinesPdf2Json(buffer);
+  } catch (e) {
+    console.warn('⚠️ pdf2json fout:', e.message, '— probeer OCR');
+    regels = [];
+  }
+
+  // Gescande PDF detectie: weinig/geen regels van pdf2json
+  if (regels.join(' ').trim().length < 80) {
+    console.log('🖼️ DFDS PDF lijkt gescand — Claude OCR inschakelen');
+    const { lines, wasOcr } = await extractPdfText(buffer, 'DFDS transportopdracht');
+    if (wasOcr || lines.length > regels.length) {
+      regels = lines;
+      console.log(`✅ OCR geeft ${regels.length} regels`);
+    }
+  }
+
   console.log('📋 DFDS regels:\n', regels.map((r, i) => `[${i}] ${r}`).join('\n'));
 
   // === Gedeelde orderdata ===

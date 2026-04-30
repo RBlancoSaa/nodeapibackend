@@ -100,6 +100,10 @@ function classifyEmail(mail) {
   if (/\b(update|wijziging|aanpassing|gewijzigd|correction|corrected|amendment)\b/.test(subject)) {
     return 'update';
   }
+  // DFDS release-notificaties: lege PDF, geen nieuwe opdracht
+  if (/container may be picked up again for drop.?off/i.test(subject)) {
+    return 'update';
+  }
   if (/reservering|ter\s+reservering/.test(subject) || /ter\s+reservering/.test(body)) {
     return 'reservering';
   }

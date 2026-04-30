@@ -98,7 +98,13 @@ function getContainerCodeFromOmschrijving(omschrijving, containerList) {
 
 export async function generateXmlFromJson(data) {
   if (!data.containertype || data.containertype === '0') {
-    throw new Error('Containertype ontbreekt. Bestand wordt niet gegenereerd.');
+    // Niet blokkeren — genereer het bestand wel, maar noteer het in instructies
+    console.warn('⚠️ Containertype ontbreekt — bestand wordt gegenereerd met lege waarde');
+    data.containertype    = '';
+    data.containertypeCode = data.containertypeCode || '0';
+    data.instructies = data.instructies
+      ? `${data.instructies} | ⚠️ Containertype onbekend — handmatig invullen`
+      : '⚠️ Containertype onbekend — handmatig invullen';
   }
   if (!data.datum) {
     throw new Error('Datum ontbreekt. Bestand wordt niet gegenereerd.');

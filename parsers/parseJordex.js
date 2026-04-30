@@ -1,6 +1,6 @@
 // parsers/parseJordex.js
 import '../utils/fsPatch.js';
-import pdfParse from 'pdf-parse';
+import { extractPdfText } from '../utils/ocrPdf.js';
 import { normLand, cleanFloat } from '../utils/lookups/terminalLookup.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
@@ -33,10 +33,8 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
   }
 
 
-  // 📖 PDF uitlezen en opsplitsen
-  const parsed = await pdfParse(pdfBuffer);
-  const text = parsed.text;
-  const regels = text.split('\n').map(l => l.trim()).filter(Boolean);
+  // 📖 PDF uitlezen en opsplitsen (met automatische OCR-fallback voor gescande PDFs)
+  const { text, lines: regels } = await extractPdfText(pdfBuffer, 'Jordex transportopdracht');
   const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
 
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen
