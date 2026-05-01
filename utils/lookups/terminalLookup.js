@@ -231,28 +231,19 @@ export async function getRederijNaam(input) {
     const res  = await fetch(`${SUPABASE_LIST_URL}/rederijen.json`);
     const lijst = await res.json();
 
-    let besteMatch = null, besteCode = null, hoogsteScore = 0;
+    let besteMatch = null, hoogsteScore = 0;
     for (const item of lijst) {
       for (const optie of [item.naam, item.code, ...(item.altLabels || [])]) {
         if (!optie) continue;
         const optieNorm = optie.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (optieNorm === norm) {
-          // Exacte match — geef voorkeur aan item.code (korte handelsnaam) boven juridische naam
-          const displayNaam = item.code || item.naam;
-          console.log(`✅ Rederij exact match "${input}" → "${displayNaam}"`);
-          return displayNaam;
-        }
+        if (optieNorm === norm) return item.naam;  // exacte match → altijd naam uit de lijst
         const score = norm.includes(optieNorm) || optieNorm.includes(norm) ? optieNorm.length : 0;
-        if (score > hoogsteScore) {
-          hoogsteScore = score;
-          besteMatch = item.naam;
-          besteCode  = item.code || item.naam;
-        }
+        if (score > hoogsteScore) { besteMatch = item.naam; hoogsteScore = score; }
       }
     }
-    if (besteCode && hoogsteScore >= 3) {
-      console.warn(`⚠️ Fuzzy match rederij "${input}" ➜ "${besteCode}"`);
-      return besteCode;
+    if (besteMatch && hoogsteScore >= 3) {
+      console.warn(`⚠️ Fuzzy match rederij "${input}" ➜ "${besteMatch}"`);
+      return besteMatch;
     }
     console.warn(`❌ Geen rederij gevonden voor "${input}"`);
     return '';  // NOOIT raw doorgeven — leeg = veld weglaten
