@@ -1,7 +1,6 @@
 // 📁 parsers/parseSteinweg.js
 import '../utils/fsPatch.js';
 import XLSX from 'xlsx';
-import { getKlantData } from '../utils/lookups/terminalLookup.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 import { berekenVolTarief, berekenLeegTarief, berekenPairs } from '../utils/steinwegTarieven.js';
 import { getPrijsafspraken } from '../utils/getPrijsafspraken.js';
@@ -291,7 +290,6 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
   const ordernummer = r1?.ordernummer || r2?.ordernummer || '';
   const rederijRaw  = r1?.rederij    || r2?.rederij    || '';
 
-  const klant      = await getKlantData('steinweg');
   const afspraken  = await getPrijsafspraken('steinweg');
   const instructies = [emailSubject, emailBody]
     .map(s => (s || '').trim())
@@ -350,13 +348,13 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
 
       results.push(await enrichOrder({
         opdrachtgeverNaam:     'STEINWEG',
-        opdrachtgeverAdres:    klant?.adres    || '',
-        opdrachtgeverPostcode: klant?.postcode || '',
-        opdrachtgeverPlaats:   klant?.plaats   || '',
-        opdrachtgeverTelefoon: klant?.telefoon || '',
-        opdrachtgeverEmail:    klant?.email    || '',
-        opdrachtgeverBTW:      klant?.btw      || '',
-        opdrachtgeverKVK:      klant?.kvk      || '',
+        opdrachtgeverAdres:    'Sluisjesdijk 175',
+        opdrachtgeverPostcode: '3087 AE',
+        opdrachtgeverPlaats:   'Rotterdam',
+        opdrachtgeverTelefoon: '',
+        opdrachtgeverEmail:    '',
+        opdrachtgeverBTW:      '',
+        opdrachtgeverKVK:      '98',
         klantnaam:     'STEINWEG',
         klantadres:    '',
         klantpostcode: '',
@@ -452,13 +450,13 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
 
       results.push(await enrichOrder({
         opdrachtgeverNaam:     'STEINWEG',
-        opdrachtgeverAdres:    klant?.adres    || '',
-        opdrachtgeverPostcode: klant?.postcode || '',
-        opdrachtgeverPlaats:   klant?.plaats   || '',
-        opdrachtgeverTelefoon: klant?.telefoon || '',
-        opdrachtgeverEmail:    klant?.email    || '',
-        opdrachtgeverBTW:      klant?.btw      || '',
-        opdrachtgeverKVK:      klant?.kvk      || '',
+        opdrachtgeverAdres:    'Sluisjesdijk 175',
+        opdrachtgeverPostcode: '3087 AE',
+        opdrachtgeverPlaats:   'Rotterdam',
+        opdrachtgeverTelefoon: '',
+        opdrachtgeverEmail:    '',
+        opdrachtgeverBTW:      '',
+        opdrachtgeverKVK:      '98',
         klantnaam:     'STEINWEG',
         klantadres:    '',
         klantpostcode: '',

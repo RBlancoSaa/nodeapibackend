@@ -1,7 +1,7 @@
 // parsers/parseSteder.js
 import '../utils/fsPatch.js';
 import { extractPdfText } from '../utils/ocrPdf.js';
-import { getKlantData, normLand, cleanFloat } from '../utils/lookups/terminalLookup.js';
+import { normLand } from '../utils/lookups/terminalLookup.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
 
@@ -191,8 +191,6 @@ export default async function parseSteder(buffer) {
   const datum = loc2.datum || loc1.datum || '';
   const tijd  = loc2.tijd  || loc1.tijd  || '';
 
-  const opdrachtgever = await getKlantData('steder');
-
   // Ruwe locaties — enrichOrder doet alle lookups
   const locaties = [
     { volgorde: '0', actie: 'Opzetten',  naam: loc1.naam || '', adres: loc1.adres || '', postcode: loc1.postcode || '', plaats: loc1.plaats || '', land: 'NL' },
@@ -207,14 +205,14 @@ export default async function parseSteder(buffer) {
     klantpostcode: loc2.postcode || '',
     klantplaats:   loc2.plaats   || '',
 
-    opdrachtgeverNaam:     opdrachtgever?.naam     || 'STEDER',
-    opdrachtgeverAdres:    opdrachtgever?.adres    || '',
-    opdrachtgeverPostcode: opdrachtgever?.postcode || '',
-    opdrachtgeverPlaats:   opdrachtgever?.plaats   || '',
-    opdrachtgeverTelefoon: opdrachtgever?.telefoon || '',
-    opdrachtgeverEmail:    opdrachtgever?.email    || '',
-    opdrachtgeverBTW:      opdrachtgever?.btw      || '',
-    opdrachtgeverKVK:      opdrachtgever?.kvk      || '',
+    opdrachtgeverNaam:     'STEDER GROUP B.V.',
+    opdrachtgeverAdres:    '',
+    opdrachtgeverPostcode: '',
+    opdrachtgeverPlaats:   'Rotterdam',
+    opdrachtgeverTelefoon: '',
+    opdrachtgeverEmail:    '',
+    opdrachtgeverBTW:      '',
+    opdrachtgeverKVK:      '99',
 
     containernummer,
     containertype:     containertypeDisplay,

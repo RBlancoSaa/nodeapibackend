@@ -6,7 +6,6 @@ import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import Anthropic from '@anthropic-ai/sdk';
 import { enrichOrder } from '../utils/enrichOrder.js';
-import { getKlantData } from '../utils/lookups/terminalLookup.js';
 
 // ISO container type → EasyTrip omschrijving
 const ISO_TYPE = {
@@ -446,9 +445,6 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     }
   ];
 
-  // Klantdata van Eimskip ophalen (adres, BTW, KVK, etc.)
-  const klant = await getKlantData('eimskip');
-
   return [await enrichOrder({
     ritnummer,
     klantnaam:     lossenRaw?.naam     || '',
@@ -456,14 +452,14 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     klantpostcode: lossenRaw?.postcode || '',
     klantplaats:   lossenRaw?.plaats   || '',
 
-    opdrachtgeverNaam:     klant?.naam     || 'EIMSKIP JAC. MEISNER CUSTOMS & WAREHOUSING B.V.',
-    opdrachtgeverAdres:    klant?.adres    || '',
-    opdrachtgeverPostcode: klant?.postcode || '',
-    opdrachtgeverPlaats:   klant?.plaats   || '',
-    opdrachtgeverTelefoon: klant?.telefoon || '',
-    opdrachtgeverEmail:    klant?.email    || '',
-    opdrachtgeverBTW:      klant?.btw      || '',
-    opdrachtgeverKVK:      klant?.kvk      || '',
+    opdrachtgeverNaam:     'Eimskip Jac Meisner Customs and Warehousing',
+    opdrachtgeverAdres:    'WAALHAVEN ZUIDZIJDE 21',
+    opdrachtgeverPostcode: '3089JH',
+    opdrachtgeverPlaats:   'ROTTERDAM',
+    opdrachtgeverTelefoon: '+31 10 269 1514',
+    opdrachtgeverEmail:    'rtminbound <rtminbound@eimskip.com>',
+    opdrachtgeverBTW:      '',
+    opdrachtgeverKVK:      '58',
 
     containernummer,
     containertype:    containertypeOms,
@@ -471,9 +467,9 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
 
     datum,
     tijd,
-    referentie:        containernummer,
+    referentie:        laadreferentie || '',
     laadreferentie,
-    inleverreferentie: '',
+    inleverreferentie: laadreferentie || '',
     inleverBestemming: afzetRaw?.naam || '',
 
     rederijRaw,

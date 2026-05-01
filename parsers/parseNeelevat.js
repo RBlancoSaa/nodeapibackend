@@ -1,7 +1,7 @@
 // parsers/parseNeelevat.js
 import '../utils/fsPatch.js';
 import { extractPdfText } from '../utils/ocrPdf.js';
-import { getKlantData, normLand, cleanFloat } from '../utils/lookups/terminalLookup.js';
+import { normLand } from '../utils/lookups/terminalLookup.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
 
@@ -139,7 +139,6 @@ export default async function parseNeelevat(buffer) {
 
   console.log(`🏭 Neelevat secties: sec1[${sec1Idx}] naam="${loc1.naam}" ref="${loc1.referentie}" | sec2[${sec2Idx}] naam="${loc2.naam}" ref="${loc2.referentie}" | sec3[${sec3Idx}] naam="${loc3.naam}" ref="${loc3.referentie}"`);
 
-  const opdrachtgever = await getKlantData('neelevat');
   const datum = loc1.datum || loc2.datum || '';
 
   // Ruwe locaties — enrichOrder doet alle lookups
@@ -156,14 +155,14 @@ export default async function parseNeelevat(buffer) {
     klantpostcode: loc2.postcode || '',
     klantplaats:   loc2.plaats   || '',
 
-    opdrachtgeverNaam:     opdrachtgever?.naam     || 'NEELEVAT',
-    opdrachtgeverAdres:    opdrachtgever?.adres    || '',
-    opdrachtgeverPostcode: opdrachtgever?.postcode || '',
-    opdrachtgeverPlaats:   opdrachtgever?.plaats   || '',
-    opdrachtgeverTelefoon: opdrachtgever?.telefoon || '',
-    opdrachtgeverEmail:    opdrachtgever?.email    || '',
-    opdrachtgeverBTW:      opdrachtgever?.btw      || '',
-    opdrachtgeverKVK:      opdrachtgever?.kvk      || '',
+    opdrachtgeverNaam:     'NEELEVAT',
+    opdrachtgeverAdres:    'SEATTLEWEG 13',
+    opdrachtgeverPostcode: '3195 ND',
+    opdrachtgeverPlaats:   'ROTTERDAM',
+    opdrachtgeverTelefoon: '',
+    opdrachtgeverEmail:    'Oceanexports@neelevat.com',
+    opdrachtgeverBTW:      '',
+    opdrachtgeverKVK:      '41',
 
     containernummer,
     containertype:     containertypeDisplay,

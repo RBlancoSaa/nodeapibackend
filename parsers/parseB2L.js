@@ -1,7 +1,7 @@
 // parsers/parseB2L.js
 import '../utils/fsPatch.js';
 import { extractPdfText } from '../utils/ocrPdf.js';
-import { getKlantData, normLand } from '../utils/lookups/terminalLookup.js';
+import { normLand } from '../utils/lookups/terminalLookup.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
 const MONTHS_EN = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
@@ -75,9 +75,9 @@ export default async function parseB2L(buffer) {
   const gewicht = kgMatch ? String(Math.round(parseFloat(kgMatch[1].replace(',', '.')))) : '0';
 
   // === Container nummer ===
-  // Alleen als een VOLLEDIGE regel exact een containernummer is (XXXX0000000).
-  // Embedding in boekingsreferenties zoals "YMTRTM0031219" wordt zo vermeden.
-  const containerNummerPDF = ls.find(l => /^[A-Z]{4}\d{7}$/.test(l.trim()))?.trim() || '';
+  // Alleen als een VOLLEDIGE regel exact een containernummer is (XXX U 0000000).
+  // Vierde letter is altijd U. Embedding in boekingsreferenties wordt zo vermeden.
+  const containerNummerPDF = ls.find(l => /^[A-Z]{3}U\d{7}$/i.test(l.trim()))?.trim().toUpperCase() || '';
 
   // === Datum & Tijd ===
   // Voorkeur 1: DATE/TIME: regel  (bijv. "DATE/TIME:30-APR-2026 AT 08.00H")
@@ -193,8 +193,6 @@ export default async function parseB2L(buffer) {
   const klantPC     = pcMatch?.[1]?.replace(/(\d{4})\s*([A-Z]{2})/, '$1 $2') || '';
   const klantPlaats = pcMatch?.[2]?.trim() || '';
 
-  const klant = await getKlantData('b2l cargocare');
-
   // === Instructies ===
   const instrStart = ls.findIndex(l => /SPECIAL INSTRUCTIONS/i.test(l));
   const instrEind  = ls.findIndex(l => /GENERAL INFORMATION/i.test(l));
@@ -235,14 +233,14 @@ export default async function parseB2L(buffer) {
       klantpostcode: klantPC,
       klantplaats:   klantPlaats,
 
-      opdrachtgeverNaam:     klant?.naam     || 'B2L CARGOCARE',
-      opdrachtgeverAdres:    klant?.adres    || '',
-      opdrachtgeverPostcode: klant?.postcode || '',
-      opdrachtgeverPlaats:   klant?.plaats   || '',
-      opdrachtgeverTelefoon: klant?.telefoon || '',
-      opdrachtgeverEmail:    klant?.email    || '',
-      opdrachtgeverBTW:      klant?.btw      || '',
-      opdrachtgeverKVK:      klant?.kvk      || '57',
+      opdrachtgeverNaam:     'B2L CARGOCARE',
+      opdrachtgeverAdres:    'NIEUWESLUISWEG 240',
+      opdrachtgeverPostcode: '3197 KV',
+      opdrachtgeverPlaats:   'BOTLEK',
+      opdrachtgeverTelefoon: '',
+      opdrachtgeverEmail:    'export@b2l-cargocare.com',
+      opdrachtgeverBTW:      'NL855659324B01',
+      opdrachtgeverKVK:      '57',
 
       containernummer: containerNummerPDF || '',
       containertype,

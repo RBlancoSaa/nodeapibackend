@@ -1,7 +1,7 @@
 // parsers/parseRitra.js
 import '../utils/fsPatch.js';
 import { extractPdfText } from '../utils/ocrPdf.js';
-import { normLand, cleanFloat, getKlantData } from '../utils/lookups/terminalLookup.js';
+import { normLand } from '../utils/lookups/terminalLookup.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 
 function parseDatum(str) {
@@ -35,11 +35,14 @@ export default async function parseRitra(buffer) {
   const datumTijd = datumTijdIdx >= 0 ? parseDatum(ls[datumTijdIdx + 1] || '') : '';
   const etaLine    = ls.find(l => /^\d{2}\/\d{2}\/\d{2}$/.test(l));
   const docDatLine = ls.find(l => /:\d{2}\/\d{2}\/\d{4}/.test(l));
-  const datum = leverdatum || datumTijd || parseDatum(etaLine) || parseDatum((docDatLine || '').replace(':', ''));
+  // leverdatumNaAfhaal wordt later ingevuld (na afhaaladres-sectie); gebruik als primaire bron
+  // Fallback: leverdatum (eerste hit in doc), datumTijd, etaLine, docDatLine
+  const datumFallback = leverdatum || datumTijd || parseDatum(etaLine) || parseDatum((docDatLine || '').replace(':', ''));
 
   // === Container ===
-  const cntrLine       = ls.find(l => /[A-Z]{4}\d{7}/.test(l));
-  const containernummer = cntrLine?.match(/([A-Z]{4}\d{7})/)?.[1] || '';
+  // Containernummer: altijd 3 letters + U + 7 cijfers (bijv. FBLU1234567)
+  const cntrLine        = ls.find(l => /[A-Z]{3}U\d{7}/i.test(l));
+  const containernummer = cntrLine?.match(/([A-Z]{3}U\d{7})/i)?.[1]?.toUpperCase() || '';
   const isHC           = /\bHC\b/.test(cntrLine || '');
   const typeLine       = ls.find(l => /\bft\d{2}\b/i.test(l));
   const sizeNum        = typeLine?.match(/ft(\d{2})|(\d{2})ft/i);
@@ -98,9 +101,11 @@ export default async function parseRitra(buffer) {
   const afleverIdx = ls.findIndex(l => /^Afleveradres$/i.test(l));
 
   // Opzetten: terminal/depot vóór afhaaladres
+  // Breed zoekpatroon: terminalnamen hoeven geen "terminal" in de naam te hebben
+  const TERMINAL_RE = /terminal|depot|matrans|kramer|kramer\s*group|rst\b|ect\b|rwg\b|euromax|apm\b|uwt\b|uwc\b|medrepair|cetem/i;
   let opzettenNaam = '', opzettenAdres = '', opzettenPCRaw = '';
   for (let i = Math.max(0, afhaalIdx - 12); i < afhaalIdx; i++) {
-    if (/terminal|depot|matrans/i.test(ls[i]) && ls[i].length > 4) {
+    if (TERMINAL_RE.test(ls[i]) && ls[i].length > 3) {
       opzettenNaam  = ls[i];
       opzettenAdres = ls[i + 1] || '';
       opzettenPCRaw = ls[i + 2] || '';
@@ -120,12 +125,30 @@ export default async function parseRitra(buffer) {
     [klantNaam, klantAdres, klantPC, klantLand, klantPlaats] = klantLines;
   }
 
-  // Afzetten: ECT / terminal na afleveradres
-  let afzettenNaam = '';
+  // Leverdatum: specifiek in/na de afhaaladres-sectie zoeken (voorkomt match op depot-datum)
+  let leverdatumNaAfhaal = '';
+  if (afhaalIdx >= 0) {
+    const ldIdx = ls.findIndex((l, i) => i > afhaalIdx && /^Leverdatum$/i.test(l));
+    if (ldIdx >= 0) leverdatumNaAfhaal = parseDatum(ls[ldIdx + 1] || '');
+  }
+
+  // Afzetten: terminal/depot na afleveradres — breed zoekpatroon (incl. Kramer, RCT, enz.)
+  let afzettenNaam = '', afzettenAdres = '', afzettenRef = '';
   if (afleverIdx >= 0) {
-    for (let i = afleverIdx + 1; i < Math.min(afleverIdx + 20, ls.length); i++) {
-      if (/ECT|Euromax|terminal|RWG|APM/i.test(ls[i]) && ls[i].length > 5) {
-        afzettenNaam = ls[i].replace(/,\s*$/, '').trim();
+    for (let i = afleverIdx + 1; i < Math.min(afleverIdx + 25, ls.length); i++) {
+      if (TERMINAL_RE.test(ls[i]) && ls[i].length > 3) {
+        afzettenNaam  = ls[i].replace(/,\s*$/, '').trim();
+        afzettenAdres = ls[i + 1] || '';
+        // Referentie: kijk of een van de volgende 4 regels een ref-patroon heeft
+        for (let j = i + 1; j < Math.min(i + 6, ls.length); j++) {
+          const refM = ls[j].match(/(?:referentie|ref\.?|reference)[:\s]+(.+)/i)
+                    || ls[j].match(/^([A-Z][A-Z0-9 ]{2,}(?:\/|\\)[A-Z0-9 \/\\]+)$/i);
+          if (refM) { afzettenRef = refM[1].trim(); break; }
+          // Standalone bekende ref-waarden (bijv. "ONE STOCK", "Bestand")
+          if (/^[A-Z]{2,}(?:\s+[A-Z0-9]+)+$/i.test(ls[j]) && ls[j].length < 40) {
+            afzettenRef = ls[j].trim(); break;
+          }
+        }
         break;
       }
     }
@@ -138,7 +161,7 @@ export default async function parseRitra(buffer) {
   const locaties = [
     { volgorde: '0', actie: 'Opzetten', naam: opzettenNaam, adres: opzettenAdres, postcode: pcData.postcode, plaats: pcData.plaats, land: 'NL' },
     { volgorde: '0', actie: 'Laden',    naam: klantNaam, adres: klantAdres, postcode: klantPC, plaats: klantPlaats, land: normLand(klantLand || 'NL') },
-    { volgorde: '0', actie: 'Afzetten', naam: afzettenNaam, adres: '', postcode: '', plaats: '', land: 'NL' }
+    { volgorde: '0', actie: 'Afzetten', naam: afzettenNaam, adres: afzettenAdres, postcode: '', plaats: '', land: 'NL' }
   ];
 
   return [await enrichOrder({
@@ -160,11 +183,11 @@ export default async function parseRitra(buffer) {
     containernummer,
     containertype,
 
-    datum,
+    datum:             leverdatumNaAfhaal || datumFallback,
     tijd: '',
     referentie:        releasenr || notaRef,
     laadreferentie:    notaRef   || '',
-    inleverreferentie: '',
+    inleverreferentie: afzettenRef || '',
     inleverBestemming: '',
 
     rederijRaw:     rederijCode,

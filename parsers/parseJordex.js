@@ -518,13 +518,6 @@ if (data.imo !== '0' || data.unnr !== '0') {
   delete data.brix;
 }
 
-if ((!data.ritnummer || data.ritnummer === '0') && parsed.info?.Title?.includes('OE')) {
-  const match = parsed.info.Title.match(/(O[EI]\d{7})/i);
-  if (match) {
-    data.ritnummer = match[1];
-  }
-}
-
   if (!data.referentie || data.referentie === '0') {
     console.warn('⚠️ Referentie (terminal) ontbreekt – wordt leeg gelaten in XML');
   }

@@ -75,13 +75,24 @@ async function getTerminalLijst() {
  * @param {string} [zoekAdres] - Adres uit PDF ter verificatie (optioneel maar zwaarst)
  */
 function berekenScore(zoek, terminal, zoekAdres = '') {
-  if (!zoek) return 0;
+  // Adres-bonus — werkt ook als zoek leeg is (adres-only lookup)
+  const straatZ = straatNaam(zoekAdres || zoek);
+  const straatT = straatNaam(terminal.adres || '');
+  let adresBonus = 0;
+  if (straatZ && straatT) {
+    if (straatZ === straatT)                                           adresBonus = 50;
+    else if (straatT.includes(straatZ) || straatZ.includes(straatT))  adresBonus = 25;
+  }
+
+  // Adres-only lookup: geen naam → score alleen op adres
+  if (!zoek) return adresBonus;
+
   const nZoek = normStr(zoek);
   const nNaam = normStr(terminal.naam || '');
   let score = 0;
 
   // Exacte naam
-  if (nNaam && nNaam === nZoek) return 100;
+  if (nNaam && nNaam === nZoek) return 100 + adresBonus;
 
   // Naam bevat zoekterm of omgekeerd
   // Korte entry-naam (< 50% van zoekterm) = zwakke match (bijv. "STEINWEG" bij zoek "C. STEINWEG BOTLEK TERMINAL BV")
@@ -114,16 +125,8 @@ function berekenScore(zoek, terminal, zoekAdres = '') {
     }
   }
 
-  // ★ Adres-bonus via zoekAdres (extern meegegeven adres uit PDF)
-  // Dit is het meest betrouwbare kenmerk — altijd doorslaggevend als beide namen scoren
-  const straatZ = straatNaam(zoekAdres || zoek);   // bij voorkeur het echte adres
-  const straatT = straatNaam(terminal.adres || '');
-  if (straatZ && straatT) {
-    if (straatZ === straatT)                                           score += 50;
-    else if (straatT.includes(straatZ) || straatZ.includes(straatT))  score += 25;
-  }
-
-  return score;
+  // ★ Adres-bonus — doorslaggevend bij gelijke naam-scores
+  return score + adresBonus;
 }
 
 // ─── Exacte lookup (naam of referentie) ───────────────────────────────────────
@@ -148,16 +151,20 @@ export async function getTerminalInfo(referentie) {
 
 export async function getTerminalInfoFallback(zoekwaarde, zoekAdres = '') {
   try {
-    if (!zoekwaarde || typeof zoekwaarde !== 'string') return '0';
+    if (!zoekwaarde && !zoekAdres) return '0';
     const lijst = await getTerminalLijst();
 
+    // Met adres: lagere drempel — adres is doorslaggevend (EAN-codes/portbase nodig)
+    // Zonder adres: hogere drempel — naam moet goed matchen om valse hits te vermijden
+    const drempel = zoekAdres ? 55 : 90;
+
     const beste = lijst
-      .map(item => ({ item, score: berekenScore(zoekwaarde, item, zoekAdres) }))
-      .filter(s => s.score >= 110)   // drempel verhoogd: 65→110 voorkomt slechte fuzzy-matches
+      .map(item => ({ item, score: berekenScore(zoekwaarde || '', item, zoekAdres) }))
+      .filter(s => s.score >= drempel)
       .sort((a, b) => b.score - a.score)[0];
 
     if (beste) {
-      console.log(`🔍 getTerminalInfoFallback("${zoekwaarde}"${zoekAdres ? ` @ ${zoekAdres.slice(0,30)}` : ''}) → ${beste.item.naam} (score ${beste.score})`);
+      console.log(`🔍 getTerminalInfoFallback("${zoekwaarde || ''}"${zoekAdres ? ` @ ${zoekAdres.slice(0,30)}` : ''}) → ${beste.item.naam} (score ${beste.score})`);
       return beste.item;
     }
     return '0';
@@ -179,17 +186,20 @@ export async function getTerminalInfoFallback(zoekwaarde, zoekAdres = '') {
 export async function getTerminalInfoMetFallback(key, zoekAdres = '') {
   try {
     const zoek = (key || '').trim();
-    if (!zoek) return null;
+    if (!zoek && !zoekAdres) return null;
 
-    // 1. Exacte naam/referentie-match
-    const exact = await getTerminalInfo(zoek);
-    if (exact && exact !== '0') return exact;
+    // 1. Exacte naam/referentie-match (alleen als naam beschikbaar)
+    if (zoek) {
+      const exact = await getTerminalInfo(zoek);
+      if (exact && exact !== '0') return exact;
+    }
 
     // 2. Fuzzy naam+adres match — adres meegeven zodat het als tiebreaker werkt
+    // Als naam leeg is maar adres bekend, zoek dan puur op adres
     const fuzzy = await getTerminalInfoFallback(zoek, zoekAdres);
     if (fuzzy && fuzzy !== '0') return fuzzy;
 
-    console.log(`⚠️ Terminal niet gevonden in lijst: "${zoek}"`);
+    console.log(`⚠️ Terminal niet gevonden in lijst: "${zoek}"${zoekAdres ? ` @ ${zoekAdres}` : ''}`);
     return null;
   } catch (e) {
     console.error('❌ getTerminalInfoMetFallback error:', e);
