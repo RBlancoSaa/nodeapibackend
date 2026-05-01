@@ -460,7 +460,7 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     opdrachtgeverAdres:    klant?.adres    || '',
     opdrachtgeverPostcode: klant?.postcode || '',
     opdrachtgeverPlaats:   klant?.plaats   || '',
-    opdrachtgeverTelefoon: klant?.telefoon || '+31 10 269 1514',
+    opdrachtgeverTelefoon: klant?.telefoon || '',
     opdrachtgeverEmail:    klant?.email    || '',
     opdrachtgeverBTW:      klant?.btw      || '',
     opdrachtgeverKVK:      klant?.kvk      || '',
