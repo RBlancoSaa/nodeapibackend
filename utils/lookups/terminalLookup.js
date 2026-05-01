@@ -209,6 +209,20 @@ export async function getTerminalInfoMetFallback(key, zoekAdres = '') {
 
 // ─── Rederijen ────────────────────────────────────────────────────────────────
 
+// Herstelt veelvoorkomende mojibake (Latin-1 bytes die als UTF-8 zijn opgeslagen)
+// Ã© → é, Ã¨ → è, Ã« → ë, enz.
+export function repairEncoding(str) {
+  if (!str || typeof str !== 'string') return str;
+  // Detecteer mojibake-patroon: Ã gevolgd door een teken met code < 0xA0 in Latin-1
+  if (!/Ã/.test(str)) return str;
+  try {
+    const repaired = Buffer.from(str, 'latin1').toString('utf8');
+    // Accepteer de reparatie alleen als er geen nieuwe verdachte patronen zijn
+    if (!repaired.includes('�')) return repaired;
+  } catch (e) { /* ignore */ }
+  return str;
+}
+
 export async function getRederijNaam(input) {
   try {
     if (!input || typeof input !== 'string') return '';
@@ -217,19 +231,28 @@ export async function getRederijNaam(input) {
     const res  = await fetch(`${SUPABASE_LIST_URL}/rederijen.json`);
     const lijst = await res.json();
 
-    let besteMatch = null, hoogsteScore = 0;
+    let besteMatch = null, besteCode = null, hoogsteScore = 0;
     for (const item of lijst) {
       for (const optie of [item.naam, item.code, ...(item.altLabels || [])]) {
         if (!optie) continue;
         const optieNorm = optie.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (optieNorm === norm) return item.naam;  // exacte match
+        if (optieNorm === norm) {
+          // Exacte match — geef voorkeur aan item.code (korte handelsnaam) boven juridische naam
+          const displayNaam = item.code || item.naam;
+          console.log(`✅ Rederij exact match "${input}" → "${displayNaam}"`);
+          return displayNaam;
+        }
         const score = norm.includes(optieNorm) || optieNorm.includes(norm) ? optieNorm.length : 0;
-        if (score > hoogsteScore) { besteMatch = item.naam; hoogsteScore = score; }
+        if (score > hoogsteScore) {
+          hoogsteScore = score;
+          besteMatch = item.naam;
+          besteCode  = item.code || item.naam;
+        }
       }
     }
-    if (besteMatch && hoogsteScore >= 3) {
-      console.warn(`⚠️ Fuzzy match rederij "${input}" ➜ "${besteMatch}"`);
-      return besteMatch;
+    if (besteCode && hoogsteScore >= 3) {
+      console.warn(`⚠️ Fuzzy match rederij "${input}" ➜ "${besteCode}"`);
+      return besteCode;
     }
     console.warn(`❌ Geen rederij gevonden voor "${input}"`);
     return '';  // NOOIT raw doorgeven — leeg = veld weglaten
@@ -328,10 +351,10 @@ export async function voegAdresboekEntryToe({ naam, adres, postcode = '', plaats
     }
 
     const nieuw = {
-      naam:     naam.trim(),
-      adres:    adres.trim(),
+      naam:     repairEncoding(naam.trim()),
+      adres:    repairEncoding(adres.trim()),
       postcode: (postcode || '').trim(),
-      plaats:   (plaats   || '').trim(),
+      plaats:   repairEncoding((plaats || '').trim()),
       land:     (land     || 'NL').trim(),
       telefoon: '',
       mobiel:   '',
@@ -445,8 +468,16 @@ export async function getAdresboekEntry(zoekNaam, type = null, zoekAdres = '') {
       console.log(`⚠️ Adresboek: geen match voor "${zoekNaam}"${zoekAdres ? ` @ ${zoekAdres}` : ''}${type ? ` [${type}]` : ''}`);
       return null;
     }
-    console.log(`📒 Adresboek: "${zoekNaam}" → ${besteEntry.naam} [${besteEntry.type}] (score ${besteScore}) adres="${besteEntry.adres}"`);
-    return besteEntry;
+    // Herstel mojibake in opgeslagen adresgegevens (bijv. "Ã©" → "é")
+    const fixed = {
+      ...besteEntry,
+      naam:     repairEncoding(besteEntry.naam     || ''),
+      adres:    repairEncoding(besteEntry.adres    || ''),
+      postcode: besteEntry.postcode || '',
+      plaats:   repairEncoding(besteEntry.plaats   || ''),
+    };
+    console.log(`📒 Adresboek: "${zoekNaam}" → ${fixed.naam} [${besteEntry.type}] (score ${besteScore}) adres="${fixed.adres}"`);
+    return fixed;
   } catch (e) {
     console.error('❌ getAdresboekEntry error:', e);
     return null;

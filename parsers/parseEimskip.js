@@ -92,12 +92,15 @@ function extractSectie(pls, headerIdx, volgendeHeaderIdx = -1) {
   const land = normLand(landRaw);
 
   // Referentie: zoek in resterende regels van deze sectie
-  // "Referentie: 39407780" OF "Reference: ..." OF standalone 7-8-cijferig getal
+  // "Referentie: 39407780" OF standalone 7-8-cijferig getal
+  // "PORTBASE" is GEEN referentie — dat is een terminalsysteemnaam (verschijnt als ": PORTBASE")
   let referentie = '';
   for (let j = i; j < eindIdx; j++) {
     const l = pls[j] || '';
-    const refLabel = l.match(/(?:referentie|reference|ref\.?)[:\s]+([A-Z0-9\/\-]+)/i);
-    if (refLabel) { referentie = refLabel[1].trim(); break; }
+    // Sla portbase-regels over (beginnen met ":" of bevatten alleen "PORTBASE")
+    if (/^\s*:/.test(l) || /^portbase$/i.test(l.trim())) continue;
+    const refLabel = l.match(/(?:referentie|reference|ref\.?)[:\s]+(\d[A-Z0-9\/\-]*)/i);
+    if (refLabel && !/portbase/i.test(refLabel[1])) { referentie = refLabel[1].trim(); break; }
     if (/^\d{7,}$/.test(l.trim())) { referentie = l.trim(); break; }
   }
 
@@ -211,7 +214,7 @@ Verplichte structuur:
     "postcode":   "postcode",
     "plaats":     "plaatsnaam",
     "land":       "2-letter landcode: NL, BE, DE, GB, FR",
-    "referentie": "PIN-code of ophaalreferentie bij deze terminal, bijv. '39407780' — leeg als niet aanwezig"
+    "referentie": "PIN-code of ophaalreferentie bij deze terminal — ALLEEN een getal (bijv. '39407780'). NOOIT 'PORTBASE', 'PORTBASE_CODE' of een systeemnaam. Leeg als er geen numerieke referentie staat."
   },
   "sec2": {
     "naam":       "ALLEEN de naam van het bedrijf / klant op het afleveradres, ZONDER datum of tijd",
@@ -231,7 +234,7 @@ Verplichte structuur:
     "postcode":   "postcode of leeg",
     "plaats":     "plaatsnaam of leeg",
     "land":       "2-letter landcode: NL, BE, DE",
-    "referentie": "afzetterminaalreferentie / inleverreferentie — leeg als niet aanwezig"
+    "referentie": "afzetterminaalreferentie — ALLEEN een getal. NOOIT 'PORTBASE' of systeemnamen. Leeg als er geen numerieke referentie staat."
   }
 }
 
