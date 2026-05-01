@@ -162,7 +162,7 @@ export default async function parseNeelevat(buffer) {
     opdrachtgeverTelefoon: '',
     opdrachtgeverEmail:    'Oceanexports@neelevat.com',
     opdrachtgeverBTW:      '',
-    opdrachtgeverKVK:      '41',
+    opdrachtgeverKVK:      '24180616',
 
     containernummer,
     containertype:     containertypeDisplay,

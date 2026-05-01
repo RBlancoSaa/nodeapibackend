@@ -459,7 +459,7 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
     opdrachtgeverTelefoon: '+31 10 269 1514',
     opdrachtgeverEmail:    'rtminbound <rtminbound@eimskip.com>',
     opdrachtgeverBTW:      '',
-    opdrachtgeverKVK:      '58',
+    opdrachtgeverKVK:      '24097333',
 
     containernummer,
     containertype:    containertypeOms,

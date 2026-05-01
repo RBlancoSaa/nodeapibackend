@@ -240,7 +240,7 @@ export default async function parseB2L(buffer) {
       opdrachtgeverTelefoon: '',
       opdrachtgeverEmail:    'export@b2l-cargocare.com',
       opdrachtgeverBTW:      'NL855659324B01',
-      opdrachtgeverKVK:      '57',
+      opdrachtgeverKVK:      '64421406',
 
       containernummer: containerNummerPDF || '',
       containertype,
