@@ -7,7 +7,9 @@ import parseSteder from '../parsers/parseSteder.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter } from '../utils/gmailTransport.js';
 
-export default async function handleSteder({ buffer, base64, filename, mailSubject }) {
+import { mergeRelease } from '../utils/mergeRelease.js';
+
+export default async function handleSteder({ buffer, base64, filename, mailSubject, getReleaseData = null }) {
   console.log(`📦 Verwerken van Steder-bestand: ${filename}`);
 
   const containers = await parseSteder(buffer);
@@ -15,6 +17,10 @@ export default async function handleSteder({ buffer, base64, filename, mailSubje
   if (!containers || containers.length === 0) {
     console.warn('⚠️ Geen Steder containers geparsed');
     return [];
+  }
+
+  if (getReleaseData) {
+    for (const c of containers) mergeRelease(c, getReleaseData(c.containernummer));
   }
 
   const { transporter, from } = await getGmailTransporter();

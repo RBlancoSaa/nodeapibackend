@@ -7,8 +7,9 @@ import parseDFDS from '../parsers/parseDFDS.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
+import { mergeRelease } from '../utils/mergeRelease.js';
 
-export default async function handleDFDS({ buffer, base64, filename, fromEmail = '' }) {
+export default async function handleDFDS({ buffer, base64, filename, fromEmail = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van DFDS-bestand: ${filename}`);
 
   const result = await parseDFDS(buffer);
@@ -17,6 +18,10 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
   if (containers.length === 0) {
     console.warn('⚠️ Geen DFDS containers geparsed');
     return [];
+  }
+
+  if (getReleaseData) {
+    for (const c of containers) mergeRelease(c, getReleaseData(c.containernummer));
   }
 
   const { transporter, from } = await getGmailTransporter();

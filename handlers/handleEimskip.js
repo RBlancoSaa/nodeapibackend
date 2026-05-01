@@ -7,13 +7,15 @@ import parseEimskip from '../parsers/parseEimskip.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
+import { mergeRelease } from '../utils/mergeRelease.js';
 
 export default async function handleEimskip({
   bodyText,
   mailSubject,
   mailFrom,
   fromEmail = '',
-  pdfAttachments = []
+  pdfAttachments = [],
+  getReleaseData = null
 }) {
   console.log(`📦 Eimskip verwerken: ${mailSubject}`);
   console.log(`📎 PDF-bijlagen: ${pdfAttachments.map(a => a.filename).join(', ') || 'geen'}`);
@@ -23,6 +25,10 @@ export default async function handleEimskip({
   if (!containers || containers.length === 0) {
     console.warn('⚠️ Geen Eimskip containers geparsed');
     return [];
+  }
+
+  if (getReleaseData) {
+    for (const c of containers) mergeRelease(c, getReleaseData(c.containernummer));
   }
 
   const { transporter, from } = await getGmailTransporter();

@@ -7,8 +7,9 @@ import parseJordex from '../parsers/parseJordex.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
+import { mergeRelease } from '../utils/mergeRelease.js';
 
-export default async function handleJordex({ buffer, base64, filename, fromEmail = '' }) {
+export default async function handleJordex({ buffer, base64, filename, fromEmail = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Jordex-bestand: ${filename}`);
 
   const containers = await parseJordex(buffer);
@@ -16,6 +17,10 @@ export default async function handleJordex({ buffer, base64, filename, fromEmail
   if (!containers || containers.length === 0) {
     console.warn('⚠️ Geen Jordex containers geparsed');
     return;
+  }
+
+  if (getReleaseData) {
+    for (const c of containers) mergeRelease(c, getReleaseData(c.containernummer));
   }
 
   const { transporter, from } = await getGmailTransporter();

@@ -7,8 +7,9 @@ import parseRitra from '../parsers/parseRitra.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, hasGmail } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
+import { mergeRelease } from '../utils/mergeRelease.js';
 
-export default async function handleRitra({ buffer, base64, filename, fromEmail = '' }) {
+export default async function handleRitra({ buffer, base64, filename, fromEmail = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Ritra-bestand: ${filename}`);
 
   const containers = await parseRitra(buffer);
@@ -16,6 +17,10 @@ export default async function handleRitra({ buffer, base64, filename, fromEmail 
   if (!containers || containers.length === 0) {
     console.warn('⚠️ Geen Ritra containers geparsed');
     return;
+  }
+
+  if (getReleaseData) {
+    for (const c of containers) mergeRelease(c, getReleaseData(c.containernummer));
   }
 
   const { transporter, from } = await getGmailTransporter();

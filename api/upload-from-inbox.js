@@ -3,6 +3,8 @@ import '../utils/fsPatch.js';
 import { randomUUID } from 'crypto';
 import { fetchUnreadMails, markAsRead } from '../services/gmailApiService.js';
 import { supabase } from '../services/supabaseClient.js';
+import { isReleasePdf, parseRelease } from '../parsers/parseRelease.js';
+import pdfParse from 'pdf-parse';
 
 import handleJordex from '../handlers/handleJordex.js';
 import handleDFDS from '../handlers/handleDFDS.js';
@@ -219,6 +221,38 @@ export default async function handler(req, res) {
 
         // ── PDF-loop (alleen als handler GEEN preferBody heeft) ──────────────
         if (!useBodyHandler) {
+
+          // ── Pass 1: detecteer release-PDFs (bijlagen zonder handler) ───────
+          // Sla releaseData op per containernummer (of '_any' als onbekend).
+          const releaseDataMap = {};
+          for (const att of pdfAtts) {
+            if (findHandler(att.filename, mail.from, mail.subject)) continue; // heeft handler → skip
+            if (!att.buffer) continue;
+            try {
+              const { text } = await pdfParse(att.buffer);
+              if (isReleasePdf(text)) {
+                const rd = await parseRelease(att.buffer);
+                const key = rd.containernummer || '_any';
+                releaseDataMap[key] = rd;
+                console.log(`📋 Release PDF herkend: "${att.filename}" → container="${rd.containernummer}" ref="${rd.referentie}" afzetRef="${rd.inleverreferentie}"`);
+              } else {
+                console.log(`⏭️ Geen handler en geen release: ${att.filename}`);
+                addLog(mail, 'transport', null, [], 'overgeslagen');
+              }
+            } catch (err) {
+              console.warn(`⚠️ Release-check mislukt voor ${att.filename}:`, err.message);
+            }
+          }
+
+          // Helperfunctie: zoek releaseData op basis van containernummer
+          function getReleaseData(containernummer) {
+            if (containernummer && releaseDataMap[containernummer.toUpperCase()]) {
+              return releaseDataMap[containernummer.toUpperCase()];
+            }
+            return releaseDataMap['_any'] || null;
+          }
+
+          // ── Pass 2: verwerk transportopdrachten ─────────────────────────────
           for (const att of pdfAtts) {
             const match = findHandler(att.filename, mail.from, mail.subject);
             if (match) {
@@ -230,7 +264,8 @@ export default async function handler(req, res) {
                   base64:      att.base64,
                   filename:    att.filename,
                   mailSubject: mail.subject,
-                  mailFrom:    mail.from
+                  mailFrom:    mail.from,
+                  getReleaseData  // ← doorgeven zodat handler release kan ophalen na parsen
                 });
                 addLog(mail, 'transport', klant, bestanden ?? [], bestanden?.length ? 'verwerkt' : 'overgeslagen');
                 if (bestanden?.length) verwerkteContainers++;
@@ -238,10 +273,8 @@ export default async function handler(req, res) {
                 console.error(`❌ Handler ${klant} fout:`, err.message);
                 addLog(mail, 'transport', klant, [], 'fout', err.message);
               }
-            } else {
-              console.log(`⏭️ Geen handler voor: ${att.filename}`);
-              addLog(mail, 'transport', null, [], 'overgeslagen');
             }
+            // Niet-gematchte PDFs zijn al afgehandeld in pass 1
           }
         }
 

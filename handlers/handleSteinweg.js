@@ -38,12 +38,17 @@ async function uploadToQueue(filename, content) {
   if (error) throw new Error(`Queue upload mislukt voor ${filename}: ${error.message}`);
 }
 
-export default async function handleSteinweg({ route1Buffer, route2Buffer, route1Filename, route2Filename, emailBody, emailSubject, emailSource, fromEmail = '' }) {
+export default async function handleSteinweg({ route1Buffer, route2Buffer, route1Filename, route2Filename, emailBody, emailSubject, emailSource, fromEmail = '', getReleaseData = null }) {
   const containers = await parseSteinweg({ route1Buffer, route2Buffer, emailBody, emailSubject });
 
   if (!containers || containers.length === 0) {
     console.warn('⚠️ Geen Steinweg containers geparsed');
     return;
+  }
+
+  if (getReleaseData) {
+    const { mergeRelease } = await import('../utils/mergeRelease.js');
+    for (const c of containers) mergeRelease(c, getReleaseData(c.containernummer));
   }
 
   const useGmail = hasGmail();

@@ -7,8 +7,9 @@ import parseNeelevat from '../parsers/parseNeelevat.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
+import { mergeRelease } from '../utils/mergeRelease.js';
 
-export default async function handleNeelevat({ buffer, base64, filename, mailSubject, fromEmail = '' }) {
+export default async function handleNeelevat({ buffer, base64, filename, mailSubject, fromEmail = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Neelevat-bestand: ${filename}`);
 
   const containers = await parseNeelevat(buffer);
@@ -16,6 +17,10 @@ export default async function handleNeelevat({ buffer, base64, filename, mailSub
   if (!containers || containers.length === 0) {
     console.warn('⚠️ Geen Neelevat containers geparsed');
     return [];
+  }
+
+  if (getReleaseData) {
+    for (const c of containers) mergeRelease(c, getReleaseData(c.containernummer));
   }
 
   const { transporter, from } = await getGmailTransporter();
