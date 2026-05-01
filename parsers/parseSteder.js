@@ -207,12 +207,12 @@ export default async function parseSteder(buffer) {
 
     opdrachtgeverNaam:     'STEDER GROUP B.V.',
     opdrachtgeverAdres:    '',
-    opdrachtgeverPostcode: '',
+    opdrachtgeverPostcode: '3195 ND',
     opdrachtgeverPlaats:   'Rotterdam',
-    opdrachtgeverTelefoon: '',
-    opdrachtgeverEmail:    '',
-    opdrachtgeverBTW:      '',
-    opdrachtgeverKVK:      '99',
+    opdrachtgeverTelefoon: '0889964900',
+    opdrachtgeverEmail:    'FORWARDING@STEDERGROUP.COM',
+    opdrachtgeverBTW:      'nl866095160b01',
+    opdrachtgeverKVK:      '92546625',
 
     containernummer,
     containertype:     containertypeDisplay,
