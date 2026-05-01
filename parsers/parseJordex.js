@@ -349,10 +349,12 @@ export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
 const data = {
     ritnummer: logResult('ritnummer', ritnummerMatch?.[1] || '0'),
     referentie: logResult('referentie', (() => {
-    const blok = text.match(/Pick[-\s]?up terminal[\s\S]+?(?=Pick[-\s]?up|Drop[-\s]?off|Extra Information)/i)?.[0] || '';
-    const match = blok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
-    return match?.[1]?.trim() || laadreferentie || '0';
-      })()),
+      // Referentie = terminal-referentie uit de "Pick-up terminal" sectie
+      // NIET de klant-referentie (laadreferentie) — die hoort bij Laden/Lossen
+      const blok = text.match(/Pick[-\s]?up terminal[\s\S]+?(?=Pick[-\s]?up|Drop[-\s]?off|Extra Information)/i)?.[0] || '';
+      const match = blok.match(/Reference(?:\(s\))?[:\t ]+([A-Z0-9\-]+)/i);
+      return match?.[1]?.trim() || '0';
+    })()),
     colli: logResult('colli', colli),
     volume: logResult('volume', volume),
     cbm: logResult('cbm', volume),
@@ -445,8 +447,9 @@ const data = {
 // Terminalnamen uit eerste regel na de sectiekop (geen "Address:" prefix in terminalsecties)
 const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
 const doIndex = regels.findIndex(line => /^Drop[-\s]?off terminal$/i.test(line));
-const puKey = (regels[puIndex + 1] || '').replace(/^Address:\s*/i, '').trim();
-const doKey = (regels[doIndex + 1] || '').replace(/^Address:\s*/i, '').trim();
+// Guard: als sectie niet gevonden (index -1) → lege string, NIET regels[0]
+const puKey = puIndex >= 0 ? (regels[puIndex + 1] || '').replace(/^Address:\s*/i, '').trim() : '';
+const doKey = doIndex >= 0 ? (regels[doIndex + 1] || '').replace(/^Address:\s*/i, '').trim() : '';
   console.log('🔑 puKey terminal lookup:', puKey);
   console.log('🔑 doKey terminal lookup:', doKey);
 
