@@ -200,6 +200,32 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
 
       const tarief     = parseFloat(order.tarief) || 0;
 
+      // Terminal toeslagen — detecteer op basis van de (al opgezochte) terminalnamen
+      // Eén Opzetten/Afzetten bij ECT Delta → delta toeslag
+      // Beide bij ECT Delta (bijv. Eimskip: opzet + afzet zelfde terminal) → 2× delta
+      const terminalNamen = (order.locaties || [])
+        .filter(l => TERMINAL_ACTIES.has((l.actie || '').toLowerCase()) && (l.naam || ''))
+        .map(l => (l.naam || '').toLowerCase());
+
+      const deltaCount   = terminalNamen.filter(n => /\bect\b.*\bdelta\b|\bdelta\b.*\bect\b/i.test(n) || /ect\s*delta/i.test(n)).length;
+      const euromaxCount = terminalNamen.filter(n => /euromax/i.test(n)).length;
+      const rwgCount     = terminalNamen.filter(n => /\brwg\b/i.test(n)).length;
+      const botlekCount  = terminalNamen.filter(n => /botlek/i.test(n) && !/ect|delta|euromax|rwg/i.test(n)).length;
+
+      const eenheidDelta   = afspraken ? afspraken.toeslag('delta')   : 0;
+      const eenheidEuromax = afspraken ? afspraken.toeslag('euromax') : 0;
+      const eenheidRwg     = afspraken ? afspraken.toeslag('rwg')     : 0;
+      const eenheidBotlek  = afspraken ? afspraken.toeslag('botlek')  : 0;
+
+      order.deltaChart   = deltaCount   > 0 ? eenheidDelta   * deltaCount   : 0;
+      order.euromaxChart = euromaxCount > 0 ? eenheidEuromax * euromaxCount : 0;
+      order.rwgChart     = rwgCount     > 0 ? eenheidRwg     * rwgCount     : 0;
+      order.botlekChart  = botlekCount  > 0 ? eenheidBotlek  * botlekCount  : 0;
+
+      if (deltaCount > 0)   console.log(`${tag} ECT Delta toeslag: ${deltaCount}× €${eenheidDelta} = €${order.deltaChart}`);
+      if (euromaxCount > 0) console.log(`${tag} Euromax toeslag: ${euromaxCount}× €${eenheidEuromax} = €${order.euromaxChart}`);
+      if (rwgCount > 0)     console.log(`${tag} RWG toeslag: ${rwgCount}× €${eenheidRwg} = €${order.rwgChart}`);
+
       // ADR
       const heeftAdr   = order.adr === 'Waar';
       order.adrToeslagChart = heeftAdr && afspraken ? afspraken.toeslag('adr')         : 0;
@@ -223,9 +249,6 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
         ? afspraken.toeslag('extra_stop') * extraStops
         : 0;
 
-      // Botlek (als nog niet gezet door de tariefberekening)
-      if (order.botlekChart === undefined) order.botlekChart = 0;
-
     } catch (e) {
       console.warn(`⚠️ ${tag} Toeslagen berekening mislukt:`, e.message);
       order.adrToeslagChart = order.adrToeslagChart ?? 0;
@@ -233,6 +256,9 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
       order.genChart        = order.genChart        ?? 0;
       order.gasMetenChart   = order.gasMetenChart   ?? 0;
       order.extraStopChart  = order.extraStopChart  ?? 0;
+      order.deltaChart      = order.deltaChart      ?? 0;
+      order.euromaxChart    = order.euromaxChart    ?? 0;
+      order.rwgChart        = order.rwgChart        ?? 0;
       order.botlekChart     = order.botlekChart     ?? 0;
     }
   }

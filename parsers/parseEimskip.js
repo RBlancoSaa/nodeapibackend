@@ -59,16 +59,20 @@ function parsePostcodeStad(pcStad) {
  *   : PORTBASE     (optioneel — overslaan)
  *   postcode+stad
  *   land
+ *   referentie-regel (optioneel — bijv. "Referentie: 39407780" of standalone "39407780")
  */
-function extractSectie(pls, headerIdx) {
+function extractSectie(pls, headerIdx, volgendeHeaderIdx = -1) {
   if (headerIdx < 0) return null;
   let i = headerIdx + 1;
   if (i >= pls.length) return null;
 
+  // Einde van de sectie: begin van de volgende sectieheader (of einde document)
+  const eindIdx = volgendeHeaderIdx > headerIdx ? volgendeHeaderIdx : pls.length;
+
   const naam = (pls[i++] || '').trim();
 
   // Skip ":"
-  while (i < pls.length && /^\s*:\s*$/.test(pls[i])) i++;
+  while (i < eindIdx && /^\s*:\s*$/.test(pls[i])) i++;
 
   const datumTijdLijn = (pls[i++] || '').trim();
   const datumM  = datumTijdLijn.match(/(\d{2}-\d{2}-\d{4})/);
@@ -78,8 +82,8 @@ function extractSectie(pls, headerIdx) {
 
   const adres = (pls[i++] || '').trim();
 
-  // Skip ": PORTBASE" of ": ?"
-  while (i < pls.length && /^\s*:/.test(pls[i])) i++;
+  // Skip ": PORTBASE" of ": ?" (portbase-referenties beginnen met ":")
+  while (i < eindIdx && /^\s*:/.test(pls[i])) i++;
 
   const pcStadLijn = (pls[i++] || '').trim();
   const landRaw    = (pls[i++] || '').trim();
@@ -87,7 +91,17 @@ function extractSectie(pls, headerIdx) {
   const { postcode, plaats } = parsePostcodeStad(pcStadLijn);
   const land = normLand(landRaw);
 
-  return { naam, datum, tijd, adres, postcode, plaats, land };
+  // Referentie: zoek in resterende regels van deze sectie
+  // "Referentie: 39407780" OF "Reference: ..." OF standalone 7-8-cijferig getal
+  let referentie = '';
+  for (let j = i; j < eindIdx; j++) {
+    const l = pls[j] || '';
+    const refLabel = l.match(/(?:referentie|reference|ref\.?)[:\s]+([A-Z0-9\/\-]+)/i);
+    if (refLabel) { referentie = refLabel[1].trim(); break; }
+    if (/^\d{7,}$/.test(l.trim())) { referentie = l.trim(); break; }
+  }
+
+  return { naam, datum, tijd, adres, postcode, plaats, land, referentie };
 }
 
 /**
@@ -150,13 +164,14 @@ function parsePDFLines(pls) {
   const sec2Idx = pls.findIndex(l => /^2\.\s+delivery\s+address/i.test(l));
   const sec3Idx = pls.findIndex((l, i) => i > sec2Idx && /^3\.\s+terminal\s+depot/i.test(l));
 
-  const sec1 = extractSectie(pls, sec1Idx);
-  const sec2 = extractSectie(pls, sec2Idx);
-  const sec3 = extractSectie(pls, sec3Idx);
+  // Geef sectiegrenzen mee zodat extractSectie NIET in de volgende sectie leest
+  const sec1 = extractSectie(pls, sec1Idx, sec2Idx);
+  const sec2 = extractSectie(pls, sec2Idx, sec3Idx);
+  const sec3 = extractSectie(pls, sec3Idx, pls.length);
 
   console.log(`🔍 PDF: container=${containernummer} type=${containertypeIso} zegel=${zegel}`);
-  console.log(`🔍 PDF: sec1="${sec1?.naam}" sec2="${sec2?.naam}" sec3="${sec3?.naam}"`);
-  console.log(`🔍 PDF: ref="${laadreferentie}" rederij="${rederij}" schip="${bootnaam}"`);
+  console.log(`🔍 PDF: sec1="${sec1?.naam}" ref="${sec1?.referentie}" sec2="${sec2?.naam}" sec3="${sec3?.naam}" ref3="${sec3?.referentie}"`);
+  console.log(`🔍 PDF: laadreferentie="${laadreferentie}" rederij="${rederij}" schip="${bootnaam}"`);
 
   return { ritnummer, laadreferentie, bootnaam, rederij, containernummer, containertypeIso,
            zegel, lading, brutogewicht, colli, sec1, sec2, sec3 };
@@ -189,31 +204,34 @@ Verplichte structuur:
   "colli":            "aantal colli als string (bijv. '61')",
   "brutogewicht":     "gewicht in kg als string zonder eenheid (bijv. '5410')",
   "sec1": {
-    "naam":     "ALLEEN de naam van de afhaal-/opzetterminal, ZONDER datum of tijd (bijv. 'ECT Delta', 'Euromax Terminal')",
-    "datum":    "ophaaldatum formaat D-M-YYYY (bijv. 2-5-2026)",
-    "tijd":     "ophaaltijdstip HH:MM of leeg",
-    "adres":    "straatnaam + huisnummer",
-    "postcode": "postcode",
-    "plaats":   "plaatsnaam",
-    "land":     "2-letter landcode: NL, BE, DE, GB, FR"
+    "naam":       "ALLEEN de naam van de afhaal-/opzetterminal, ZONDER datum of tijd (bijv. 'ECT Delta', 'Euromax Terminal')",
+    "datum":      "ophaaldatum formaat D-M-YYYY (bijv. 2-5-2026)",
+    "tijd":       "ophaaltijdstip HH:MM of leeg",
+    "adres":      "straatnaam + huisnummer",
+    "postcode":   "postcode",
+    "plaats":     "plaatsnaam",
+    "land":       "2-letter landcode: NL, BE, DE, GB, FR",
+    "referentie": "PIN-code of ophaalreferentie bij deze terminal, bijv. '39407780' — leeg als niet aanwezig"
   },
   "sec2": {
-    "naam":     "ALLEEN de naam van het bedrijf / klant op het afleveradres, ZONDER datum of tijd",
-    "datum":    "afleverdatum formaat D-M-YYYY (bijv. 1-5-2026)",
-    "tijd":     "aflevertime HH:MM (bijv. '14:00') of leeg",
-    "adres":    "straatnaam + huisnummer",
-    "postcode": "postcode",
-    "plaats":   "plaatsnaam",
-    "land":     "2-letter landcode"
+    "naam":       "ALLEEN de naam van het bedrijf / klant op het afleveradres, ZONDER datum of tijd",
+    "datum":      "afleverdatum formaat D-M-YYYY (bijv. 1-5-2026)",
+    "tijd":       "aflevertime HH:MM (bijv. '14:00') of leeg",
+    "adres":      "straatnaam + huisnummer",
+    "postcode":   "postcode",
+    "plaats":     "plaatsnaam",
+    "land":       "2-letter landcode",
+    "referentie": ""
   },
   "sec3": {
-    "naam":     "ALLEEN de naam van de afzetterminal / leeg depot, ZONDER datum of tijd",
-    "datum":    "datum formaat D-M-YYYY of leeg",
-    "tijd":     "tijdstip HH:MM of leeg",
-    "adres":    "straatnaam + huisnummer of leeg",
-    "postcode": "postcode of leeg",
-    "plaats":   "plaatsnaam of leeg",
-    "land":     "2-letter landcode: NL, BE, DE"
+    "naam":       "ALLEEN de naam van de afzetterminal / leeg depot, ZONDER datum of tijd",
+    "datum":      "datum formaat D-M-YYYY of leeg",
+    "tijd":       "tijdstip HH:MM of leeg",
+    "adres":      "straatnaam + huisnummer of leeg",
+    "postcode":   "postcode of leeg",
+    "plaats":     "plaatsnaam of leeg",
+    "land":       "2-letter landcode: NL, BE, DE",
+    "referentie": "afzetterminaalreferentie / inleverreferentie — leeg als niet aanwezig"
   }
 }
 
@@ -467,9 +485,12 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
 
     datum,
     tijd,
-    referentie:        laadreferentie || '',
+    // referentie = PIN / ophaalreferentie bij opzetterminal (sec1)
+    // laadreferentie = de gecombineerde referentieregel (bijv. "120563 - 520483") voor op de vrachtbrief
+    // inleverreferentie = afzetterminaalreferentie (sec3) — anders dan de opzetreferentie
+    referentie:        pdfData?.sec1?.referentie || laadreferentie || '',
     laadreferentie,
-    inleverreferentie: laadreferentie || '',
+    inleverreferentie: pdfData?.sec3?.referentie || '',
     inleverBestemming: afzetRaw?.naam || '',
 
     rederijRaw,
