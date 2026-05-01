@@ -222,11 +222,29 @@ export default async function handler(req, res) {
         // ── PDF-loop (alleen als handler GEEN preferBody heeft) ──────────────
         if (!useBodyHandler) {
 
-          // ── Pass 1: detecteer release-PDFs (bijlagen zonder handler) ───────
-          // Sla releaseData op per containernummer (of '_any' als onbekend).
-          const releaseDataMap = {};
+          // ── Groepeer PDFs per handler (op basis van match) ──────────────────
+          // PDFs die dezelfde handler matchen (bijv. alle B2L-PDFs op afzender)
+          // worden als groep aan de handler aangeboden — niet één voor één.
+          // PDFs zonder match komen terecht in 'ongematch' en worden als release getest.
+          const handlerGroepen = new Map(); // klantKey → { klant, handler, atts: [] }
+          const ongematch = [];
+
           for (const att of pdfAtts) {
-            if (findHandler(att.filename, mail.from, mail.subject)) continue; // heeft handler → skip
+            const match = findHandler(att.filename, mail.from, mail.subject);
+            if (match) {
+              const [klant, cfg] = match;
+              if (!handlerGroepen.has(klant)) {
+                handlerGroepen.set(klant, { klant, handler: cfg.handler, atts: [] });
+              }
+              handlerGroepen.get(klant).atts.push(att);
+            } else {
+              ongematch.push(att);
+            }
+          }
+
+          // ── Pass 1: release-detectie op ongematchte PDFs ────────────────────
+          const releaseDataMap = {};
+          for (const att of ongematch) {
             if (!att.buffer) continue;
             try {
               const { text } = await pdfParse(att.buffer);
@@ -244,7 +262,6 @@ export default async function handler(req, res) {
             }
           }
 
-          // Helperfunctie: zoek releaseData op basis van containernummer
           function getReleaseData(containernummer) {
             if (containernummer && releaseDataMap[containernummer.toUpperCase()]) {
               return releaseDataMap[containernummer.toUpperCase()];
@@ -252,29 +269,27 @@ export default async function handler(req, res) {
             return releaseDataMap['_any'] || null;
           }
 
-          // ── Pass 2: verwerk transportopdrachten ─────────────────────────────
-          for (const att of pdfAtts) {
-            const match = findHandler(att.filename, mail.from, mail.subject);
-            if (match) {
-              const [klant, { handler: h }] = match;
-              console.log(`🚚 Handler: ${klant.toUpperCase()} voor ${att.filename}`);
-              try {
-                const bestanden = await h({
-                  buffer:      att.buffer,
-                  base64:      att.base64,
-                  filename:    att.filename,
-                  mailSubject: mail.subject,
-                  mailFrom:    mail.from,
-                  getReleaseData  // ← doorgeven zodat handler release kan ophalen na parsen
-                });
-                addLog(mail, 'transport', klant, bestanden ?? [], bestanden?.length ? 'verwerkt' : 'overgeslagen');
-                if (bestanden?.length) verwerkteContainers++;
-              } catch (err) {
-                console.error(`❌ Handler ${klant} fout:`, err.message);
-                addLog(mail, 'transport', klant, [], 'fout', err.message);
-              }
+          // ── Pass 2: roep elke handler één keer aan met alle bijbehorende PDFs ─
+          for (const { klant, handler: h, atts } of handlerGroepen.values()) {
+            console.log(`🚚 Handler: ${klant.toUpperCase()} — ${atts.length} PDF(s): ${atts.map(a => a.filename).join(', ')}`);
+            const eerste = atts[0];
+            try {
+              const bestanden = await h({
+                buffer:      eerste.buffer,
+                base64:      eerste.base64,
+                filename:    eerste.filename,
+                mailSubject: mail.subject,
+                mailFrom:    mail.from,
+                // Alle PDFs meegeven zodat de handler zelf TO vs bijlage kan onderscheiden
+                allPdfs:     atts.map(a => ({ buffer: a.buffer, base64: a.base64, filename: a.filename })),
+                getReleaseData
+              });
+              addLog(mail, 'transport', klant, bestanden ?? [], bestanden?.length ? 'verwerkt' : 'overgeslagen');
+              if (bestanden?.length) verwerkteContainers++;
+            } catch (err) {
+              console.error(`❌ Handler ${klant} fout:`, err.message);
+              addLog(mail, 'transport', klant, [], 'fout', err.message);
             }
-            // Niet-gematchte PDFs zijn al afgehandeld in pass 1
           }
         }
 
