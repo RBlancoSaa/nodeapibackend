@@ -154,6 +154,23 @@ export default async function handler(req, res) {
     }
     const allKlanten = [...allBronnen, ...klantNaamMap.values()];
 
+    // ── Per-bron bestemmingen (klant_naam + klant_plaats per opdrachtgever) ───
+    const bronDestsMap = {};
+    for (const r of (allKlantenRaw || [])) {
+      const bron  = (r.bron      || '').trim();
+      const naam  = (r.klant_naam  || '').trim();
+      const plaats = (r.klant_plaats || '').trim();
+      if (!bron || !naam) continue;
+      if (!bronDestsMap[bron]) bronDestsMap[bron] = new Map();
+      const key = `${naam.toLowerCase()}|${plaats.toLowerCase()}`;
+      if (!bronDestsMap[bron].has(key)) bronDestsMap[bron].set(key, { naam, plaats });
+    }
+    // Convert Maps → sorted arrays
+    for (const bron of Object.keys(bronDestsMap)) {
+      bronDestsMap[bron] = [...bronDestsMap[bron].values()]
+        .sort((a, b) => a.naam.localeCompare(b.naam));
+    }
+
     // ── Data ophalen ─────────────────────────────────────────────────────────
     let qOp = supabase.from('opdrachten_log').select('*')
       .order('verwerkt_op', { ascending: false }).limit(1000);
@@ -411,10 +428,27 @@ export default async function handler(req, res) {
     for (const pa of prijsafspraken) paByKlant[(pa.klant || '').toLowerCase()] = pa;
 
     // Per-bestemming tarieven data voor JS (embed als BT_DATA in script-tag)
+    // Alleen bronnen (opdrachtgevers) — bestemmingen auto-gevuld vanuit opdrachten_log
     const btDataForJs = {};
-    for (const k of allKlanten) {
-      const pa = paByKlant[k.naam.toLowerCase()] || {};
-      btDataForJs[k.naam] = pa.velden?._tarieven || [];
+    for (const bron of allBronnen) {
+      const pa = paByKlant[bron.naam.toLowerCase()] || {};
+      const savedTarieven = pa.velden?._tarieven || [];
+      // Lookup: "naam|plaats" → tarief (support ook oud formaat zonder naam)
+      const tariefMap = {};
+      for (const t of savedTarieven) {
+        const nk = `${(t.naam||'').toLowerCase()}|${(t.plaats||'').toLowerCase()}`;
+        const pk = `|${(t.plaats||'').toLowerCase()}`;
+        tariefMap[nk] = t.tarief ?? '';
+        if (tariefMap[pk] === undefined) tariefMap[pk] = t.tarief ?? '';
+      }
+      const knownDests = bronDestsMap[bron.naam] || [];
+      btDataForJs[bron.naam] = knownDests.map(d => {
+        const nk = `${d.naam.toLowerCase()}|${d.plaats.toLowerCase()}`;
+        const pk = `|${d.plaats.toLowerCase()}`;
+        const tarief = tariefMap[nk] !== undefined ? tariefMap[nk]
+                     : tariefMap[pk] !== undefined ? tariefMap[pk] : '';
+        return { naam: d.naam, plaats: d.plaats, tarief };
+      });
     }
 
     function prijsafsprakenTab() {
@@ -554,8 +588,8 @@ export default async function handler(req, res) {
     }
 
     function bestemmingentab() {
-      const klantOptions = allKlanten.map(k =>
-        `<option value="${esc(k.naam)}">${esc(k.naam)}${k.isBron ? ' (opdrachtgever)' : ''}</option>`
+      const bronOptions = allBronnen.map(b =>
+        `<option value="${esc(b.naam)}">${esc(b.naam)}</option>`
       ).join('');
 
       return `
@@ -563,13 +597,13 @@ export default async function handler(req, res) {
         <div class="bt-header-bar">
           <div>
             <div class="bt-title">Tarieven per bestemming</div>
-            <div class="bt-desc">Stel per klant een tarief in per laad-/losplaats. Dit overschrijft het standaard basistarief bij matching.</div>
+            <div class="bt-desc">Stel per opdrachtgever een tarief in per laad-/losplaats. Bestemmingen worden automatisch gevuld vanuit verwerkte opdrachten.</div>
           </div>
           <div class="bt-sel-wrap">
-            <label class="bt-sel-label">Klant / opdrachtgever</label>
+            <label class="bt-sel-label">Opdrachtgever</label>
             <select id="bt-klant-sel" class="bt-klant-sel" onchange="btSelectKlant(this.value, '${esc(token)}')">
-              <option value="">— Kies een klant —</option>
-              ${klantOptions}
+              <option value="">— Kies een opdrachtgever —</option>
+              ${bronOptions}
             </select>
           </div>
         </div>
@@ -580,7 +614,8 @@ export default async function handler(req, res) {
               <table class="bt-table">
                 <thead>
                   <tr>
-                    <th class="bt-th">Bestemming / Laad- of losplaats</th>
+                    <th class="bt-th">Naam (klant)</th>
+                    <th class="bt-th">Plaats</th>
                     <th class="bt-th bt-th-tarief">Tarief (€)</th>
                     <th class="bt-th bt-th-del"></th>
                   </tr>
@@ -599,7 +634,7 @@ export default async function handler(req, res) {
         </div>
 
         <div id="bt-placeholder" class="bt-placeholder">
-          Selecteer een klant om bestemmingstarife­ven te beheren.
+          Selecteer een opdrachtgever om bestemmingstarieven te beheren.
         </div>
       </div>`;
     }
@@ -966,38 +1001,45 @@ function btRenderRows(tarieven) {
   const tbody = document.getElementById('bt-body');
   tbody.innerHTML = '';
   for (const t of tarieven) {
-    tbody.appendChild(btMakeRow(t.plaats || '', t.tarief ?? ''));
+    tbody.appendChild(btMakeRow(t.naam || '', t.plaats || '', t.tarief ?? ''));
   }
 }
 
-function btMakeRow(plaats, tarief) {
+function btMakeRow(naam, plaats, tarief) {
   const tr = document.createElement('tr');
   tr.className = 'bt-row';
+
   const td1 = document.createElement('td');
   td1.className = 'bt-td';
-  td1.innerHTML = '<input type="text" class="bt-inp-plaats" placeholder="bijv. Brussel of Rotterdam">';
-  td1.querySelector('input').value = plaats;
+  td1.innerHTML = '<input type="text" class="bt-inp-naam" placeholder="bijv. Logwise BV">';
+  td1.querySelector('input').value = naam;
 
   const td2 = document.createElement('td');
   td2.className = 'bt-td';
-  td2.innerHTML = '<div class="bt-tarief-cell"><span class="bt-eur-sign">€</span><input type="number" class="bt-inp-tarief" step="0.01" min="0" placeholder="0.00"></div>';
-  td2.querySelector('input').value = tarief !== '' ? tarief : '';
+  td2.innerHTML = '<input type="text" class="bt-inp-plaats" placeholder="bijv. Rotterdam">';
+  td2.querySelector('input').value = plaats;
 
   const td3 = document.createElement('td');
   td3.className = 'bt-td';
-  td3.innerHTML = '<button class="bt-del-btn" title="Verwijder">✕</button>';
-  td3.querySelector('button').addEventListener('click', () => tr.remove());
+  td3.innerHTML = '<div class="bt-tarief-cell"><span class="bt-eur-sign">€</span><input type="number" class="bt-inp-tarief" step="0.01" min="0" placeholder="0.00"></div>';
+  td3.querySelector('input').value = tarief !== '' ? tarief : '';
+
+  const td4 = document.createElement('td');
+  td4.className = 'bt-td';
+  td4.innerHTML = '<button class="bt-del-btn" title="Verwijder">✕</button>';
+  td4.querySelector('button').addEventListener('click', () => tr.remove());
 
   tr.appendChild(td1);
   tr.appendChild(td2);
   tr.appendChild(td3);
+  tr.appendChild(td4);
   return tr;
 }
 
 function btAddRow() {
   const tbody = document.getElementById('bt-body');
-  tbody.appendChild(btMakeRow('', ''));
-  tbody.lastElementChild.querySelector('.bt-inp-plaats').focus();
+  tbody.appendChild(btMakeRow('', '', ''));
+  tbody.lastElementChild.querySelector('.bt-inp-naam').focus();
 }
 
 async function btSave(token) {
@@ -1005,10 +1047,11 @@ async function btSave(token) {
   const rows = [...document.querySelectorAll('#bt-body .bt-row')];
   const tarieven = rows
     .map(row => ({
+      naam:   row.querySelector('.bt-inp-naam').value.trim(),
       plaats: row.querySelector('.bt-inp-plaats').value.trim(),
       tarief: parseFloat(row.querySelector('.bt-inp-tarief').value) || 0
     }))
-    .filter(t => t.plaats && t.tarief > 0);
+    .filter(t => (t.naam || t.plaats) && t.tarief > 0);
 
   const saveBtn = document.getElementById('bt-save-btn');
   const okEl    = document.getElementById('bt-ok');
@@ -1027,7 +1070,7 @@ async function btSave(token) {
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
 
-    // Lokale cache bijwerken
+    // Lokale cache bijwerken (bewaar naam/plaats/tarief zodat herrender correct werkt)
     BT_DATA[btCurrentKlant] = tarieven;
     if (okEl) { okEl.style.display = 'inline'; setTimeout(() => okEl.style.display = 'none', 2500); }
   } catch(e) { alert('Opslaan mislukt: ' + e.message); }

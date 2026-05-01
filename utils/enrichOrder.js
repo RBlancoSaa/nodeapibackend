@@ -181,15 +181,20 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
         if (baseTarief > 0) order.tarief = baseTarief;
       }
 
-      // Per-bestemming tarief overschrijft basistarief als er een match is op klantplaats
-      if (afspraken?.velden?._tarieven?.length && order.klantplaats) {
+      // Per-bestemming tarief overschrijft basistarief — match op klantnaam of klantplaats
+      if (afspraken?.velden?._tarieven?.length && (order.klantplaats || order.klantnaam)) {
         const plaatsLower = (order.klantplaats || '').toLowerCase().trim();
-        const btMatch = afspraken.velden._tarieven.find(t =>
-          (t.plaats || '').toLowerCase().trim() === plaatsLower
-        );
+        const naamLower   = (order.klantnaam   || '').toLowerCase().trim();
+        const btMatch = afspraken.velden._tarieven.find(t => {
+          const tNaam  = (t.naam  || '').toLowerCase().trim();
+          const tPlaats = (t.plaats || '').toLowerCase().trim();
+          if (tNaam  && naamLower  && tNaam  === naamLower)  return true;
+          if (tPlaats && plaatsLower && tPlaats === plaatsLower) return true;
+          return false;
+        });
         if (btMatch?.tarief > 0) {
           order.tarief = btMatch.tarief;
-          console.log(`${tag} Per-bestemming tarief voor "${order.klantplaats}": €${btMatch.tarief}`);
+          console.log(`${tag} Per-bestemming tarief voor "${order.klantnaam}/${order.klantplaats}": €${btMatch.tarief}`);
         }
       }
 
