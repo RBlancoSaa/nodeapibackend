@@ -8,9 +8,12 @@ import testSteinwegHandler from './api/test-steinweg.js';
 import inspectPdfHandler from './api/inspect-pdf.js';
 import dashboardHandler from './api/dashboard.js';
 import prijsafsprakenHandler from './api/prijsafspraken.js';
+import loginHandler from './api/login.js';
+import logoutHandler from './api/logout.js';
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => res.redirect('/api/dashboard' + (req.query.token ? '?token=' + encodeURIComponent(req.query.token) : '')));
@@ -25,6 +28,10 @@ app.get('/api/inspect-pdf', inspectPdfHandler);
 app.get('/api/dashboard', dashboardHandler);
 app.get('/api/prijsafspraken', prijsafsprakenHandler);
 app.post('/api/prijsafspraken', prijsafsprakenHandler);
+app.get('/api/login', loginHandler);
+app.post('/api/login', loginHandler);
+app.get('/api/logout', logoutHandler);
+app.post('/api/logout', logoutHandler);
 
 // Lokaal draaien: start de server
 // Op Vercel: app wordt geëxporteerd en via vercel.json gerouteerd (geen listen nodig)
