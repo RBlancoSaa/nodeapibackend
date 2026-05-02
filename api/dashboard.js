@@ -383,7 +383,6 @@ export default async function handler(req, res) {
       { id: 'overgeslagen',    label: 'Overgeslagen',  icon: '⏭',  count: skipVl },
       { id: 'fouten',          label: 'Fouten',        icon: '⚠️', count: foutOp + foutVl, alert: true },
       { id: 'prijsafspraken',  label: 'Tarieven',      icon: '💶' },
-      { id: 'bestemmingen',   label: 'Per bestemming', icon: '📍' },
     ];
 
     function tabNav() {
@@ -534,7 +533,7 @@ export default async function handler(req, res) {
           <td class="tg-save-cell">
             <button class="tg-save-btn" onclick="tgSave(this,'${esc(token)}')">💾</button>
             <span class="tg-ok" style="display:none">✓</span>
-            <button class="tg-hide-btn" onclick="tgVerberg(this,'${esc(token)}')" title="Verberg — geen klant / depot / fout">🚫</button>
+            ${k.isBron ? `<button class="tg-dest-btn" onclick="tgOpenBestemmingen('${esc(k.naam)}','${esc(token)}')" title="Tarieven per bestemming">📍</button>` : `<button class="tg-hide-btn" onclick="tgVerberg(this,'${esc(token)}')" title="Verberg — geen klant / depot / fout">🚫</button>`}
           </td>
         </tr>`;
       }
@@ -646,7 +645,6 @@ export default async function handler(req, res) {
         case 'overgeslagen':   return overgeslagenTable();
         case 'fouten':         return foutenTable();
         case 'prijsafspraken': return prijsafsprakenTab();
-        case 'bestemmingen':   return bestemmingentab();
         default:               return opdrachtenTable();
       }
     }
@@ -859,6 +857,19 @@ td           { padding: 8px 14px; vertical-align: middle; }
 .tg-hidden-sep-cell { padding:10px 14px; }
 .tg-show-hidden-btn { background:none;border:none;font-size:12px;color:var(--text-med);cursor:pointer;text-decoration:underline; }
 .tg-show-hidden-btn:hover { color:var(--text); }
+.tg-dest-btn { margin-left:4px;padding:4px 8px;background:var(--navy-light);border:1px solid #C3D1E8;border-radius:6px;font-size:12px;cursor:pointer;color:var(--navy);transition:all .15s; }
+.tg-dest-btn:hover { background:#B0C4DE;border-color:#8899BB; }
+
+/* ── Per-bestemming modal ── */
+.bt-modal-overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center; }
+.bt-modal-overlay.open { display:flex; }
+.bt-modal-box { background:var(--card);border-radius:16px;width:720px;max-width:96vw;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.35); }
+.bt-modal-head { padding:14px 20px;border-bottom:1px solid var(--sidebar-bdr);display:flex;align-items:center;justify-content:space-between;background:var(--sidebar);flex-shrink:0; }
+.bt-modal-title { font-size:14px;font-weight:700;color:#F5F0E8; }
+.bt-modal-sub { font-size:11px;color:#9E8A75;margin-top:2px; }
+.bt-modal-close { background:none;border:none;color:#9E8A75;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1;transition:color .15s; }
+.bt-modal-close:hover { color:#F5F0E8; }
+.bt-modal-body { overflow-y:auto;flex:1;padding:16px; }
 
 /* ── Per-bestemming tarieven ── */
 .bt-page         { max-width: 860px; }
@@ -915,7 +926,6 @@ td           { padding: 8px 14px; vertical-align: middle; }
     <a href="${base}&periode=${periode}&tab=fouten"       class="sb-link ${tab==='fouten'?'active':''}">⚠️ Fouten ${(foutOp+foutVl)>0 ? `<span class="sb-cnt err">${foutOp+foutVl}</span>` : `<span class="sb-cnt">0</span>`}</a>
     <div class="sb-section" style="margin-top:12px">Beheer</div>
     <a href="${base}&tab=prijsafspraken" class="sb-link ${tab==='prijsafspraken'?'active':''}">💶 Tarieven</a>
-    <a href="${base}&tab=bestemmingen"  class="sb-link ${tab==='bestemmingen'?'active':''}">📍 Per bestemming</a>
     <div class="sb-section" style="margin-top:12px">Periode</div>
     ${[
       ['vandaag',      '☀️ Vandaag'],
@@ -941,8 +951,7 @@ td           { padding: 8px 14px; vertical-align: middle; }
         tab === 'opdrachten'     ? '📦 Opdrachten' :
         tab === 'overgeslagen'   ? '⏭ Overgeslagen emails' :
         tab === 'fouten'         ? '⚠️ Fouten' :
-        tab === 'prijsafspraken' ? '💶 Tarieven per klant' :
-        tab === 'bestemmingen'   ? '📍 Tarieven per bestemming' : '📦 Opdrachten'
+        tab === 'prijsafspraken' ? '💶 Tarieven per klant' : '📦 Opdrachten'
       }</span>
       <span style="font-size:11px;color:#9E8A75">${periodeLabel(periode)}</span>
     </div>
@@ -972,9 +981,46 @@ td           { padding: 8px 14px; vertical-align: middle; }
 </div><!-- /main -->
 
 </div><!-- /layout -->
+
+<!-- ── Per-bestemming modal ── -->
+<div id="bt-modal-overlay" class="bt-modal-overlay" onclick="if(event.target===this)btCloseModal()">
+  <div class="bt-modal-box">
+    <div class="bt-modal-head">
+      <div>
+        <div class="bt-modal-title">📍 Tarieven per bestemming</div>
+        <div class="bt-modal-sub" id="bt-modal-sub"></div>
+      </div>
+      <button class="bt-modal-close" onclick="btCloseModal()">✕</button>
+    </div>
+    <div class="bt-modal-body">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Stel per klant/laadplaats een afwijkend tarief in. Laat leeg om het standaard klanttarief te gebruiken.</div>
+      <div class="bt-card">
+        <div class="bt-table-wrap">
+          <table class="bt-table">
+            <thead><tr>
+              <th class="bt-th">Naam (klant)</th>
+              <th class="bt-th">Plaats</th>
+              <th class="bt-th bt-th-tarief">Tarief (€)</th>
+              <th class="bt-th bt-th-del"></th>
+            </tr></thead>
+            <tbody id="bt-body"></tbody>
+          </table>
+        </div>
+        <div class="bt-footer">
+          <button class="bt-add-btn" onclick="btAddRow()">＋ Bestemming toevoegen</button>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+            <span class="bt-ok" id="bt-ok" style="display:none">✓ Opgeslagen</span>
+            <button class="bt-save-btn" id="bt-save-btn">💾 Opslaan</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // Auto-refresh elke 90 seconden (niet op tarieven-tabs — voorkomt verlies van aanpassingen)
-const _noRefreshTabs = ['tab=prijsafspraken', 'tab=bestemmingen'];
+const _noRefreshTabs = ['tab=prijsafspraken'];
 if (!_noRefreshTabs.some(t => location.search.includes(t))) {
   setTimeout(() => location.reload(), 90000);
 }
@@ -1075,6 +1121,20 @@ async function btSave(token) {
     if (okEl) { okEl.style.display = 'inline'; setTimeout(() => okEl.style.display = 'none', 2500); }
   } catch(e) { alert('Opslaan mislukt: ' + e.message); }
   finally { saveBtn.disabled = false; }
+}
+
+// Open modal voor per-bestemming tarieven
+function tgOpenBestemmingen(klant, token) {
+  btCurrentKlant = klant;
+  document.getElementById('bt-modal-sub').textContent = klant;
+  btRenderRows(BT_DATA[klant] || []);
+  document.getElementById('bt-save-btn').onclick = () => btSave(token);
+  document.getElementById('bt-modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function btCloseModal() {
+  document.getElementById('bt-modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 // ── Tarieven grid helpers ────────────────────────────────────────────────────
