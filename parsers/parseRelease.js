@@ -80,7 +80,13 @@ export async function parseRelease(buffer) {
     // Zoek achterwaarts naar eerste echte terminalnaam (sla generieke labels over)
     for (let i = eraIdx - 1; i >= Math.max(0, eraIdx - 4); i--) {
       const ln = releaseLines[i];
-      if (ln && ln.length > 3 && !/^(CONTAINERS?|TOTAL|TARE|SIZE|TYPE|NB\s+OF|PER\s+SIZE)$/i.test(ln)) {
+      if (
+        ln && ln.length > 3 &&
+        !/@/.test(ln) &&                                           // geen e-mailadressen
+        !/^[+\d\s\(\)\-\.]{7,}$/.test(ln) &&                      // geen telefoonnummers
+        !/^(CONTAINERS?|TOTAL|TARE|SIZE|TYPE|NB\s+OF|PER\s+SIZE|PLEASE|NOTE|FOR\s+FURTHER|CONTACT|DEDICATED|QUAY|TERMINAL|POL|POD)$/i.test(ln) &&
+        /[A-Za-z]{3,}/.test(ln)                                    // moet echte letters bevatten
+      ) {
         emptyReturnNaam = ln;
         break;
       }
