@@ -1,6 +1,11 @@
-// api/dashboard.js  –  Romy HQ frontend
+// api/dashboard.js  –  Automating Logistics tenant-dashboard
 import { supabase } from '../services/supabaseClient.js';
-import { requireLogin } from '../utils/auth.js';
+import { requireTenantAccess } from '../utils/auth.js';
+import { effectivePermissions, PERMISSIONS } from '../utils/permissions.js';
+import { listUsersForTenant, listMembershipsForUser } from '../services/userService.js';
+
+// Welke tenant heeft op dit moment échte data? (Phase 2 maakt alle tenants live.)
+const LIVE_DATA_TENANT = 'tiarotransport';
 
 function fmt(ts) {
   if (!ts) return '—';
@@ -60,14 +65,22 @@ function statusChip(s) {
 
 export default async function handler(req, res) {
   try {
-    if (!requireLogin(req, res)) return;
-    // 'token' blijft als variabele bestaan voor URL/AJAX-templates verderop.
-    // Bij cookie-auth is hij leeg; AJAX/links werken dan via de sessiecookie.
-    const token = req.query?.token || '';
+    const slug = req.params?.slug || 'tiarotransport';
+    const ctx  = await requireTenantAccess(req, res, slug);
+    if (!ctx) return;
+    const { user, tenant, membership } = ctx;
+    const perms     = effectivePermissions(user, membership);
+    const isLive    = tenant.slug === LIVE_DATA_TENANT;
+    const canManage = user.is_superuser || membership?.is_owner || perms.manage_users;
+
+    // 'token' wordt nog gebruikt door inline AJAX-templates verderop. Bij cookie-auth
+    // blijft hij leeg; de sessiecookie wordt automatisch meegestuurd.
+    const token = '';
 
     const periode = req.query?.periode || 'deze-maand';
-    const tab     = req.query?.tab    || 'runs';
+    let   tab     = req.query?.tab    || 'opdrachten';
     const zoek    = (req.query?.zoek  || '').toLowerCase().trim();
+    // base = relative query-prefix; URLs blijven relatief t.o.v. /<tenant-slug>.
     const base    = `?token=${encodeURIComponent(token)}`;
 
     // ── Periode → cutoff berekenen ───────────────────────────────────────────
@@ -368,13 +381,16 @@ export default async function handler(req, res) {
       }).join('');
     }
 
-    const TABS = [
-      { id: 'runs',            label: 'Runs',          icon: '⚡' },
-      { id: 'opdrachten',      label: 'Opdrachten',    icon: '📦', count: totOp },
-      { id: 'overgeslagen',    label: 'Overgeslagen',  icon: '⏭',  count: skipVl },
-      { id: 'fouten',          label: 'Fouten',        icon: '⚠️', count: foutOp + foutVl, alert: true },
-      { id: 'prijsafspraken',  label: 'Tarieven',      icon: '💶' },
+    const ALL_TABS = [
+      { id: 'opdrachten',      label: 'Opdrachten',    icon: '📦', count: totOp,            perm: 'view_opdrachten' },
+      { id: 'runs',            label: 'Runs',          icon: '⚡',                            perm: 'view_runs' },
+      { id: 'overgeslagen',    label: 'Overgeslagen',  icon: '⏭',  count: skipVl,           perm: 'view_overgeslagen' },
+      { id: 'fouten',          label: 'Fouten',        icon: '⚠️', count: foutOp + foutVl, alert: true, perm: 'view_fouten' },
+      { id: 'prijsafspraken',  label: 'Tarieven',      icon: '💶',                            perm: 'view_tarieven' },
+      { id: 'gebruikers',      label: 'Gebruikers',    icon: '👥',                            perm: 'manage_users' },
     ];
+    const TABS = ALL_TABS.filter(t => perms[t.perm]);
+    if (!TABS.find(t => t.id === tab)) tab = TABS[0]?.id || 'opdrachten';
 
     function tabNav() {
       return TABS.map(t => {
@@ -629,15 +645,104 @@ export default async function handler(req, res) {
       </div>`;
     }
 
+    function emptyTenantNote() {
+      return `<div style="background:#FDFAF5;border:1px dashed #DDD3C4;border-radius:12px;padding:32px;text-align:center;color:#5C4A34">
+        <div style="font-size:32px;margin-bottom:8px">📭</div>
+        <div style="font-size:16px;font-weight:600;margin-bottom:4px">Nog geen data voor ${esc(tenant.name)}</div>
+        <div style="font-size:13px;color:#7A6A53">Inbox/Supabase-koppeling voor deze tenant wordt in een vervolgupdate toegevoegd.</div>
+      </div>`;
+    }
+
     function tabContent() {
+      if (tab === 'gebruikers') return gebruikersTab();
+      if (!isLive) return emptyTenantNote();
       switch (tab) {
         case 'runs':           return `<div class="runs-list">${runsList()}</div>`;
         case 'opdrachten':     return opdrachtenTable();
         case 'overgeslagen':   return overgeslagenTable();
         case 'fouten':         return foutenTable();
-        case 'prijsafspraken': return prijsafsprakenTab();
+        case 'prijsafspraken': return perms.view_tarieven ? prijsafsprakenTab() : geenToegangBlok();
         default:               return opdrachtenTable();
       }
+    }
+
+    function geenToegangBlok() {
+      return `<div style="background:#FDFAF5;border:1px solid #DDD3C4;border-radius:12px;padding:32px;text-align:center">
+        <div style="font-size:24px;margin-bottom:8px">🔒</div>
+        <div style="font-weight:600;color:#8B1A2E">Geen toestemming voor dit onderdeel</div>
+      </div>`;
+    }
+
+    // ── Gebruikers-tab ──────────────────────────────────────────────────────
+    let gebruikersData = null;
+    if (canManage) {
+      try { gebruikersData = await listUsersForTenant(tenant.id); }
+      catch (e) { console.error('[dashboard] gebruikers load:', e); gebruikersData = []; }
+    }
+
+    // Toon "Wissel tenant"-knop als de user op meer dan één tenant zit (of superuser is).
+    let showTenantSwitch = user.is_superuser;
+    if (!showTenantSwitch) {
+      try {
+        const ms = await listMembershipsForUser(user.id);
+        showTenantSwitch = ms.filter(m => m.tenant.is_active).length > 1;
+      } catch { showTenantSwitch = false; }
+    }
+    function gebruikersTab() {
+      if (!canManage) return geenToegangBlok();
+      const rows = (gebruikersData || []).map(u => {
+        const permTags = u.is_owner
+          ? `<span class="u-tag u-tag-owner">OWNER — alle vinkjes</span>`
+          : Object.keys(u.permissions || {}).filter(k => u.permissions[k]).map(k => `<span class="u-tag">${esc(k)}</span>`).join(' ') || '<span class="u-tag-none">geen</span>';
+        return `
+        <tr data-uid="${u.id}">
+          <td><b>${esc(u.username)}</b>${u.is_superuser ? ' <span class="u-tag u-tag-su">superuser</span>' : ''}</td>
+          <td>${u.is_active ? '✅ actief' : '⏸ inactief'}</td>
+          <td class="u-perms">${permTags}</td>
+          <td>${u.last_login ? fmt(u.last_login) : '—'}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="u-btn" onclick="userEdit(${u.id})">✏️ Wijzig</button>
+            ${u.id !== user.id ? `<button class="u-btn u-btn-danger" onclick="userRemove(${u.id},'${esc(u.username)}')">🗑</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('');
+
+      const permCheckboxes = PERMISSIONS
+        .map(p => `<label class="u-pcb"><input type="checkbox" name="perm" value="${p.key}"> ${esc(p.label)}</label>`).join('');
+
+      return `
+      <div class="u-wrap">
+        <div class="u-head">
+          <h2>Gebruikers van ${esc(tenant.name)}</h2>
+          <button class="u-add" onclick="userOpenNew()">＋ Nieuwe gebruiker</button>
+        </div>
+        <table class="u-tbl">
+          <thead><tr><th>Gebruiker</th><th>Status</th><th>Permissies</th><th>Laatste login</th><th></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="5" style="text-align:center;padding:24px;color:#7A6A53">Nog geen gebruikers gekoppeld aan deze tenant.</td></tr>'}</tbody>
+        </table>
+
+        <div id="u-modal" class="u-modal-overlay" onclick="if(event.target===this)userClose()">
+          <div class="u-modal">
+            <div class="u-modal-head">
+              <h3 id="u-modal-title">Nieuwe gebruiker</h3>
+              <button class="u-x" onclick="userClose()">✕</button>
+            </div>
+            <div class="u-modal-body">
+              <input type="hidden" id="u-id" value="">
+              <label>Gebruikersnaam <span class="u-hint">(letters/cijfers/_-., 3-40)</span></label>
+              <input type="text" id="u-username" autocomplete="off">
+              <label>Wachtwoord <span class="u-hint" id="u-pw-hint">(verplicht voor nieuwe gebruiker)</span></label>
+              <input type="password" id="u-password" autocomplete="new-password" placeholder="Leeg laten = niet wijzigen">
+              <label class="u-pcb u-owner-row"><input type="checkbox" id="u-is-owner"> <b>Owner</b> — krijgt alle vinkjes voor deze tenant + gebruikersbeheer</label>
+              <div class="u-perms-grid">${permCheckboxes}</div>
+            </div>
+            <div class="u-modal-foot">
+              <button class="u-btn" onclick="userClose()">Annuleren</button>
+              <button class="u-btn u-btn-primary" onclick="userSave()">Opslaan</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
     }
 
     const html = `<!DOCTYPE html>
@@ -645,7 +750,7 @@ export default async function handler(req, res) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Romy HQ</title>
+<title>${esc(tenant.name)} — Automating Logistics</title>
 <style>
 /* ── CSS variabelen (kleurenpalet) ── */
 :root {
@@ -900,6 +1005,44 @@ td           { padding: 8px 14px; vertical-align: middle; }
 .bt-save-btn:disabled { background:var(--text-muted);cursor:default; }
 .bt-ok           { font-size:12px;color:#2D7A4F;font-weight:700; }
 .bt-placeholder  { padding:60px 20px;text-align:center;color:var(--text-muted);font-size:14px; }
+
+/* ── Gebruikers-tab ────────────────────────────────────────────────────────── */
+.u-wrap { background:var(--card); border-radius:12px; padding:24px; border:1px solid var(--border); }
+.u-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+.u-head h2 { font-size:18px; color:var(--text); }
+.u-add { padding:8px 16px; background:var(--accent); color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px; }
+.u-add:hover { background:var(--accent-hov); }
+.u-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+.u-tbl th { text-align:left; padding:10px; border-bottom:2px solid var(--border); color:var(--text-med); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.5px; }
+.u-tbl td { padding:12px 10px; border-bottom:1px solid var(--border-light); vertical-align:top; }
+.u-tbl tr:hover { background:#FAF6EE; }
+.u-tag { display:inline-block; padding:2px 8px; background:#EDE7DC; color:#5C4A34; border-radius:12px; font-size:10px; margin:1px; font-family:monospace; }
+.u-tag-owner { background:#8B1A2E22; color:#8B1A2E; font-weight:700; font-family:inherit; }
+.u-tag-su    { background:#1B2A4A22; color:#1B2A4A; font-weight:700; font-family:inherit; }
+.u-tag-none  { color:#9E8A75; font-style:italic; font-size:11px; }
+.u-perms     { max-width:380px; }
+.u-btn       { padding:5px 11px; background:#EDE7DC; color:#2C1A0F; border:none; border-radius:6px; font-size:12px; cursor:pointer; margin-left:4px; }
+.u-btn:hover { background:#DDD3C4; }
+.u-btn-danger { background:#FAD7D7; color:#8B1A1A; }
+.u-btn-danger:hover { background:#F4B8B8; }
+.u-btn-primary { background:var(--accent); color:white; }
+.u-btn-primary:hover { background:var(--accent-hov); }
+.u-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center; padding:20px; }
+.u-modal-overlay.show { display:flex; }
+.u-modal { background:var(--card); border-radius:12px; width:100%; max-width:580px; max-height:90vh; display:flex; flex-direction:column; }
+.u-modal-head { padding:18px 22px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.u-modal-head h3 { font-size:16px; color:var(--text); }
+.u-x { background:transparent; border:none; font-size:18px; cursor:pointer; color:var(--text-med); }
+.u-modal-body { padding:18px 22px; overflow-y:auto; }
+.u-modal-body label { display:block; font-size:11px; color:var(--text-med); text-transform:uppercase; letter-spacing:.5px; font-weight:600; margin:14px 0 6px; }
+.u-modal-body input[type=text],.u-modal-body input[type=password] { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px; }
+.u-modal-body input:focus { outline:none; border-color:var(--accent); }
+.u-hint { color:var(--text-muted); text-transform:none; font-weight:400; letter-spacing:0; font-size:11px; }
+.u-pcb { display:flex; align-items:center; gap:6px; font-size:13px; text-transform:none; letter-spacing:0; color:var(--text); cursor:pointer; padding:4px 0; font-weight:400; margin:0; }
+.u-pcb input { margin:0; }
+.u-owner-row { padding:10px 12px; background:#FAF6EE; border:1px solid var(--border); border-radius:6px; margin-top:14px; }
+.u-perms-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; margin-top:10px; padding:14px; background:#FAF6EE; border-radius:6px; }
+.u-modal-foot { padding:14px 22px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; }
 </style>
 </head>
 <body>
@@ -908,17 +1051,18 @@ td           { padding: 8px 14px; vertical-align: middle; }
 <!-- ── Sidebar ── -->
 <aside class="sidebar">
   <div class="sb-logo">
-    <div class="sb-logo-text">Romy <span>HQ</span></div>
-    <div class="sb-logo-sub">Tiaro Transport</div>
+    <div class="sb-logo-text">Automating <span>Logistics</span></div>
+    <div class="sb-logo-sub">${esc(tenant.name)}</div>
   </div>
   <nav class="sb-nav">
     <div class="sb-section">Overzicht</div>
-    <a href="${base}&periode=${periode}&tab=runs"         class="sb-link ${tab==='runs'?'active':''}">⚡ Runs</a>
-    <a href="${base}&periode=${periode}&tab=opdrachten"   class="sb-link ${tab==='opdrachten'?'active':''}">📦 Opdrachten <span class="sb-cnt">${totOp}</span></a>
-    <a href="${base}&periode=${periode}&tab=overgeslagen" class="sb-link ${tab==='overgeslagen'?'active':''}">⏭ Overgeslagen <span class="sb-cnt">${skipVl}</span></a>
-    <a href="${base}&periode=${periode}&tab=fouten"       class="sb-link ${tab==='fouten'?'active':''}">⚠️ Fouten ${(foutOp+foutVl)>0 ? `<span class="sb-cnt err">${foutOp+foutVl}</span>` : `<span class="sb-cnt">0</span>`}</a>
-    <div class="sb-section" style="margin-top:12px">Beheer</div>
-    <a href="${base}&tab=prijsafspraken" class="sb-link ${tab==='prijsafspraken'?'active':''}">💶 Tarieven</a>
+    ${perms.view_runs        ? `<a href="${base}&periode=${periode}&tab=runs"         class="sb-link ${tab==='runs'?'active':''}">⚡ Runs</a>` : ''}
+    ${perms.view_opdrachten  ? `<a href="${base}&periode=${periode}&tab=opdrachten"   class="sb-link ${tab==='opdrachten'?'active':''}">📦 Opdrachten <span class="sb-cnt">${totOp}</span></a>` : ''}
+    ${perms.view_overgeslagen? `<a href="${base}&periode=${periode}&tab=overgeslagen" class="sb-link ${tab==='overgeslagen'?'active':''}">⏭ Overgeslagen <span class="sb-cnt">${skipVl}</span></a>` : ''}
+    ${perms.view_fouten      ? `<a href="${base}&periode=${periode}&tab=fouten"       class="sb-link ${tab==='fouten'?'active':''}">⚠️ Fouten ${(foutOp+foutVl)>0 ? `<span class="sb-cnt err">${foutOp+foutVl}</span>` : `<span class="sb-cnt">0</span>`}</a>` : ''}
+    ${(perms.view_tarieven || perms.manage_users) ? `<div class="sb-section" style="margin-top:12px">Beheer</div>` : ''}
+    ${perms.view_tarieven ? `<a href="${base}&tab=prijsafspraken" class="sb-link ${tab==='prijsafspraken'?'active':''}">💶 Tarieven</a>` : ''}
+    ${perms.manage_users  ? `<a href="${base}&tab=gebruikers"     class="sb-link ${tab==='gebruikers'?'active':''}">👥 Gebruikers</a>` : ''}
     <div class="sb-section" style="margin-top:12px">Periode</div>
     ${[
       ['vandaag',      '☀️ Vandaag'],
@@ -961,6 +1105,10 @@ td           { padding: 8px 14px; vertical-align: middle; }
         ${zoek ? `<a href="${base}&periode=${esc(periode)}&tab=${tab}" class="btn-reset">✕ Reset</a>` : ''}
       </form>
       <a href="?token=${esc(token)}&periode=${esc(periode)}&tab=${tab}" class="refresh-btn">↻ Verversen</a>
+      <span style="font-size:11px;color:#9E8A75;padding:0 8px;border-left:1px solid #DDD3C4">
+        ${esc(user.username)}${user.is_superuser ? ' · superuser' : (membership?.is_owner ? ' · owner' : '')}
+      </span>
+      ${showTenantSwitch ? `<a href="/" class="logout-btn" title="Wissel tenant">⇄ Tenant</a>` : ''}
       <a href="/api/logout" class="logout-btn" title="Uitloggen">⎋ Uitloggen</a>
     </div>
   </header>
@@ -1098,13 +1246,13 @@ async function btSave(token) {
   saveBtn.disabled = true;
   try {
     // Laad bestaande velden op zodat toeslagen etc. behouden blijven
-    const getRes = await fetch('/api/prijsafspraken?token=' + encodeURIComponent(token));
+    const getRes = await fetch('/api/prijsafspraken?tenant=' + encodeURIComponent(__TENANT_SLUG__));
     if (!getRes.ok) throw new Error('Laden mislukt (' + getRes.status + ')');
     const allPa   = await getRes.json();
     const existing = allPa.find(p => (p.klant || '').toLowerCase() === btCurrentKlant.toLowerCase()) || {};
     const velden  = { ...(existing.velden || {}), _tarieven: tarieven };
 
-    const res = await fetch('/api/prijsafspraken?token=' + encodeURIComponent(token), {
+    const res = await fetch('/api/prijsafspraken?tenant=' + encodeURIComponent(__TENANT_SLUG__), {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ klant: btCurrentKlant, velden, all_in: existing.all_in || false })
     });
@@ -1217,7 +1365,7 @@ async function tgSave(btn, token) {
   delete velden._negeer; // niet meesturen bij normaal opslaan
   btn.disabled = true;
   try {
-    const res = await fetch('/api/prijsafspraken?token=' + encodeURIComponent(token), {
+    const res = await fetch('/api/prijsafspraken?tenant=' + encodeURIComponent(__TENANT_SLUG__), {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ klant, velden, all_in })
     });
@@ -1236,7 +1384,7 @@ async function tgVerberg(btn, token) {
   velden._negeer = true;
   const all_in = row.dataset.allin === '1';
   try {
-    const res = await fetch('/api/prijsafspraken?token=' + encodeURIComponent(token), {
+    const res = await fetch('/api/prijsafspraken?tenant=' + encodeURIComponent(__TENANT_SLUG__), {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ klant, velden, all_in })
     });
@@ -1255,7 +1403,7 @@ async function tgHerstel(btn, token) {
   delete velden._negeer;
   const all_in = row.dataset.allin === '1';
   try {
-    const res = await fetch('/api/prijsafspraken?token=' + encodeURIComponent(token), {
+    const res = await fetch('/api/prijsafspraken?tenant=' + encodeURIComponent(__TENANT_SLUG__), {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ klant, velden, all_in })
     });
@@ -1274,7 +1422,7 @@ async function tgBulkVerberg(token) {
     let velden = {};
     try { velden = JSON.parse(row.dataset.velden || '{}'); } catch {}
     velden._negeer = true;
-    await fetch('/api/prijsafspraken?token=' + encodeURIComponent(token), {
+    await fetch('/api/prijsafspraken?tenant=' + encodeURIComponent(__TENANT_SLUG__), {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ klant: row.dataset.klant, velden, all_in: row.dataset.allin === '1' })
     });
@@ -1291,6 +1439,80 @@ function tgToggleHidden(btn) {
   btn.textContent = visible
     ? '👁 Toon ' + tbody.querySelectorAll('tr').length + ' verborgen (depot / fout / geen klant)'
     : '🙈 Verberg verborgen rijen';
+}
+
+// ── Gebruikersbeheer (Gebruikers-tab) ───────────────────────────────────────
+const __TENANT_SLUG__ = ${JSON.stringify(tenant.slug)};
+const __USERS_CACHE__ = ${JSON.stringify(gebruikersData || [])};
+
+function userClose() {
+  document.getElementById('u-modal').classList.remove('show');
+}
+function userOpenNew() {
+  document.getElementById('u-modal-title').textContent = 'Nieuwe gebruiker';
+  document.getElementById('u-id').value = '';
+  document.getElementById('u-username').value = '';
+  document.getElementById('u-username').disabled = false;
+  document.getElementById('u-password').value = '';
+  document.getElementById('u-pw-hint').textContent = '(verplicht voor nieuwe gebruiker)';
+  document.getElementById('u-is-owner').checked = false;
+  document.querySelectorAll('#u-modal input[name=perm]').forEach(cb => cb.checked = false);
+  document.getElementById('u-modal').classList.add('show');
+}
+function userEdit(id) {
+  const u = __USERS_CACHE__.find(x => x.id === id);
+  if (!u) return alert('Gebruiker niet gevonden — herlaad de pagina.');
+  document.getElementById('u-modal-title').textContent = 'Gebruiker wijzigen';
+  document.getElementById('u-id').value = String(u.id);
+  document.getElementById('u-username').value = u.username;
+  document.getElementById('u-username').disabled = true;
+  document.getElementById('u-password').value = '';
+  document.getElementById('u-pw-hint').textContent = '(leeg laten = niet wijzigen)';
+  document.getElementById('u-is-owner').checked = !!u.is_owner;
+  const perms = u.permissions || {};
+  document.querySelectorAll('#u-modal input[name=perm]').forEach(cb => {
+    cb.checked = !!perms[cb.value];
+  });
+  document.getElementById('u-modal').classList.add('show');
+}
+async function userSave() {
+  const id       = document.getElementById('u-id').value;
+  const username = document.getElementById('u-username').value.trim();
+  const password = document.getElementById('u-password').value;
+  const is_owner = document.getElementById('u-is-owner').checked;
+  const permissions = {};
+  document.querySelectorAll('#u-modal input[name=perm]').forEach(cb => {
+    if (cb.checked) permissions[cb.value] = true;
+  });
+  const isNew = !id;
+  if (isNew) {
+    if (!username) return alert('Gebruikersnaam is verplicht.');
+    if (!password) return alert('Wachtwoord is verplicht voor een nieuwe gebruiker.');
+  }
+  const url = '/api/users?tenant=' + encodeURIComponent(__TENANT_SLUG__) + (isNew ? '' : '&id=' + id);
+  const body = isNew
+    ? { username, password, is_owner, permissions }
+    : { is_owner, permissions, ...(password ? { password } : {}) };
+  try {
+    const res = await fetch(url, {
+      method: isNew ? 'POST' : 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) return alert('Fout: ' + (data.error || res.status));
+    userClose();
+    location.reload();
+  } catch (e) { alert('Netwerkfout: ' + e.message); }
+}
+async function userRemove(id, username) {
+  if (!confirm('Weet je zeker dat je "' + username + '" wilt verwijderen uit deze tenant?')) return;
+  try {
+    const res = await fetch('/api/users?tenant=' + encodeURIComponent(__TENANT_SLUG__) + '&id=' + id, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) return alert('Fout: ' + (data.error || res.status));
+    location.reload();
+  } catch (e) { alert('Netwerkfout: ' + e.message); }
 }
 </script>
 </body>
