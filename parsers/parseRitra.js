@@ -28,8 +28,15 @@ export default async function parseRitra(buffer) {
   const ritnummer = ls.find(l => /Opdracht nr/i.test(l))?.match(/(\d{5,})/)?.[1] || '';
 
   // === Datum — voorkeur: Leverdatum uit afhaaladres sectie ===
+  // In Ritra PDFs staan waarden VOOR hun label (omgekeerde volgorde)
   const leverdatumIdx = ls.findIndex(l => /^Leverdatum$/i.test(l));
-  const leverdatum = leverdatumIdx >= 0 ? parseDatum(ls[leverdatumIdx + 1] || '') : '';
+  let leverdatum = '';
+  if (leverdatumIdx > 0) {
+    for (let i = leverdatumIdx - 1; i >= Math.max(0, leverdatumIdx - 4); i--) {
+      const d = parseDatum(ls[i] || '');
+      if (d) { leverdatum = d; break; }
+    }
+  }
   // Neelevat-stijl: "Datum / tijd:" label, waarde op volgende regel
   const datumTijdIdx = ls.findIndex(l => /^Datum\s*\/\s*tijd\s*:?\s*$/i.test(l));
   const datumTijd = datumTijdIdx >= 0 ? parseDatum(ls[datumTijdIdx + 1] || '') : '';
@@ -50,7 +57,8 @@ export default async function parseRitra(buffer) {
   const containertype  = size === '40' ? (isHC ? '40ft HC' : '40ft') : `${size}ft`;
 
   // === Zegel ===
-  const zegel = ls.find(l => /sealnummer/i.test(l))?.match(/sealnummer[:\s]*(\d+)/i)?.[1] || '';
+  // Seal kan alfanumeriek zijn (bijv. "HLK1459712"), niet alleen cijfers
+  const zegel = ls.find(l => /sealnummer/i.test(l))?.match(/sealnummer[:\s]*([A-Z0-9]+)/i)?.[1] || '';
 
   // === Cargo ===
   let lading = '', colli = '0', gewicht = '0', cbm = '0';
@@ -87,12 +95,24 @@ export default async function parseRitra(buffer) {
   }
 
   // === Referenties ===
+  // In Ritra PDFs staan waarden VOOR hun label
   const notaRef   = ls.find(l => /nota ref/i.test(l))?.match(/:\s*(\d{6,})/)?.[1] || '';
+
+  // Uithaalreferentie (terminal PIN) — waarde vóór "Reisnr" label
   const reisnrIdx = ls.findIndex(l => /^Reisnr$/i.test(l));
   let releasenr = '';
-  if (reisnrIdx >= 0) {
-    for (let i = reisnrIdx + 1; i < Math.min(reisnrIdx + 5, ls.length); i++) {
+  if (reisnrIdx > 0) {
+    for (let i = reisnrIdx - 1; i >= Math.max(0, reisnrIdx - 5); i--) {
       if (/^\d{6,}$/.test(ls[i])) { releasenr = ls[i]; break; }
+    }
+  }
+
+  // Inleverreferentie (afzet terminal PIN) — waarde vóór "Releasenummer" label
+  const releasenrIdx = ls.findIndex(l => /^Releasenummer$/i.test(l));
+  let inleverreferentieRaw = '';
+  if (releasenrIdx > 0) {
+    for (let i = releasenrIdx - 1; i >= Math.max(0, releasenrIdx - 5); i--) {
+      if (/^\d{7,}$/.test(ls[i])) { inleverreferentieRaw = ls[i]; break; }
     }
   }
 
@@ -126,11 +146,39 @@ export default async function parseRitra(buffer) {
   }
 
   // Leverdatum: specifiek in/na de afhaaladres-sectie zoeken (voorkomt match op depot-datum)
+  // In Ritra PDFs staat de waarde VOOR het label; bijv. "04/05/2026 om 10:00 uur" → "Leverdatum"
   let leverdatumNaAfhaal = '';
+  let ritra_tijd = '';
   if (afhaalIdx >= 0) {
     const ldIdx = ls.findIndex((l, i) => i > afhaalIdx && /^Leverdatum$/i.test(l));
-    if (ldIdx >= 0) leverdatumNaAfhaal = parseDatum(ls[ldIdx + 1] || '');
+    if (ldIdx > 0) {
+      for (let i = ldIdx - 1; i >= Math.max(0, ldIdx - 4); i--) {
+        const line = ls[i] || '';
+        const d = parseDatum(line);
+        if (d) {
+          leverdatumNaAfhaal = d;
+          // Extraheer tijd: "04/05/2026 om 10:00 uur"
+          const tijdM = line.match(/om\s+(\d{1,2}):(\d{2})/i)
+                     || line.match(/\s+(\d{2}):(\d{2})(?:\s|$)/);
+          if (tijdM) ritra_tijd = `${tijdM[1].padStart(2,'0')}:${tijdM[2]}:00`;
+          break;
+        }
+      }
+    }
   }
+
+  // === Los opmerking / instructies / gasmeten ===
+  // Formaat in PDF: "TAV STEINMEIJER/GASMEETING:Losopm"
+  let gasmeten = 'Onwaar';
+  let losOpm   = '';
+  const losOpmLine = ls.find(l => /Losopm/i.test(l));
+  if (losOpmLine) {
+    const content = losOpmLine.replace(/:?Losopm.*$/i, '').trim();
+    if (/gasme[ae]t/i.test(content)) gasmeten = 'Waar';
+    losOpm = content.split('/').filter(p => !/gasme[ae]t/i.test(p)).join(' ').trim();
+  }
+  // Extra check: ergens in het document "gasmeting" / "gasmeeting" vermeld?
+  if (gasmeten === 'Onwaar' && ls.some(l => /gasme[ae]t/i.test(l))) gasmeten = 'Waar';
 
   // Afzetten: terminal/depot na afleveradres — breed zoekpatroon (incl. Kramer, RCT, enz.)
   let afzettenNaam = '', afzettenAdres = '', afzettenRef = '';
@@ -184,10 +232,10 @@ export default async function parseRitra(buffer) {
     containertype,
 
     datum:             leverdatumNaAfhaal || datumFallback,
-    tijd: '',
+    tijd:              ritra_tijd || '',
     referentie:        releasenr || notaRef,
     laadreferentie:    notaRef   || '',
-    inleverreferentie: afzettenRef || '',
+    inleverreferentie: inleverreferentieRaw || afzettenRef || '',
     inleverBestemming: '',
 
     rederijRaw:     rederijCode,
@@ -204,8 +252,9 @@ export default async function parseRitra(buffer) {
     cbm,
 
     adr: 'Onwaar',
+    gasmeten,
     ladenOfLossen: 'Laden',
-    instructies: '',
+    instructies: losOpm || '',
     tar: '', documentatie: '', tarra: '0', brix: '0',
 
     locaties

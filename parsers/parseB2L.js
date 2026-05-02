@@ -58,9 +58,10 @@ export default async function parseB2L(buffer) {
   const refIdx   = ls.findIndex(l => /^REFERENTIE$/i.test(l));
   const ritnummer = refIdx >= 0 ? (ls[refIdx + 1] || '') : '';
 
-  // === Container type ===
-  const containerSetLine = ls.find(l => /CONTAINER SET/i.test(l));
-  const countMatch       = containerSetLine?.match(/(\d+)X\s+(.+)/i);
+  // === Container type & count ===
+  // PDF kan "CONTAINER SET: 2X 40FT HIGH CUBE" of "CONTAINERS:2X 40FT HIGH CUBE" bevatten
+  const containerSetLine = ls.find(l => /CONTAINER\s+SET/i.test(l) || /^CONTAINERS\s*:/i.test(l));
+  const countMatch = containerSetLine?.match(/(\d+)\s*[Xx]\s+(.+)/i);
   const containerCount   = parseInt(countMatch?.[1] || '1');
   const containertypeRaw = countMatch?.[2]?.trim() || '40FT HIGH CUBE';
   const containertype    = /high.?cube|HC/i.test(containertypeRaw)
@@ -74,10 +75,55 @@ export default async function parseB2L(buffer) {
   const kgMatch = weightLine?.match(/([\d.,]+)\s*KGS?/i);
   const gewicht = kgMatch ? String(Math.round(parseFloat(kgMatch[1].replace(',', '.')))) : '0';
 
-  // === Container nummer ===
-  // Alleen als een VOLLEDIGE regel exact een containernummer is (XXX U 0000000).
-  // Vierde letter is altijd U. Embedding in boekingsreferenties wordt zo vermeden.
-  const containerNummerPDF = ls.find(l => /^[A-Z]{3}U\d{7}$/i.test(l.trim()))?.trim().toUpperCase() || '';
+  // === Container nummer (fallback bij enkelvoudige TO) ===
+  // Vierde letter is altijd U (ISO 6346). Accepteer ook "SEGU-6476333" (dash-formaat).
+  const CNTR_RE = /^([A-Z]{3}[A-Z])-?(\d{7})$/i;
+  const containerNummerPDF = (() => {
+    const line = ls.find(l => CNTR_RE.test(l.trim()));
+    if (!line) return '';
+    const m = line.trim().match(CNTR_RE);
+    return m ? (m[1] + m[2]).toUpperCase() : '';
+  })();
+
+  // === RIDER-sectie: per-container data (nummer, gewicht, colli) ===
+  const riderIdx = ls.findIndex(l => /^RIDER$/i.test(l));
+  const riderContainers = [];
+  if (riderIdx >= 0) {
+    for (let i = riderIdx + 1; i < ls.length; i++) {
+      const m = ls[i].trim().match(CNTR_RE);
+      if (m) {
+        const cntr = (m[1] + m[2]).toUpperCase();
+        let riderGewicht = '0', riderColli = '0';
+        for (let j = i + 1; j < Math.min(i + 12, ls.length); j++) {
+          if (CNTR_RE.test(ls[j].trim())) break;   // volgende container
+          const wM = ls[j].match(/([\d.,]+)\s*kgs?/i);
+          if (wM) riderGewicht = String(Math.round(parseFloat(wM[1].replace(',', '.'))));
+          const cM = ls[j].match(/^(\d+)\s*[xX]\s+/);
+          if (cM) riderColli = cM[1];
+        }
+        riderContainers.push({ containernummer: cntr, gewicht: riderGewicht, colli: riderColli });
+      }
+    }
+  }
+  console.log(`📦 B2L RIDER containers: ${riderContainers.length}`, riderContainers.map(c => c.containernummer).join(', '));
+
+  // === DELIVERY SCHEDULE: per-container datum & tijd ===
+  // Formaat: "SEGU-647633340ft High Cube-04-May-2026 at 14.00h"
+  const deliveryMap = {};
+  for (const l of ls) {
+    const cntrM = l.match(/([A-Z]{3}[A-Z])-?(\d{7})/i);
+    const dateM = l.match(/(\d{1,2}-[A-Za-z]{3}-\d{4})/i);
+    if (!cntrM || !dateM) continue;
+    const cntr = (cntrM[1] + cntrM[2]).toUpperCase();
+    const timeM = l.match(/at\s+(\d{1,2})[.:](\d{2})h?/i);
+    deliveryMap[cntr] = {
+      datum: parseDatumEN(dateM[1]),
+      tijd:  timeM ? `${timeM[1].padStart(2,'0')}:${timeM[2]}:00` : ''
+    };
+  }
+  if (Object.keys(deliveryMap).length > 0) {
+    console.log('📅 B2L deliveryMap:', Object.entries(deliveryMap).map(([k,v]) => `${k}: ${v.datum} ${v.tijd}`).join(', '));
+  }
 
   // === Datum & Tijd ===
   // Voorkeur 1: DATE/TIME: regel  (bijv. "DATE/TIME:30-APR-2026 AT 08.00H")
@@ -205,9 +251,21 @@ export default async function parseB2L(buffer) {
   const afzetPlaats   = afzettenPCPlaats.replace(/^\d{4}\s*[A-Z]{2}[,\s]*/i, '').split(',')[0].trim() || '';
 
   // === Bouw resultaat per container — enrichOrder doet alle lookups ===
+  // Gebruik RIDER-containers als die gevonden zijn, anders generieke telling
+  const containerLijst = riderContainers.length > 0
+    ? riderContainers
+    : Array.from({ length: containerCount }, () => ({
+        containernummer: containerNummerPDF || '',
+        gewicht,
+        colli: '0'
+      }));
+
   const results = [];
-  for (let i = 0; i < containerCount; i++) {
-    const tijd = tijden[i] || '';
+  for (let i = 0; i < containerLijst.length; i++) {
+    const cData    = containerLijst[i];
+    const delivery = deliveryMap[cData.containernummer] || {};
+    const cDatum   = delivery.datum || datum;
+    const cTijd    = delivery.tijd  || tijden[i] || '';
 
     // Ruwe locaties: enrichOrder doet terminal + adresboek lookups
     const locaties = [
@@ -242,11 +300,11 @@ export default async function parseB2L(buffer) {
       opdrachtgeverBTW:      'NL855659324B01',
       opdrachtgeverKVK:      '64421406',
 
-      containernummer: containerNummerPDF || '',
+      containernummer: cData.containernummer || containerNummerPDF || '',
       containertype,
 
-      datum,
-      tijd,
+      datum:  cDatum,
+      tijd:   cTijd,
       referentie,
       laadreferentie,
       inleverreferentie: referentie,
@@ -259,10 +317,10 @@ export default async function parseB2L(buffer) {
       inleverRederij:  '',
 
       zegel:          '',
-      colli:          '0',
+      colli:          cData.colli  || '0',
       lading,
-      brutogewicht:   gewicht,
-      geladenGewicht: gewicht,
+      brutogewicht:   cData.gewicht || gewicht,
+      geladenGewicht: cData.gewicht || gewicht,
       cbm:            '0',
 
       adr:           'Onwaar',

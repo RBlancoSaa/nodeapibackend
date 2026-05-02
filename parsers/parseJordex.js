@@ -526,8 +526,14 @@ if (data.imo !== '0' || data.unnr !== '0') {
 // Guard: als de terminalsectie niet in de PDF staat (index -1) of geen naam/adres
 // gevonden → _noTerminalLookup zodat enrichOrder GEEN willekeurige fuzzy-match
 // teruggeeft (bijv. "A15" als de tekst een A15-snelwegsreferentie bevat).
-const puHeeftData = puIndex >= 0 && (puNaamRaw || puAdresRaw);
-const doHeeftData = doIndex >= 0 && (doNaamRaw || doAdresRaw);
+// Behandel "-" (en andere puur-leestekens) als "geen data" zodat enrichOrder
+// geen willekeurige fuzzy-match teruggeeft (bijv. "A15" bij input "-").
+const puHeeftData = puIndex >= 0 && (
+  (puNaamRaw  && !/^[-–—.\s]+$/.test(puNaamRaw))  || puAdresRaw
+);
+const doHeeftData = doIndex >= 0 && (
+  (doNaamRaw  && !/^[-–—.\s]+$/.test(doNaamRaw))  || doAdresRaw
+);
 
 data.locaties = [
   // [0] Opzetten
