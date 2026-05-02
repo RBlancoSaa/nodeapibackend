@@ -1,5 +1,6 @@
 // api/dashboard.js  –  Romy HQ frontend
 import { supabase } from '../services/supabaseClient.js';
+import { requireLogin } from '../utils/auth.js';
 
 function fmt(ts) {
   if (!ts) return '—';
@@ -59,20 +60,10 @@ function statusChip(s) {
 
 export default async function handler(req, res) {
   try {
+    if (!requireLogin(req, res)) return;
+    // 'token' blijft als variabele bestaan voor URL/AJAX-templates verderop.
+    // Bij cookie-auth is hij leeg; AJAX/links werken dan via de sessiecookie.
     const token = req.query?.token || '';
-    if (token !== (process.env.CRON_SECRET || '')) {
-      res.status(401).send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Romy HQ</title>
-      <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#1E1209;display:flex;align-items:center;justify-content:center;height:100vh;color:white}
-      .box{text-align:center}.logo{font-size:32px;font-weight:800;margin-bottom:8px}.logo span{color:#8B1A2E}
-      p{color:#9E8A75;margin-bottom:24px}input{padding:10px 16px;border-radius:8px;border:1px solid #3D2A1A;background:#2E1A0B;color:#F5F0E8;font-size:14px;width:280px}
-      button{margin-left:8px;padding:10px 20px;background:#8B1A2E;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
-      button:hover{background:#6B1220}
-      </style></head><body><div class="box"><div class="logo">Romy <span>HQ</span></div>
-      <p>Voer je toegangstoken in</p>
-      <form method="GET"><input type="password" name="token" placeholder="Token..." autofocus>
-      <button type="submit">Inloggen</button></form></div></body></html>`);
-      return;
-    }
 
     const periode = req.query?.periode || 'deze-maand';
     const tab     = req.query?.tab    || 'runs';
@@ -707,6 +698,8 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 .refresh-btn  { display: flex; align-items: center; gap: 6px; padding: 6px 14px; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; }
 .refresh-btn:hover { background: var(--accent-hov); }
+.logout-btn   { display: flex; align-items: center; gap: 6px; padding: 6px 14px; background: transparent; color: #9E8A75; border: 1px solid #3D2A1A; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; }
+.logout-btn:hover { background: #2E1A0B; color: #F5F0E8; border-color: #5A4234; }
 
 /* ── Stats ── */
 .stats-grid  { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding: 20px 28px 0; }
@@ -968,6 +961,7 @@ td           { padding: 8px 14px; vertical-align: middle; }
         ${zoek ? `<a href="${base}&periode=${esc(periode)}&tab=${tab}" class="btn-reset">✕ Reset</a>` : ''}
       </form>
       <a href="?token=${esc(token)}&periode=${esc(periode)}&tab=${tab}" class="refresh-btn">↻ Verversen</a>
+      <a href="/api/logout" class="logout-btn" title="Uitloggen">⎋ Uitloggen</a>
     </div>
   </header>
 

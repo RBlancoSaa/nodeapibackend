@@ -3,12 +3,10 @@
 // POST → één klant upserten
 import '../utils/fsPatch.js';
 import { supabase } from '../services/supabaseClient.js';
+import { requireLogin } from '../utils/auth.js';
 
 export default async function handler(req, res) {
-  const token = req.query?.token || req.headers?.['x-token'] || '';
-  if (token !== (process.env.CRON_SECRET || '')) {
-    return res.status(401).json({ error: 'Niet geautoriseerd' });
-  }
+  if (!requireLogin(req, res, { json: true })) return;
 
   // ── GET: alle records ────────────────────────────────────────────────────
   if (req.method === 'GET') {
