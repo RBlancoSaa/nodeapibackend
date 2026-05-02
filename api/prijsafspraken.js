@@ -1,14 +1,19 @@
 // api/prijsafspraken.js
-// GET  → alle prijsafspraken ophalen
+// GET  → alle prijsafspraken voor een tenant ophalen
 // POST → één klant upserten
 import '../utils/fsPatch.js';
 import { supabase } from '../services/supabaseClient.js';
-import { requireLogin } from '../utils/auth.js';
+import { requirePermission } from '../utils/auth.js';
 
 export default async function handler(req, res) {
-  if (!requireLogin(req, res, { json: true })) return;
+  // Tenant-slug komt uit ?tenant=... (gestuurd door dashboard JS).
+  // Default = 'tiarotransport' voor backwards-compatibiliteit.
+  const slug = (req.query?.tenant || 'tiarotransport').toString();
+  const needPerm = req.method === 'GET' ? 'view_tarieven' : 'edit_tarieven';
 
-  // ── GET: alle records ────────────────────────────────────────────────────
+  const ctx = await requirePermission(req, res, needPerm, slug, { json: true });
+  if (!ctx) return;
+
   if (req.method === 'GET') {
     const { data, error } = await supabase
       .from('prijsafspraken')
@@ -18,7 +23,6 @@ export default async function handler(req, res) {
     return res.status(200).json(data || []);
   }
 
-  // ── POST: upsert één klant ───────────────────────────────────────────────
   if (req.method === 'POST') {
     const body = req.body || {};
     // Altijd lowercase opslaan zodat enrichOrder (die ook lowercase zoekt) altijd matcht
