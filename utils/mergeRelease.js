@@ -38,5 +38,17 @@ export function mergeRelease(container, releaseData) {
     container.inleverreferentie = inleverreferentie;
   }
 
+  // Leeg-retour terminal (afzetlocatie naam) — bijv. "KRAMER HOME" uit CMA CGM release
+  const { emptyReturnNaam } = releaseData;
+  if (emptyReturnNaam) {
+    const afzetLoc = container.locaties?.find(l => (l.actie || '').toLowerCase() === 'afzetten');
+    if (afzetLoc && (!afzetLoc.naam || SEE_RELEASE.test(afzetLoc.naam))) {
+      console.log(`📋 mergeRelease: afzet terminal "${emptyReturnNaam}" overgenomen uit release (was: "${afzetLoc.naam}")`);
+      afzetLoc.naam = emptyReturnNaam;
+      // Sync inleverBestemming
+      if (container.inleverBestemming !== undefined) container.inleverBestemming = emptyReturnNaam;
+    }
+  }
+
   return container;
 }

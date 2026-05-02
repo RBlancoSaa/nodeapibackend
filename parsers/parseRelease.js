@@ -37,16 +37,19 @@ export async function parseRelease(buffer) {
   // Patronen in volgorde van specificiteit
   let referentie = '';
   const opzetPatterns = [
-    /\bPIN(?:\s*(?:code|nr|number|:))?\s*[:\-]?\s*([A-Z0-9]{4,20})\b/i,
+    // PIN-code: sluit gewone Engelse woorden uit die na "PIN" kunnen staan (bijv. "PIN valid until")
+    /\bPIN(?:\s*(?:code|nr|number|:))?\s*[:\-]?\s*(?!valid|until|date|is|the|was|for|code|nr|no|num|not|has|have|been)([A-Z0-9]{4,20})\b/i,
     /\bopzet\s*referentie\s*[:\-]\s*([A-Z0-9\-\/]{4,30})/i,
     /\bpickup\s*(?:reference|ref\.?)\s*[:\-]\s*([A-Z0-9\-\/]{4,30})/i,
     /\brelease\s*(?:nr|number|code|ref\.?)\s*[:\-]\s*([A-Z0-9\-\/]{4,30})/i,
     /\bvrijgave\s*(?:nr|code)?\s*[:\-]\s*([A-Z0-9\-\/]{4,30})/i,
+    // Release Notification Number (bijv. CMA CGM "DORTM01408664")
+    /\bRelease\s+Notification\s+(?:NR|NO|Nr\.?|#)?\s*[:\-]?\s*([A-Z0-9]{6,20})\b/i,
     /\bReference\s*[:\-]\s*([A-Z0-9\-\/]{6,30})/i,
   ];
   for (const pat of opzetPatterns) {
     const m = text.match(pat);
-    if (m) { referentie = m[1].trim(); break; }
+    if (m && m[1]) { referentie = m[1].trim(); break; }
   }
 
   // ── Afzetreferentie (inlever / booking / B/L) ────────────────────────────
@@ -64,7 +67,27 @@ export async function parseRelease(buffer) {
     if (m) { inleverreferentie = m[1].trim(); break; }
   }
 
-  console.log(`📋 Release data: container="${containernummer}" opzetRef="${referentie}" afzetRef="${inleverreferentie}"`);
+  // ── Leeg-retour terminal (afzetadres) ────────────────────────────────────
+  // In CMA CGM releases staat de terminalnaam VOOR het label "EMPTY RETURN ADDRESS".
+  // Bijv.:
+  //   KRAMER HOME
+  //   CONTAINERS
+  //   EMPTY RETURN ADDRESS
+  let emptyReturnNaam = '';
+  const releaseLines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const eraIdx = releaseLines.findIndex(l => /EMPTY\s+RETURN\s+ADDRESS/i.test(l));
+  if (eraIdx > 0) {
+    // Zoek achterwaarts naar eerste echte terminalnaam (sla generieke labels over)
+    for (let i = eraIdx - 1; i >= Math.max(0, eraIdx - 4); i--) {
+      const ln = releaseLines[i];
+      if (ln && ln.length > 3 && !/^(CONTAINERS?|TOTAL|TARE|SIZE|TYPE|NB\s+OF|PER\s+SIZE)$/i.test(ln)) {
+        emptyReturnNaam = ln;
+        break;
+      }
+    }
+  }
 
-  return { containernummer, referentie, inleverreferentie };
+  console.log(`📋 Release data: container="${containernummer}" opzetRef="${referentie}" afzetRef="${inleverreferentie}" emptyReturn="${emptyReturnNaam}"`);
+
+  return { containernummer, referentie, inleverreferentie, emptyReturnNaam };
 }

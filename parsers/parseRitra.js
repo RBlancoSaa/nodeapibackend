@@ -108,10 +108,11 @@ export default async function parseRitra(buffer) {
   }
 
   // Inleverreferentie (afzet terminal PIN) — waarde vóór "Releasenummer" label
+  // Vergroot zoekbereik tot 12: in Ritra PDF kan de waarde ver voor het label staan
   const releasenrIdx = ls.findIndex(l => /^Releasenummer$/i.test(l));
   let inleverreferentieRaw = '';
   if (releasenrIdx > 0) {
-    for (let i = releasenrIdx - 1; i >= Math.max(0, releasenrIdx - 5); i--) {
+    for (let i = releasenrIdx - 1; i >= Math.max(0, releasenrIdx - 12); i--) {
       if (/^\d{7,}$/.test(ls[i])) { inleverreferentieRaw = ls[i]; break; }
     }
   }

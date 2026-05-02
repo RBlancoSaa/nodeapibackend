@@ -528,22 +528,21 @@ if (data.imo !== '0' || data.unnr !== '0') {
 // teruggeeft (bijv. "A15" als de tekst een A15-snelwegsreferentie bevat).
 // Behandel "-" (en andere puur-leestekens) als "geen data" zodat enrichOrder
 // geen willekeurige fuzzy-match teruggeeft (bijv. "A15" bij input "-").
-const puHeeftData = puIndex >= 0 && (
-  (puNaamRaw  && !/^[-–—.\s]+$/.test(puNaamRaw))  || puAdresRaw
-);
-const doHeeftData = doIndex >= 0 && (
-  (doNaamRaw  && !/^[-–—.\s]+$/.test(doNaamRaw))  || doAdresRaw
-);
+// Let op: adres NIET als fallback gebruiken — het kan garbage bevatten (bijv. "Cargo:1 X 20' container")
+const puNaamValide = !!(puNaamRaw && !/^[-–—.\s]+$/.test(puNaamRaw));
+const doNaamValide = !!(doNaamRaw && !/^[-–—.\s]+$/.test(doNaamRaw));
+const puHeeftData  = puIndex >= 0 && puNaamValide;
+const doHeeftData  = doIndex >= 0 && doNaamValide;
 
 data.locaties = [
   // [0] Opzetten
   {
     volgorde: '0',
     actie: 'Opzetten',
-    naam:     puNaamRaw  || '',
-    adres:    puAdresRaw || '',
-    postcode: puPCRaw    || '',
-    plaats:   puPlaatsRaw || '',
+    naam:     puNaamValide ? puNaamRaw   : '',
+    adres:    puNaamValide ? puAdresRaw  : '',
+    postcode: puNaamValide ? puPCRaw     : '',
+    plaats:   puNaamValide ? puPlaatsRaw : '',
     land:     'NL',
     ...(!puHeeftData ? { _noTerminalLookup: true } : {})
   },
@@ -571,10 +570,10 @@ data.locaties = [
   {
     volgorde: '0',
     actie: 'Afzetten',
-    naam:     doNaamRaw   || '',
-    adres:    doAdresRaw  || '',
-    postcode: doPCRaw     || '',
-    plaats:   doPlaatsRaw || '',
+    naam:     doNaamValide ? doNaamRaw   : '',
+    adres:    doNaamValide ? doAdresRaw  : '',
+    postcode: doNaamValide ? doPCRaw     : '',
+    plaats:   doNaamValide ? doPlaatsRaw : '',
     land:     'NL',
     ...(!doHeeftData ? { _noTerminalLookup: true } : {})
   }
