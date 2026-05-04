@@ -1,8 +1,8 @@
 // utils/gmailTransport.js
 export { sendViaGmailApi as sendMail } from '../services/gmailApiService.js';
 
-/** Standaard ontvanger voor .easy bestanden */
-export const RECIPIENT_EMAIL = process.env.RECIPIENT_EMAIL || 'easybestanden@tiarotransport.nl';
+/** Ontvanger voor .easy bestanden — MOET via RECIPIENT_EMAIL omgevingsvariabele worden ingesteld */
+export const RECIPIENT_EMAIL = process.env.RECIPIENT_EMAIL;
 
 export function hasGmail() {
   return !!(
