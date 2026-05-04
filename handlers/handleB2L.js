@@ -7,7 +7,7 @@ import parseB2L from '../parsers/parseB2L.js';
 import { isReleasePdf, parseRelease } from '../parsers/parseRelease.js';
 import pdfParse from 'pdf-parse';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { getGmailTransporter } from '../utils/gmailTransport.js';
+import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 
@@ -95,7 +95,6 @@ export default async function handleB2L({
 
   // ── Genereer .easy bestanden ─────────────────────────────────────────────
   const { transporter, from } = await getGmailTransporter();
-  const to = process.env.RECIPIENT_EMAIL || 'easybestanden@tiarotransport.nl';
   const easyBestanden = [];
   const toFilename = toPdf?.filename || filename;
   const toBase64   = toPdf?.base64   || base64;

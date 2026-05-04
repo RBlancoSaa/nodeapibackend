@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import parseReservering from '../parsers/parseReservering.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { getGmailTransporter } from '../utils/gmailTransport.js';
+import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 
 export default async function handleReservering({ subject, bodyText, from, date }) {
@@ -33,7 +33,6 @@ export default async function handleReservering({ subject, bodyText, from, date 
     const easyPath = path.join(os.tmpdir(), easyFilename);
     fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
-    const to = process.env.RECIPIENT_EMAIL || 'easybestanden@tiarotransport.nl';
     await transporter.sendMail({
       from: fromAddr,
       to,

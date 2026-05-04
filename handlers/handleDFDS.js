@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import parseDFDS from '../parsers/parseDFDS.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { getGmailTransporter } from '../utils/gmailTransport.js';
+import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 
@@ -25,7 +25,6 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
   }
 
   const { transporter, from } = await getGmailTransporter();
-  const to = process.env.RECIPIENT_EMAIL || 'easybestanden@tiarotransport.nl';
   const easyBestanden = [];
 
   for (const container of containers) {

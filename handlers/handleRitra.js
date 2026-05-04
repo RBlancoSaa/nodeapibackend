@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import parseRitra from '../parsers/parseRitra.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { getGmailTransporter, hasGmail } from '../utils/gmailTransport.js';
+import { getGmailTransporter, hasGmail, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 
@@ -24,7 +24,6 @@ export default async function handleRitra({ buffer, base64, filename, fromEmail 
   }
 
   const { transporter, from } = await getGmailTransporter();
-  const to = process.env.RECIPIENT_EMAIL || 'easybestanden@tiarotransport.nl';
   const easyBestanden = [];
 
   for (const container of containers) {

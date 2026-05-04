@@ -6,7 +6,7 @@ import path from 'path';
 import { createClient } from '@supabase/supabase-js';
 import parseSteinweg from '../parsers/parseSteinweg.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { getGmailTransporter, hasGmail } from '../utils/gmailTransport.js';
+import { getGmailTransporter, hasGmail, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 
 async function sendSteinwegEmail({ ritnummer, attachments }) {
@@ -15,7 +15,6 @@ async function sendSteinwegEmail({ ritnummer, attachments }) {
     filename: att.filename,
     content: att.content || (att.path && fs.existsSync(att.path) ? fs.readFileSync(att.path) : Buffer.from(''))
   }));
-  const to = process.env.RECIPIENT_EMAIL || 'easybestanden@tiarotransport.nl';
   await transporter.sendMail({
     from,
     to,

@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import parseNeelevat from '../parsers/parseNeelevat.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { getGmailTransporter } from '../utils/gmailTransport.js';
+import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 
@@ -24,7 +24,6 @@ export default async function handleNeelevat({ buffer, base64, filename, mailSub
   }
 
   const { transporter, from } = await getGmailTransporter();
-  const to = process.env.RECIPIENT_EMAIL || 'easybestanden@tiarotransport.nl';
   const easyBestanden = [];
 
   for (const container of containers) {
