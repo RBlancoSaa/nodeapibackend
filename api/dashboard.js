@@ -1256,30 +1256,30 @@ function tgToggleDests(btn, klant, token) {
 
   const td = document.createElement('td');
   td.colSpan = colCount;
-  td.innerHTML = `
-    <div class="tg-dest-inner">
-      <div class="tg-dest-inner-head">
-        <span class="tg-dest-inner-title">📍 Tarieven per bestemming — ${klant}</span>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
-          <span class="bt-ok" id="bt-ok" style="display:none">✓ Opgeslagen</span>
-          <button class="bt-add-btn" onclick="btAddRow()" style="font-size:11px;padding:4px 10px">＋ Toevoegen</button>
-          <button class="bt-save-btn" id="bt-save-btn" style="font-size:11px;padding:4px 12px">💾 Opslaan</button>
-        </div>
-      </div>
-      <div class="bt-card">
-        <div class="bt-table-wrap">
-          <table class="bt-table">
-            <thead><tr>
-              <th class="bt-th">Naam (klant)</th>
-              <th class="bt-th">Plaats</th>
-              <th class="bt-th bt-th-tarief">Tarief (€)</th>
-              <th class="bt-th bt-th-del"></th>
-            </tr></thead>
-            <tbody id="bt-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>`;
+  td.innerHTML =
+    '<div class="tg-dest-inner">' +
+      '<div class="tg-dest-inner-head">' +
+        '<span class="tg-dest-inner-title">📍 Tarieven per bestemming — ' + klant + '</span>' +
+        '<div style="margin-left:auto;display:flex;align-items:center;gap:8px">' +
+          '<span class="bt-ok" id="bt-ok" style="display:none">✓ Opgeslagen</span>' +
+          '<button class="bt-add-btn" onclick="btAddRow()" style="font-size:11px;padding:4px 10px">＋ Toevoegen</button>' +
+          '<button class="bt-save-btn" id="bt-save-btn" style="font-size:11px;padding:4px 12px">💾 Opslaan</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="bt-card">' +
+        '<div class="bt-table-wrap">' +
+          '<table class="bt-table">' +
+            '<thead><tr>' +
+              '<th class="bt-th">Naam (klant)</th>' +
+              '<th class="bt-th">Plaats</th>' +
+              '<th class="bt-th bt-th-tarief">Tarief (€)</th>' +
+              '<th class="bt-th bt-th-del"></th>' +
+            '</tr></thead>' +
+            '<tbody id="bt-body"></tbody>' +
+          '</table>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
   expRow.appendChild(td);
 
   row.insertAdjacentElement('afterend', expRow);
