@@ -547,7 +547,7 @@ export default async function handler(req, res) {
           <td class="tg-save-cell">
             <button class="tg-save-btn" onclick="tgSave(this,'${esc(token)}')">💾</button>
             <span class="tg-ok" style="display:none">✓</span>
-            ${k.isBron ? `<button class="tg-dest-btn" onclick="tgOpenBestemmingen('${esc(k.naam)}','${esc(token)}')" title="Tarieven per bestemming">📍</button>` : `<button class="tg-hide-btn" onclick="tgVerberg(this,'${esc(token)}')" title="Verberg — geen klant / depot / fout">🚫</button>`}
+            ${k.isBron ? `<button class="tg-dest-btn" onclick="tgToggleDests(this,'${esc(k.naam)}','${esc(token)}')" title="Tarieven per bestemming">📍</button>` : `<button class="tg-hide-btn" onclick="tgVerberg(this,'${esc(token)}')" title="Verberg — geen klant / depot / fout">🚫</button>`}
           </td>
         </tr>`;
       }
@@ -964,17 +964,14 @@ td           { padding: 8px 14px; vertical-align: middle; }
 .tg-show-hidden-btn:hover { color:var(--text); }
 .tg-dest-btn { margin-left:4px;padding:4px 8px;background:var(--navy-light);border:1px solid #C3D1E8;border-radius:6px;font-size:12px;cursor:pointer;color:var(--navy);transition:all .15s; }
 .tg-dest-btn:hover { background:#B0C4DE;border-color:#8899BB; }
+.tg-dest-btn-open { background:var(--accent);border-color:var(--accent);color:white; }
+.tg-dest-btn-open:hover { background:var(--accent-hov);border-color:var(--accent-hov); }
 
-/* ── Per-bestemming modal ── */
-.bt-modal-overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center; }
-.bt-modal-overlay.open { display:flex; }
-.bt-modal-box { background:var(--card);border-radius:16px;width:720px;max-width:96vw;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.35); }
-.bt-modal-head { padding:14px 20px;border-bottom:1px solid var(--sidebar-bdr);display:flex;align-items:center;justify-content:space-between;background:var(--sidebar);flex-shrink:0; }
-.bt-modal-title { font-size:14px;font-weight:700;color:#F5F0E8; }
-.bt-modal-sub { font-size:11px;color:#9E8A75;margin-top:2px; }
-.bt-modal-close { background:none;border:none;color:#9E8A75;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1;transition:color .15s; }
-.bt-modal-close:hover { color:#F5F0E8; }
-.bt-modal-body { overflow-y:auto;flex:1;padding:16px; }
+/* ── Per-bestemming inline uitklap ── */
+.tg-dest-expansion td { padding:0 !important; }
+.tg-dest-inner { padding:10px 16px 14px; background:var(--light-bg); border-top:2px solid var(--accent); border-bottom:2px solid var(--accent); }
+.tg-dest-inner-head { display:flex;align-items:center;gap:10px;margin-bottom:10px; }
+.tg-dest-inner-title { font-size:12px;font-weight:700;color:var(--accent); }
 
 /* ── Per-bestemming tarieven ── */
 .bt-page         { max-width: 860px; }
@@ -1131,41 +1128,6 @@ td           { padding: 8px 14px; vertical-align: middle; }
 
 </div><!-- /layout -->
 
-<!-- ── Per-bestemming modal ── -->
-<div id="bt-modal-overlay" class="bt-modal-overlay" onclick="if(event.target===this)btCloseModal()">
-  <div class="bt-modal-box">
-    <div class="bt-modal-head">
-      <div>
-        <div class="bt-modal-title">📍 Tarieven per bestemming</div>
-        <div class="bt-modal-sub" id="bt-modal-sub"></div>
-      </div>
-      <button class="bt-modal-close" onclick="btCloseModal()">✕</button>
-    </div>
-    <div class="bt-modal-body">
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Stel per klant/laadplaats een afwijkend tarief in. Laat leeg om het standaard klanttarief te gebruiken.</div>
-      <div class="bt-card">
-        <div class="bt-table-wrap">
-          <table class="bt-table">
-            <thead><tr>
-              <th class="bt-th">Naam (klant)</th>
-              <th class="bt-th">Plaats</th>
-              <th class="bt-th bt-th-tarief">Tarief (€)</th>
-              <th class="bt-th bt-th-del"></th>
-            </tr></thead>
-            <tbody id="bt-body"></tbody>
-          </table>
-        </div>
-        <div class="bt-footer">
-          <button class="bt-add-btn" onclick="btAddRow()">＋ Bestemming toevoegen</button>
-          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
-            <span class="bt-ok" id="bt-ok" style="display:none">✓ Opgeslagen</span>
-            <button class="bt-save-btn" id="bt-save-btn">💾 Opslaan</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
 <script>
 // Auto-refresh elke 90 seconden (niet op tarieven-tabs — voorkomt verlies van aanpassingen)
@@ -1272,18 +1234,58 @@ async function btSave(token) {
   finally { saveBtn.disabled = false; }
 }
 
-// Open modal voor per-bestemming tarieven
-function tgOpenBestemmingen(klant, token) {
+// Inline uitklap per-bestemming tarieven onder de bron-rij
+function tgToggleDests(btn, klant, token) {
+  const row = btn.closest('tr');
+  const existing = document.getElementById('tg-dest-expansion');
+
+  // Sluit bestaande uitklap (dezelfde of andere bron)
+  if (existing) {
+    existing.remove();
+    document.querySelectorAll('.tg-dest-btn').forEach(b => b.classList.remove('tg-dest-btn-open'));
+    if (existing.dataset.klant === klant) return; // toggle off
+  }
+
   btCurrentKlant = klant;
-  document.getElementById('bt-modal-sub').textContent = klant;
-  btRenderRows(BT_DATA[klant] || []);
+  const colCount = row.querySelectorAll('td').length;
+
+  const expRow = document.createElement('tr');
+  expRow.id = 'tg-dest-expansion';
+  expRow.className = 'tg-dest-expansion';
+  expRow.dataset.klant = klant;
+
+  const td = document.createElement('td');
+  td.colSpan = colCount;
+  td.innerHTML = `
+    <div class="tg-dest-inner">
+      <div class="tg-dest-inner-head">
+        <span class="tg-dest-inner-title">📍 Tarieven per bestemming — ${klant}</span>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <span class="bt-ok" id="bt-ok" style="display:none">✓ Opgeslagen</span>
+          <button class="bt-add-btn" onclick="btAddRow()" style="font-size:11px;padding:4px 10px">＋ Toevoegen</button>
+          <button class="bt-save-btn" id="bt-save-btn" style="font-size:11px;padding:4px 12px">💾 Opslaan</button>
+        </div>
+      </div>
+      <div class="bt-card">
+        <div class="bt-table-wrap">
+          <table class="bt-table">
+            <thead><tr>
+              <th class="bt-th">Naam (klant)</th>
+              <th class="bt-th">Plaats</th>
+              <th class="bt-th bt-th-tarief">Tarief (€)</th>
+              <th class="bt-th bt-th-del"></th>
+            </tr></thead>
+            <tbody id="bt-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  expRow.appendChild(td);
+
+  row.insertAdjacentElement('afterend', expRow);
+  btn.classList.add('tg-dest-btn-open');
   document.getElementById('bt-save-btn').onclick = () => btSave(token);
-  document.getElementById('bt-modal-overlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function btCloseModal() {
-  document.getElementById('bt-modal-overlay').classList.remove('open');
-  document.body.style.overflow = '';
+  btRenderRows(BT_DATA[klant] || []);
 }
 
 // ── Tarieven grid helpers ────────────────────────────────────────────────────
