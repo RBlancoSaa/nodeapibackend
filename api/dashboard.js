@@ -434,27 +434,34 @@ export default async function handler(req, res) {
     for (const pa of prijsafspraken) paByKlant[(pa.klant || '').toLowerCase()] = pa;
 
     // Per-bestemming tarieven data voor JS (embed als BT_DATA in script-tag)
-    // Alleen bronnen (opdrachtgevers) — bestemmingen auto-gevuld vanuit opdrachten_log
+    // Basis = opgeslagen _tarieven; aangevuld met nieuwe bestemmingen uit opdrachten_log
     const btDataForJs = {};
     for (const bron of allBronnen) {
       const pa = paByKlant[bron.naam.toLowerCase()] || {};
       const savedTarieven = pa.velden?._tarieven || [];
-      // Lookup: "naam|plaats" → tarief (support ook oud formaat zonder naam)
-      const tariefMap = {};
+
+      // Start met alle opgeslagen tarieven (incl. historische uploads)
+      const result = savedTarieven.map(t => ({ naam: t.naam||'', plaats: t.plaats||'', tarief: t.tarief??'' }));
+      const resultKeys = new Set(result.map(r => `${r.naam.toLowerCase()}|${r.plaats.toLowerCase()}`));
+
+      // Lookup map voor plaatsen zonder naam
+      const plaatsMap = {};
       for (const t of savedTarieven) {
-        const nk = `${(t.naam||'').toLowerCase()}|${(t.plaats||'').toLowerCase()}`;
-        const pk = `|${(t.plaats||'').toLowerCase()}`;
-        tariefMap[nk] = t.tarief ?? '';
-        if (tariefMap[pk] === undefined) tariefMap[pk] = t.tarief ?? '';
+        const pk = (t.plaats||'').toLowerCase();
+        if (pk && plaatsMap[pk] === undefined) plaatsMap[pk] = t.tarief ?? '';
       }
+
+      // Voeg bestemmingen uit opdrachten_log toe die nog niet opgeslagen zijn
       const knownDests = bronDestsMap[bron.naam] || [];
-      btDataForJs[bron.naam] = knownDests.map(d => {
+      for (const d of knownDests) {
         const nk = `${d.naam.toLowerCase()}|${d.plaats.toLowerCase()}`;
-        const pk = `|${d.plaats.toLowerCase()}`;
-        const tarief = tariefMap[nk] !== undefined ? tariefMap[nk]
-                     : tariefMap[pk] !== undefined ? tariefMap[pk] : '';
-        return { naam: d.naam, plaats: d.plaats, tarief };
-      });
+        if (!resultKeys.has(nk)) {
+          const tarief = plaatsMap[d.plaats.toLowerCase()] ?? '';
+          result.push({ naam: d.naam, plaats: d.plaats, tarief });
+        }
+      }
+
+      btDataForJs[bron.naam] = result.sort((a, b) => a.plaats.localeCompare(b.plaats));
     }
 
     function prijsafsprakenTab() {
