@@ -24,7 +24,7 @@ export default async function handleRitra({ buffer, base64, filename, fromEmail 
   }
 
   const { transporter, from } = await getGmailTransporter();
-  const to = process.env.RECIPIENT_EMAIL || 'opdrachten@tiarotransport.nl';
+  const to = process.env.RECIPIENT_EMAIL || 'easybestanden@tiarotransport.nl';
   const easyBestanden = [];
 
   for (const container of containers) {

@@ -15,7 +15,7 @@ async function sendSteinwegEmail({ ritnummer, attachments }) {
     filename: att.filename,
     content: att.content || (att.path && fs.existsSync(att.path) ? fs.readFileSync(att.path) : Buffer.from(''))
   }));
-  const to = process.env.RECIPIENT_EMAIL || 'opdrachten@tiarotransport.nl';
+  const to = process.env.RECIPIENT_EMAIL || 'easybestanden@tiarotransport.nl';
   await transporter.sendMail({
     from,
     to,

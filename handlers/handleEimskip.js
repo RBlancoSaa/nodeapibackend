@@ -32,7 +32,7 @@ export default async function handleEimskip({
   }
 
   const { transporter, from } = await getGmailTransporter();
-  const to = process.env.RECIPIENT_EMAIL || 'opdrachten@tiarotransport.nl';
+  const to = process.env.RECIPIENT_EMAIL || 'easybestanden@tiarotransport.nl';
   const easyBestanden = [];
 
   const fouten = [];

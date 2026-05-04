@@ -95,7 +95,7 @@ export default async function handleB2L({
 
   // ── Genereer .easy bestanden ─────────────────────────────────────────────
   const { transporter, from } = await getGmailTransporter();
-  const to = process.env.RECIPIENT_EMAIL || 'opdrachten@tiarotransport.nl';
+  const to = process.env.RECIPIENT_EMAIL || 'easybestanden@tiarotransport.nl';
   const easyBestanden = [];
   const toFilename = toPdf?.filename || filename;
   const toBase64   = toPdf?.base64   || base64;

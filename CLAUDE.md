@@ -2,7 +2,7 @@
 
 ## Wat doet dit systeem
 
-Node.js backend op Vercel die ongelezen Gmail-emails ophaalt, PDF/XLSX transportopdrachten parseert van vaste klanten, `.easy` XML-bestanden genereert voor EasyTrip (Microsoft Access transport-software), en die bestanden per email verstuurt naar `opdrachten@tiarotransport.nl`.
+Node.js backend op Vercel die ongelezen Gmail-emails ophaalt, PDF/XLSX transportopdrachten parseert van vaste klanten, `.easy` XML-bestanden genereert voor EasyTrip (Microsoft Access transport-software), en die bestanden per email verstuurt naar `easybestanden@tiarotransport.nl`.
 
 Trigger: GET `/api/upload-from-inbox`
 
@@ -133,7 +133,7 @@ Score-systeem `berekenScore()`:
 GMAIL_CLIENT_ID
 GMAIL_CLIENT_SECRET
 GMAIL_REFRESH_TOKEN
-RECIPIENT_EMAIL          (standaard = opdrachten@tiarotransport.nl)
+RECIPIENT_EMAIL          (standaard = easybestanden@tiarotransport.nl)
 SUPABASE_URL
 SUPABASE_SERVICE_KEY
 SUPABASE_LIST_PUBLIC_URL (publieke URL van de referentielijsten bucket)
