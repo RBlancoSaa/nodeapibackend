@@ -223,7 +223,8 @@ export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr, afsprake
   }
   // Terminal-specifieke toeslag (altijd vol bedrag — Route 1 containers rijden nooit gepaard)
   const termKeyVol     = normTerminalKey(terminalNaam);
-  const dieselChart    = afspraken?.toeslag('diesel') || 0;  // fluctuerend — moet in DB staan
+  const dieselPct      = afspraken?.toeslag('diesel') || 10; // 10% standaard
+  const dieselChart    = Math.round(tarief * dieselPct / 100 * 100) / 100;
   let deltaChart   = 0;
   let euromaxChart = 0;
   let blanco2Chart = 0;
@@ -275,7 +276,8 @@ export function berekenLeegTarief(depotNaam, opzetNaam, sizeStr, isPaired, afspr
 
   // Terminal-specifieke toeslag bij afzetdepot (gehalveerd bij setje)
   const depotTerminalKey = normTerminalKey(depotNaam);
-  const dieselChart  = (afspraken?.toeslag('diesel'))  || 9;
+  const dieselPct    = afspraken?.toeslag('diesel') || 10; // 10% standaard
+  const dieselChart  = Math.round(tarief * dieselPct / 100 * 100) / 100;
   const deltaBase    = (afspraken?.toeslag('delta'))   || 28.50;
   const euromaxBase  = (afspraken?.toeslag('euromax')) || 28.50;
   const rwgBase      = (afspraken?.toeslag('rwg'))     || 31;
