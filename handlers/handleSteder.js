@@ -42,7 +42,7 @@ export default async function handleSteder({ buffer, base64, filename, mailSubje
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
       await transporter.sendMail({
-        from, to,
+        from, to: RECIPIENT_EMAIL,
         subject: `easytrip file - ${ref}`,
         text: `Steder transportopdracht verwerkt: ${ref}`,
         attachments: [

@@ -250,7 +250,7 @@ Strikte regels:
 - Geef ALLEEN geldige JSON terug, geen uitleg, geen markdown-backticks`;
 
   const message = await client.messages.create({
-    model:      'claude-opus-4-5',
+    model:      process.env.ANTHROPIC_MODEL || 'claude-opus-4-5',
     max_tokens: 1500,
     messages: [{
       role: 'user',
