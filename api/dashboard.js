@@ -489,20 +489,30 @@ export default async function handler(req, res) {
         const allIn  = !!pa.all_in;
         const c      = BRON_COLORS[(k.bron || '').toLowerCase()] || '#94a3b8';
 
+        const T_BLANCO_KEYS = new Set(['blanco1', 'blanco2']);
         const cells = T_COLS.map(col => {
-          const v       = velden[col.key] || {};
-          const chart   = v.chart ?? T_DEFAULTS[col.key] ?? 0;
-          const dimmed  = allIn && col.terminal;
-          const isPct   = T_PERCENT_KEYS.has(col.key);
-          return `<td class="tg-cell ${dimmed ? 'tg-dimmed' : ''}">
-            <div style="display:flex;align-items:center;gap:2px">
-              <input type="number" step="${isPct ? '1' : '0.01'}" min="0" class="tg-inp" data-key="${col.key}"
-                value="${dimmed ? '' : chart}"
-                placeholder="${dimmed ? '—' : '0'}"
-                style="width:${isPct ? '52px' : '68px'}"
-                ${dimmed || hidden ? 'disabled' : ''}
-                oninput="tgChange(this)">
-              ${isPct ? '<span style="font-size:11px;color:#9E8A75">%</span>' : ''}
+          const v         = velden[col.key] || {};
+          const chart     = v.chart ?? T_DEFAULTS[col.key] ?? 0;
+          const dimmed    = allIn && col.terminal;
+          const isPct     = T_PERCENT_KEYS.has(col.key);
+          const isBlanco  = T_BLANCO_KEYS.has(col.key);
+          const blancoTxt = isBlanco ? esc(v.text || '') : '';
+          return `<td class="tg-cell ${dimmed ? 'tg-dimmed' : ''} ${isBlanco ? 'tg-blanco-cell' : ''}">
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <div style="display:flex;align-items:center;gap:2px">
+                <input type="number" step="${isPct ? '1' : '0.01'}" min="0" class="tg-inp" data-key="${col.key}"
+                  value="${dimmed ? '' : chart}"
+                  placeholder="${dimmed ? '—' : '0'}"
+                  style="width:${isPct ? '52px' : isBlanco ? '62px' : '68px'}"
+                  ${dimmed || hidden ? 'disabled' : ''}
+                  oninput="tgChange(this)">
+                ${isPct ? '<span style="font-size:11px;color:#9E8A75">%</span>' : ''}
+              </div>
+              ${isBlanco ? `<input type="text" class="tg-blanco-txt" data-key="${col.key}"
+                value="${blancoTxt}" placeholder="omschrijving"
+                style="width:100px;font-size:11px;padding:2px 5px;border:1px solid #d9cfc4;border-radius:5px;color:#5C4A34;background:#faf8f5"
+                ${hidden ? 'disabled' : ''}
+                oninput="tgChangeText(this)">` : ''}
             </div>
           </td>`;
         }).join('');
@@ -1344,7 +1354,7 @@ function tgToggleAllIn(btn) {
   });
 }
 
-// Input change
+// Input change (bedrag)
 function tgChange(inp) {
   const row = inp.closest('tr');
   let v = {};
@@ -1353,6 +1363,17 @@ function tgChange(inp) {
   if (!v[key]) v[key] = {};
   v[key].chart  = parseFloat(inp.value) || 0;
   v[key].actief = (parseFloat(inp.value) || 0) > 0;
+  row.dataset.velden = JSON.stringify(v);
+}
+
+// Input change (blanco omschrijving)
+function tgChangeText(inp) {
+  const row = inp.closest('tr');
+  let v = {};
+  try { v = JSON.parse(row.dataset.velden || '{}'); } catch {}
+  const key = inp.dataset.key;
+  if (!v[key]) v[key] = {};
+  v[key].text = inp.value.trim();
   row.dataset.velden = JSON.stringify(v);
 }
 
@@ -1370,6 +1391,12 @@ async function tgSave(btn, token) {
     if (!velden[key]) velden[key] = {};
     velden[key].chart  = val;
     velden[key].actief = !inp.disabled && val > 0;
+  });
+  // Blanco omschrijvingen meenemen
+  row.querySelectorAll('.tg-blanco-txt').forEach(inp => {
+    const key = inp.dataset.key;
+    if (!velden[key]) velden[key] = {};
+    velden[key].text = inp.value.trim();
   });
   delete velden._negeer; // niet meesturen bij normaal opslaan
   btn.disabled = true;
