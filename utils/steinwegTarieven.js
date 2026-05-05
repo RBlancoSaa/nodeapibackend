@@ -246,15 +246,19 @@ export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr, afsprake
     blanco2Text  = 'RWG toeslag';
   }
 
-  console.log(`💰 Vol tarief: "${terminalNaam}" (${terminalKeyVol}) → zone="${zone}" ${ft} → €${tarief} | diesel=${dieselChart} delta=${deltaChart} emx=${euromaxChart} rwg=${blanco2Chart}`);
+  // Blanco vrij invulbaar vanuit dashboard (blanco1 = bedrag + tekst, actief:true om te activeren)
+  const blanco1Chart = afspraken?.toeslag('blanco1') || 0;
+  const blanco1Text  = afspraken?.toeslagText('blanco1') || '';
+
+  console.log(`💰 Vol tarief: "${terminalNaam}" (${terminalKeyVol}) → zone="${zone}" ${ft} → €${tarief} | diesel=${dieselChart} delta=${deltaChart} emx=${euromaxChart} rwg=${blanco2Chart} blanco1=${blanco1Chart}`);
 
   return {
     tarief,
     dieselToeslagChart: dieselChart,
     deltaChart,
     euromaxChart,
-    blanco1Chart: 0,
-    blanco1Text:  '',
+    blanco1Chart,
+    blanco1Text,
     blanco2Chart,
     blanco2Text,
   };
@@ -311,13 +315,19 @@ export function berekenLeegTarief(depotNaam, opzetNaam, sizeStr, isPaired, afspr
     blanco2Text  = 'RWG toeslag';
   }
 
+  // Blanco vrij invulbaar vanuit dashboard (blanco1 = bedrag + tekst, actief:true om te activeren)
+  // Bij setjes wordt het blanco-bedrag ook gehalveerd
+  const blanco1Base  = afspraken?.toeslag('blanco1') || 0;
+  const blanco1Chart = blanco1Base > 0 ? (isPaired ? blanco1Base / 2 : blanco1Base) : 0;
+  const blanco1Text  = afspraken?.toeslagText('blanco1') || '';
+
   return {
     tarief,
     dieselToeslagChart: dieselChart,
     deltaChart,
     euromaxChart,
-    blanco1Chart: 0,
-    blanco1Text:  '',
+    blanco1Chart,
+    blanco1Text,
     blanco2Chart,
     blanco2Text,
   };
