@@ -35,7 +35,7 @@ export default async function handleReservering({ subject, bodyText, from, date 
 
     await transporter.sendMail({
       from: fromAddr,
-      to,
+      to: RECIPIENT_EMAIL,
       subject: `reservering - ${container.datum} - ${container.klantnaam}`,
       text: `Reservering ontvangen van ${from}.\nDatum: ${container.datum}\nKlant: ${container.klantnaam}\n\nOriginele email:\n${bodyText || '(geen tekst)'}`,
       attachments: [{ filename: easyFilename, path: easyPath }]

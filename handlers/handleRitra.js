@@ -36,7 +36,7 @@ export default async function handleRitra({ buffer, base64, filename, fromEmail 
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
       await transporter.sendMail({
-        from, to,
+        from, to: RECIPIENT_EMAIL,
         subject: `easytrip file - ${ref}`,
         text: `Ritra transportopdracht verwerkt: ${ref}`,
         attachments: [

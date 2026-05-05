@@ -43,7 +43,7 @@ export default async function handleNeelevat({ buffer, base64, filename, mailSub
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
       await transporter.sendMail({
-        from, to,
+        from, to: RECIPIENT_EMAIL,
         subject: `easytrip file - ${ref}`,
         text: `Neelevat transportopdracht verwerkt: ${ref}`,
         attachments: [

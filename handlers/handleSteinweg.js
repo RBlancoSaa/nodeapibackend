@@ -17,7 +17,7 @@ async function sendSteinwegEmail({ ritnummer, attachments }) {
   }));
   await transporter.sendMail({
     from,
-    to,
+    to: RECIPIENT_EMAIL,
     subject: `easytrip file - ${ritnummer}`,
     text: `Transportopdracht verwerkt: ${ritnummer}`,
     attachments: formatted

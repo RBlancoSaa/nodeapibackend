@@ -56,7 +56,7 @@ export default async function handleEimskip({
       }
 
       await transporter.sendMail({
-        from, to,
+        from, to: RECIPIENT_EMAIL,
         subject: `easytrip file - ${ref}`,
         text:    `Eimskip levering: ${cntr} — ${container.datum} ${container.tijd}`,
         attachments

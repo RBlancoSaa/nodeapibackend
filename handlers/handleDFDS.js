@@ -37,7 +37,7 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
       await transporter.sendMail({
-        from, to,
+        from, to: RECIPIENT_EMAIL,
         subject: `easytrip file - ${ref}`,
         text: `DFDS transportopdracht verwerkt: ${ref}`,
         attachments: [

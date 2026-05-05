@@ -37,7 +37,7 @@ export default async function handleJordex({ buffer, base64, filename, fromEmail
 
       await transporter.sendMail({
         from,
-        to,
+        to: RECIPIENT_EMAIL,
         subject: `easytrip file - ${ref}`,
         text: `Jordex transportopdracht verwerkt: ${ref}`,
         attachments: [

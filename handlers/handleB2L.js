@@ -109,7 +109,7 @@ export default async function handleB2L({
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
       await transporter.sendMail({
-        from, to,
+        from, to: RECIPIENT_EMAIL,
         subject: `easytrip file - ${ref}`,
         text: `B2L transportopdracht verwerkt: ${ref}`,
         attachments: [
