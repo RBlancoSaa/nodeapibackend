@@ -113,6 +113,32 @@ function buildAfspraken(record) {
     /** Geeft de tekstlabel terug voor blanco-toeslagen */
     toeslagText(sleutel) {
       return velden[sleutel]?.text || '';
-    }
+    },
+
+    /**
+     * Geeft het basistarief voor een volle container (Route 1) uit de matrix.
+     * Sleutelformaat in velden: "vol_{terminalKey}_{zone}_{20|40}"
+     * Geeft null terug als niet gevonden (caller gebruikt dan hardcoded fallback).
+     */
+    volTarief(terminalKey, zone, size20or40) {
+      if (!terminalKey || !zone) return null;
+      const k = `vol_${terminalKey}_${zone}_${size20or40}`;
+      const v = velden[k];
+      if (!v || v.actief === false) return null;
+      return v.chart ?? null;
+    },
+
+    /**
+     * Geeft het basistarief voor een lege container (Route 2) uit de matrix.
+     * Sleutelformaat in velden: "leeg_{depotKey}_{zone}_{20|40}"
+     * Geeft null terug als niet gevonden (caller gebruikt dan hardcoded fallback).
+     */
+    leegTarief(depotKey, zone, size20or40) {
+      if (!depotKey || !zone) return null;
+      const k = `leeg_${depotKey}_${zone}_${size20or40}`;
+      const v = velden[k];
+      if (!v || v.actief === false) return null;
+      return v.chart ?? null;
+    },
   };
 }

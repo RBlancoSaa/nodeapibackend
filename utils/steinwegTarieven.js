@@ -217,8 +217,15 @@ export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr, afsprake
   const zone           = detectZone(bestemmingNaam) || 'waalhaven'; // default Waalhaven
   const ft             = sizeStr.startsWith('20') ? 'ft20' : 'ft40';
 
+  // 1. Probeer tarief uit dashboard (prijsafspraken)
   let tarief = 0;
-  if (terminalKeyVol && VOL[terminalKeyVol]?.[zone]) {
+  const size = ft === 'ft20' ? '20' : '40';
+  if (afspraken?.volTarief) {
+    const dbTarief = afspraken.volTarief(terminalKeyVol, zone, size);
+    if (dbTarief !== null) tarief = dbTarief;
+  }
+  // 2. Fallback: hardcoded matrix
+  if (tarief === 0 && terminalKeyVol && VOL[terminalKeyVol]?.[zone]) {
     tarief = VOL[terminalKeyVol][zone][ft] ?? 0;
   }
   // Terminal-specifieke toeslag (altijd vol bedrag — Route 1 containers rijden nooit gepaard)
@@ -267,8 +274,17 @@ export function berekenLeegTarief(depotNaam, opzetNaam, sizeStr, isPaired, afspr
   const zone     = detectZone(opzetNaam) || 'waalhaven'; // default Waalhaven
   const ft       = sizeStr.startsWith('20') ? 'ft20' : 'ft40';
 
+  // 1. Probeer tarief uit dashboard (prijsafspraken)
   let tarief = 0;
-  if (depotKey && LEEG[depotKey]?.[zone]) {
+  const size = ft === 'ft20' ? '20' : '40';
+  if (afspraken?.leegTarief) {
+    const dbTarief = afspraken.leegTarief(depotKey, zone, size);
+    if (dbTarief !== null) {
+      tarief = isPaired ? dbTarief / 2 : dbTarief;
+    }
+  }
+  // 2. Fallback: hardcoded matrix
+  if (tarief === 0 && depotKey && LEEG[depotKey]?.[zone]) {
     const basis = LEEG[depotKey][zone][ft] ?? 0;
     tarief = isPaired ? basis / 2 : basis;
   }
