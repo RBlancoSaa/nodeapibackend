@@ -5,5 +5,11 @@
   ],
   "routes": [
     { "src": "/(.*)", "dest": "/index.js" }
+  ],
+  "crons": [
+    {
+      "path": "/api/upload-from-inbox",
+      "schedule": "*/15 * * * *"
+    }
   ]
 }
