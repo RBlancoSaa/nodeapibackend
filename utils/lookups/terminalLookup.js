@@ -75,8 +75,8 @@ async function getTerminalLijst() {
  * @param {string} [zoekAdres] - Adres uit PDF ter verificatie (optioneel maar zwaarst)
  */
 function berekenScore(zoek, terminal, zoekAdres = '') {
-  // Adres-bonus — werkt ook als zoek leeg is (adres-only lookup)
-  const straatZ = straatNaam(zoekAdres || zoek);
+  // Adres-bonus — gebruik alleen echt zoekAdres (niet de terminalnaam als fallback)
+  const straatZ = straatNaam(zoekAdres);
   const straatT = straatNaam(terminal.adres || '');
   let adresBonus = 0;
   if (straatZ && straatT) {
@@ -96,10 +96,17 @@ function berekenScore(zoek, terminal, zoekAdres = '') {
 
   // Naam bevat zoekterm of omgekeerd
   // Korte entry-naam (< 50% van zoekterm) = zwakke match (bijv. "STEINWEG" bij zoek "C. STEINWEG BOTLEK TERMINAL BV")
+  // Zonder adres: enkelvoudige zoekwoorden (bijv. "Rotterdam") geven nooit 80 — te generiek
   if (nNaam && (nNaam.includes(nZoek) || nZoek.includes(nNaam))) {
-    const containsScore = (nZoek.includes(nNaam) && nNaam.length < nZoek.length * 0.5)
-      ? 55
-      : 80;
+    const isShortEntry = nZoek.includes(nNaam) && nNaam.length < nZoek.length * 0.5;
+    let containsScore  = isShortEntry ? 55 : 80;
+
+    // Zonder adres: naam-contains van één enkel woord is te onbetrouwbaar → verlagen
+    if (!zoekAdres && containsScore === 80) {
+      const woordenZoek = zoek.trim().split(/\s+/).filter(w => w.length > 2);
+      if (woordenZoek.length < 2) containsScore = 50; // komt nooit boven drempel 65
+    }
+
     score = Math.max(score, containsScore);
   }
 
@@ -109,10 +116,13 @@ function berekenScore(zoek, terminal, zoekAdres = '') {
   const hits   = wordsZ.filter(w => wordsN.some(wn => wn.includes(w) || w.includes(wn)));
   if (hits.length > 0) score = Math.max(score, 40 + hits.length * 12);
 
-  // altNamen
-  const altHit = (terminal.altNamen || []).some(alt => {
+  // altNamen — ondersteunt zowel echte arrays als komma-gescheiden strings (legacy)
+  const altLabels = (terminal.altNamen || [])
+    .flatMap(alt => (typeof alt === 'string' ? alt.split(',').map(s => s.trim()) : [alt]))
+    .filter(s => s && s.length >= 2);
+  const altHit = altLabels.some(alt => {
     const nAlt = normStr(alt);
-    return nAlt.includes(nZoek) || nZoek.includes(nAlt);
+    return nAlt.length >= 2 && (nAlt.includes(nZoek) || nZoek.includes(nAlt));
   });
   if (altHit) score = Math.max(score, 65);
 
@@ -155,8 +165,9 @@ export async function getTerminalInfoFallback(zoekwaarde, zoekAdres = '') {
     const lijst = await getTerminalLijst();
 
     // Met adres: lagere drempel — adres is doorslaggevend (EAN-codes/portbase nodig)
-    // Zonder adres: hogere drempel — naam moet goed matchen om valse hits te vermijden
-    const drempel = zoekAdres ? 55 : 90;
+    // Zonder adres: drempel 65 — altNamen, acroniemen en multi-word naam-contains passen
+    // (enkelvoudige generieke woorden als "Rotterdam" worden door berekenScore al afgestraft)
+    const drempel = zoekAdres ? 55 : 65;
 
     const beste = lijst
       .map(item => ({ item, score: berekenScore(zoekwaarde || '', item, zoekAdres) }))
