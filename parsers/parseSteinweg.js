@@ -147,6 +147,29 @@ function sizetypeToDescription(sizetype) {
   return s;
 }
 
+/**
+ * Berekent de eerstvolgende zaterdag ná de route-1 datum.
+ * Als route 1 op donderdag of vrijdag valt → zaterdag van de week daarna.
+ * Formaat in/uit: "DD-MM-YYYY"
+ */
+function zaterdagNaRoute1(datum1Str) {
+  if (!datum1Str) return '';
+  const [dd, mm, yyyy] = datum1Str.split('-').map(Number);
+  if (!dd || !mm || !yyyy) return '';
+  const d1  = new Date(yyyy, mm - 1, dd);
+  const dag = d1.getDay(); // 0=zo, 1=ma, ..., 5=vr, 6=za
+
+  let dagenNaarZat = (6 - dag + 7) % 7;
+  if (dagenNaarZat === 0) dagenNaarZat = 7;   // al zaterdag → volgende zaterdag
+  if (dag === 4 || dag === 5) dagenNaarZat += 7; // do/vr → week opschuiven
+
+  const zat = new Date(d1);
+  zat.setDate(d1.getDate() + dagenNaarZat);
+  const resultaat = `${String(zat.getDate()).padStart(2,'0')}-${String(zat.getMonth()+1).padStart(2,'0')}-${zat.getFullYear()}`;
+  console.log(`📅 Route 2 zaterdag: route1=${datum1Str} (dag ${dag}) → zat=${resultaat} (+${dagenNaarZat}d)`);
+  return resultaat;
+}
+
 function selectEarliestFutureDatum(datums) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -417,7 +440,13 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
   // ── Route 2: Opzetten (Steinweg) → Afzetten (return depot) — omrijder ───────
   // Altijd apart verwerken — ook als route 1 aanwezig is
   if (r2 && r2.containers.length > 0) {
-    const r2Datum = selectEarliestFutureDatum([r2.plannedLoading, r2.plannedDelivery])
+    // Datum route 2 = altijd de zaterdag NA route 1
+    // Als route 1 op do/vr → zaterdag van de week daarna
+    const r1DatumVoorR2 = r1
+      ? (selectEarliestFutureDatum([r1.plannedLoading, r1.plannedDelivery]) || parseDateFromSubject(emailSubject))
+      : '';
+    const r2Datum = zaterdagNaRoute1(r1DatumVoorR2)
+      || selectEarliestFutureDatum([r2.plannedLoading, r2.plannedDelivery])
       || parseDateFromSubject(emailSubject);
 
     // Bereken welke containers in een setje (pair) rijden

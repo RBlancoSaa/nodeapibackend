@@ -162,6 +162,23 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
     }
   }
 
+  // ── Universele laden/lossen correctie ────────────────────────────────────────
+  // Container bekend → 99% Lossen (import, afleveradres)
+  // Geen container  → 99% Laden  (export, ophaaladres)
+  // Parsers die dit bewust anders zetten gebruiken _ladenOfLossenFixed: true
+  if (!order._ladenOfLossenFixed) {
+    const correcteActie = order.containernummer ? 'Lossen' : 'Laden';
+    order.ladenOfLossen = correcteActie;
+    // Corrigeer ook de klantlocatie actie (niet Opzetten/Afzetten/OMRIJDER)
+    for (const loc of (order.locaties || [])) {
+      const a = (loc.actie || '').toLowerCase();
+      if ((a === 'laden' || a === 'lossen') && (loc.naam || '').toUpperCase() !== 'OMRIJDER') {
+        loc.actie = correcteActie;
+      }
+    }
+  }
+  delete order._ladenOfLossenFixed;
+
   // Synchroniseer InleverBestemming vanuit de Afzetten locatie (ná terminal lookup)
   // zodat InleverBestemming en Afzetten locatienaam altijd overeenkomen.
   if (order.inleverBestemming !== undefined) {
