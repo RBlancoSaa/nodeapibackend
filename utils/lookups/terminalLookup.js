@@ -146,12 +146,33 @@ function berekenScore(zoek, terminal, zoekAdres = '') {
   });
   if (altHit) score = Math.max(score, 65);
 
-  // Acroniem-check
+  // Acroniem-check (zoekterm IS het acroniem, bijv. "UWT" → "United Waalhaven Terminals")
   if (nZoek.length >= 2 && nZoek.length <= 5) {
     const woorden = (terminal.naam || '').split(/\s+/).filter(w => w.length > 1);
     if (woorden.length >= nZoek.length) {
       const initialen = woorden.slice(0, nZoek.length).map(w => w[0].toLowerCase()).join('');
       if (initialen === nZoek) score = Math.max(score, 75);
+    }
+  }
+
+  // Acroniem ingebed in haakjes: "Terminals B.V. (UWT2)" → extraheer "UWT"
+  // Dekt gevallen zoals "... B.V. (UWT2)", "... N.V. (RWG1)", "... (APM2)"
+  const haakjesM = zoek.match(/\(([A-Z]{2,6})\d*\)/);
+  if (haakjesM) {
+    const nAcronym = normStr(haakjesM[1]); // bijv. "uwt"
+    // Check: acroniem komt overeen met de terminalnaam zelf
+    if (nNaam === nAcronym) score = Math.max(score, 85);
+    // Check: acroniem staat in altNamen
+    const acronymAltHit = altLabels.some(alt => {
+      const nAlt = normStr(alt);
+      return nAlt === nAcronym || nAlt.includes(nAcronym) || nAcronym.includes(nAlt);
+    });
+    if (acronymAltHit) score = Math.max(score, 75);
+    // Check: acroniem zijn de initialen van de terminalnaam
+    const wdn = (terminal.naam || '').split(/\s+/).filter(w => w.length > 1);
+    if (wdn.length >= nAcronym.length) {
+      const init = wdn.slice(0, nAcronym.length).map(w => w[0].toLowerCase()).join('');
+      if (init === nAcronym) score = Math.max(score, 75);
     }
   }
 

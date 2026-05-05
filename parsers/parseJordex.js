@@ -443,45 +443,83 @@ const data = {
     opdrachtgeverKVK: '24390991',
   };
 
-// Verwijder "terminal" suffix zodat je sleutel mét en stemt met Supabase
-// Terminalnamen uit eerste regel na de sectiekop (geen "Address:" prefix in terminalsecties)
+// ── Hulpfuncties voor terminal-sectie parsing ─────────────────────────────────
+/**
+ * Geeft true als de string eruitziet als een straatadres (straatnaam + huisnummer).
+ *
+ * CORRECT: "Bunschotenweg 200", "Missouriweg 17", "Kade 12A", "321 Bunschotenweg"
+ * FOUT:    "Terminals B.V. (UWT2)"  ← getal in haakjes, geen huisnummer
+ *          "APM Terminals Maasvlakte 2"  ← versienummer, geen huisnummer
+ *          "ECT Delta Terminal"    ← geen getal
+ *
+ * Vereiste: huisnummer van ≥2 cijfers AAN HET EIND (of begint met huisnummer).
+ * Dit filtert 1-cijferige "versie"-nummers ("Maasvlakte 2") en haakjes-varianten.
+ */
+function looksLikeStraatnummer(s) {
+  const t = (s || '').replace(/^Address:\s*/i, '').trim();
+  if (!t) return false;
+  // Begint met huisnummer: "200 Bunschotenweg"
+  if (/^\d{1,5}\s+[A-Za-z]/.test(t)) return true;
+  // Straatnaam + huisnummer (≥2 cijfers) aan het eind, optioneel met letter of koppelstreep
+  return /^[A-Za-z][A-Za-z\s\-]+\s+\d{2,5}[A-Za-z]{0,2}\s*(?:-\s*\d+[A-Za-z]?)?\s*$/.test(t);
+}
+
+/**
+ * Scant de regels NA een sectie-header ("Pick-up terminal" / "Drop-off terminal")
+ * en extraheert: naam, straatadres, postcode en plaats.
+ *
+ * Houdt rekening met variaties:
+ *   - "Address: Terminals B.V. (UWT2)" → naam (na stripping van "Address:")
+ *   - "Terminals B.V. (UWT2)"          → naam (geen prefix)
+ *   - "Bunschotenweg 200"              → adres
+ *   - "3089 KN Rotterdam"             → postcode + plaats
+ */
+function parseSectieAdresData(regels, headerIdx, maxLines = 8) {
+  let naam = '', adres = '', postcode = '', plaats = '';
+  if (headerIdx < 0) return { naam, adres, postcode, plaats };
+  for (let i = headerIdx + 1; i < Math.min(headerIdx + maxLines, regels.length); i++) {
+    const raw = (regels[i] || '').trim();
+    if (!raw) continue;
+    // Stop bij nieuwe sectie of veld-labels die niet bij het adresblok horen
+    if (/^(Reference|Date:|Vessel|Carrier|Remark|IMO|Extra\s+stop|Drop-off|Pick-up|Booking|Customs)/i.test(raw)) break;
+    const r = raw.replace(/^Address:\s*/i, '').trim();
+    if (!r) continue;
+
+    // Postcode: "3089 KN" of "3089KN Rotterdam"
+    if (!postcode && /^\d{4}\s*[A-Z]{2}\b/i.test(r)) {
+      const pcM = r.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
+      if (pcM) { postcode = `${pcM[1]} ${pcM[2]}`; plaats = pcM[3].trim(); }
+      continue;
+    }
+
+    // Straatadres: ≥2-cijferig huisnummer (geen bedrijfsnamen zoals "Terminals B.V. (UWT2)")
+    if (!adres && looksLikeStraatnummer(r)) {
+      adres = r;
+      continue;
+    }
+
+    // Bedrijfsnaam: eerste overgebleven regel
+    if (!naam) {
+      naam = r;
+      // Controleer: bestaat de volgende regel en lijkt die ook op een naamdeel?
+      // ("APM Terminals" kan gesplitst zijn over twee regels)
+      // — bewust NIET samenvoegen, anders raken we adres kwijt
+    }
+  }
+  return { naam, adres, postcode, plaats };
+}
+
+// ── Terminal-secties opzoeken en parsen ─────────────────────────────────────
 const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
 const doIndex = regels.findIndex(line => /^Drop[-\s]?off terminal$/i.test(line));
-// Guard: als sectie niet gevonden (index -1) → lege string, NIET regels[0]
-const puKey = puIndex >= 0 ? (regels[puIndex + 1] || '').replace(/^Address:\s*/i, '').trim() : '';
-const doKey = doIndex >= 0 ? (regels[doIndex + 1] || '').replace(/^Address:\s*/i, '').trim() : '';
-  console.log('🔑 puKey terminal lookup:', puKey);
-  console.log('🔑 doKey terminal lookup:', doKey);
 
-// Extraheer raw terminal data uit PDF — gebruik puKey als naam, volgende regels als adres/pc
-// Geen l2IsName concatenatie: straatadres zoals "Bunschotenweg 21" begint ook met een letter
-const puAdresCandidate  = puIndex >= 0 ? regels[puIndex + 2] || '' : '';
-const puPcCandidate     = puIndex >= 0 ? regels[puIndex + 3] || '' : '';
-let puNaamRaw  = puKey || '';
-let puAdresRaw = '', puPCRaw = '', puPlaatsRaw = '';
-if (/[A-Za-z].*\d/.test(puAdresCandidate) || /^\d+\b/.test(puAdresCandidate)) {
-  // Ziet eruit als een straatadres ("Bunschotenweg 21" of "21 Bunschotenweg")
-  puAdresRaw = puAdresCandidate;
-  const pcM = puPcCandidate.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
-  if (pcM) { puPCRaw = `${pcM[1]} ${pcM[2]}`; puPlaatsRaw = pcM[3].trim(); }
-} else if (/^(\d{4})\s*[A-Z]{2}\b/.test(puAdresCandidate)) {
-  // Geen adresregel, meteen postcode
-  const pcM = puAdresCandidate.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
-  if (pcM) { puPCRaw = `${pcM[1]} ${pcM[2]}`; puPlaatsRaw = pcM[3].trim(); }
-}
+const { naam: puNaamRaw, adres: puAdresRaw, postcode: puPCRaw, plaats: puPlaatsRaw } =
+  parseSectieAdresData(regels, puIndex);
+const { naam: doNaamRaw, adres: doAdresRaw, postcode: doPCRaw, plaats: doPlaatsRaw } =
+  parseSectieAdresData(regels, doIndex);
 
-const doAdresCandidate  = doIndex >= 0 ? regels[doIndex + 2] || '' : '';
-const doPcCandidate     = doIndex >= 0 ? regels[doIndex + 3] || '' : '';
-let doNaamRaw  = doKey || '';
-let doAdresRaw = '', doPCRaw = '', doPlaatsRaw = '';
-if (/[A-Za-z].*\d/.test(doAdresCandidate) || /^\d+\b/.test(doAdresCandidate)) {
-  doAdresRaw = doAdresCandidate;
-  const pcM = doPcCandidate.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
-  if (pcM) { doPCRaw = `${pcM[1]} ${pcM[2]}`; doPlaatsRaw = pcM[3].trim(); }
-} else if (/^(\d{4})\s*[A-Z]{2}\b/.test(doAdresCandidate)) {
-  const pcM = doAdresCandidate.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
-  if (pcM) { doPCRaw = `${pcM[1]} ${pcM[2]}`; doPlaatsRaw = pcM[3].trim(); }
-}
+console.log('🔑 puKey terminal lookup:', puNaamRaw, '| adres:', puAdresRaw);
+console.log('🔑 doKey terminal lookup:', doNaamRaw, '| adres:', doAdresRaw);
 
 // Klantgegevens: raw waarden — enrichOrder synct na adresboek lookup
 data.klantnaam    = klantNaam;
