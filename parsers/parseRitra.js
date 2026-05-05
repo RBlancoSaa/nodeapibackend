@@ -334,10 +334,7 @@ export default async function parseRitra(buffer) {
     adr: 'Onwaar',
     gasmeten,
     ladenOfLossen: 'Laden',
-    // Gasmeten MOET altijd prominent in instructies staan
-    instructies: gasmeten === 'Waar'
-      ? ('⚠️ GASMETEN' + (losOpm ? ' | ' + losOpm : ''))
-      : (losOpm || ''),
+    instructies: losOpm || '',
     tar: '', documentatie: '', tarra: '0', brix: '0',
 
     locaties

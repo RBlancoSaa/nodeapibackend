@@ -145,6 +145,15 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
       : melding;
   }
 
+  // Gasmeten / wegen: ALTIJD prominent vooraan in instructies voor ALLE parsers
+  if (order.gasmeten === 'Waar') {
+    const al = (order.instructies || '').toUpperCase();
+    if (!al.includes('GASMETEN') && !al.includes('WEGEN')) {
+      order.instructies = '⚠️ GASMETEN'
+        + (order.instructies ? ' | ' + order.instructies : '');
+    }
+  }
+
   // Synchroniseer InleverBestemming vanuit de Afzetten locatie (ná terminal lookup)
   // zodat InleverBestemming en Afzetten locatienaam altijd overeenkomen.
   if (order.inleverBestemming !== undefined) {
