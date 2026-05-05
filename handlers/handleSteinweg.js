@@ -41,11 +41,11 @@ function bouwDuplicatieNota(groep) {
   const n = groep.length;
   const regels = groep.map(c => {
     const delen = [c.containernummer];
+    if (c.brutogewicht && c.brutogewicht !== '0')        delen.push(`${c.brutogewicht} kg`);
     if (c.zegel)                                         delen.push(`zegel: ${c.zegel}`);
     if (c.referentie)                                    delen.push(`ref: ${c.referentie}`);
     if (c.inleverreferentie)                             delen.push(`afzetref: ${c.inleverreferentie}`);
     if (c.containertype)                                 delen.push(c.containertype);
-    if (c.brutogewicht && c.brutogewicht !== '0')        delen.push(`${c.brutogewicht} kg`);
     if (c.lading)                                        delen.push(c.lading);
     if (c.adr === 'Waar')                                delen.push('ADR');
     return delen.join(' - ');
@@ -189,10 +189,10 @@ export default async function handleSteinweg({
         if (groep.length > 1) {
           const containerRegels = groep.map(c => {
             const delen = [`  • ${c.containernummer}`];
+            if (c.brutogewicht && c.brutogewicht !== '0') delen.push(`${c.brutogewicht} kg`);
             if (c.zegel)                                  delen.push(`zegel: ${c.zegel}`);
             if (c.referentie)                             delen.push(`ref: ${c.referentie}`);
             if (c.inleverreferentie)                      delen.push(`afzetref: ${c.inleverreferentie}`);
-            if (c.brutogewicht && c.brutogewicht !== '0') delen.push(`${c.brutogewicht} kg`);
             if (c.adr === 'Waar')                         delen.push('ADR');
             return delen.join(' - ');
           });

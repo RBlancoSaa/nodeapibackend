@@ -199,8 +199,11 @@ function parseRoute1(buffer) {
   const cProd   = colOf('product');
   const cOrigin = colOf('origin');
   const cImo    = colOf('imo');
-  const cZegel  = ['zegel', 'seal nr', 'seal no', 'seal'].reduce((f, l) => f >= 0 ? f : colOf(l), -1);
+  const cZegel  = ['seal number', 'sealnumber', 'seal no', 'seal nr', 'seal#', 'zegel', 'seal']
+    .reduce((f, l) => f >= 0 ? f : colOf(l), -1);
   const cShip   = colOf('shipping comp');
+  console.log(`🏷️  Route 1 kolomindices: container=${cCntr} pickupRef=${cPickup} sizetype=${cSize} gewicht=${cWeight} seal=${cZegel}`);
+  console.log(`🏷️  Route 1 headers: [${hdr.join(' | ')}]`);
 
   let rederij = '';
   const containers = [];
