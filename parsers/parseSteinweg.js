@@ -4,6 +4,7 @@ import XLSX from 'xlsx';
 import { enrichOrder } from '../utils/enrichOrder.js';
 import { berekenVolTarief, berekenLeegTarief, berekenPairs } from '../utils/steinwegTarieven.js';
 import { getPrijsafspraken } from '../utils/getPrijsafspraken.js';
+import { getSteinwegAdres } from '../utils/lookups/terminalLookup.js';
 
 /**
  * Berekent de order-specifieke toeslagen (ADR, genset, gasmeten, extra stop)
@@ -505,6 +506,12 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         afspraken
       );
 
+      // Adres ophalen voor return depot uit steinweg_adressen.json
+      const depotRawNaam = canonicalTerminalNaam(c2.returnDepot || c2.destination || '');
+      const depotInfo    = depotRawNaam
+        ? (await getSteinwegAdres(depotRawNaam) || { naam: depotRawNaam, adres: '', postcode: '', plaats: '', land: 'NL' })
+        : { naam: '', adres: '', postcode: '', plaats: '', land: 'NL' };
+
       // Omrijder: Opzetten (Steinweg) → Lossen (OMRIJDER) → Afzetten (return depot)
       const locaties = [
         (() => {
@@ -521,9 +528,10 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         },
         {
           volgorde: '0', actie: 'Afzetten',
-          // Return depot → terminal-lijst lookup voor portbase_code/bicsCode
-          naam: canonicalTerminalNaam(c2.returnDepot || c2.destination || ''),
-          adres: '', postcode: '', plaats: '', land: 'NL'
+          // Return depot → adres uit steinweg_adressen.json, geen haventerminal lookup nodig
+          naam: depotInfo.naam, adres: depotInfo.adres, postcode: depotInfo.postcode,
+          plaats: depotInfo.plaats, land: depotInfo.land,
+          _noTerminalLookup: true  // Return depot, geen portbase/bics code
         }
       ];
 

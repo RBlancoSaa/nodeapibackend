@@ -675,6 +675,95 @@ export async function getAdresboekEntry(zoekNaam, type = null, zoekAdres = '') {
   }
 }
 
+// ─── Steinweg adresboek (return depots + klantadressen) ──────────────────────
+
+let _swAdresCache = null;
+let _swAdresCacheTime = 0;
+
+async function getSteinwegAdresLijst() {
+  const nu = Date.now();
+  if (_swAdresCache && nu - _swAdresCacheTime < 30_000) return _swAdresCache;
+  try {
+    const res = await fetch(`${SUPABASE_LIST_URL}/steinweg_adressen.json`);
+    _swAdresCache = await res.json();
+    _swAdresCacheTime = nu;
+  } catch (e) {
+    console.error('❌ steinweg_adressen.json ophalen mislukt:', e.message);
+    _swAdresCache = [];
+  }
+  return _swAdresCache;
+}
+
+/**
+ * Zoekt een depot/locatieadres in steinweg_adressen.json op basis van naam.
+ * Fuzzy name matching; adres is optioneel ter verificatie.
+ *
+ * @param {string} zoekNaam   - Naam van het return depot
+ * @param {string} [zoekAdres]- Optioneel adres ter verificatie
+ * @returns {{ naam, adres, postcode, plaats, land, ean, locatiecode }|null}
+ */
+export async function getSteinwegAdres(zoekNaam, zoekAdres = '') {
+  try {
+    if (!zoekNaam || zoekNaam.trim().length < 2) return null;
+    const lijst = await getSteinwegAdresLijst();
+    const nZoek  = normStr(zoekNaam);
+    const straatZ = straatNaam(zoekAdres);
+
+    let besteScore = 0;
+    let besteEntry = null;
+
+    for (const item of lijst) {
+      const nNaam   = normStr(item.naam || '');
+      const straatT = straatNaam(item.adres || '');
+
+      let score = 0;
+      if (nNaam === nZoek) {
+        score = 100;
+      } else if (nNaam.includes(nZoek) || nZoek.includes(nNaam)) {
+        // Korte naam in lange zoekterm → zwakke match (55)
+        const containsScore = (nZoek.includes(nNaam) && nNaam.length < nZoek.length * 0.5) ? 55 : 80;
+        score = containsScore;
+      } else {
+        const wordsZoek = zoekNaam.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        const wordsNaam = (item.naam || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        const hits = wordsZoek.filter(w => wordsNaam.some(wn => wn.includes(w) || w.includes(wn)));
+        if (hits.length >= 2)                              score = 40 + hits.length * 12;
+        else if (hits.length === 1 && hits[0].length >= 5) score = 40;
+      }
+
+      if (score === 0) continue;
+
+      // Adres-bonus als zoekAdres opgegeven
+      if (straatZ && straatT) {
+        if (straatT === straatZ)                                             score += 50;
+        else if (straatT.includes(straatZ) || straatZ.includes(straatT))    score += 25;
+      }
+
+      if (score > besteScore) { besteScore = score; besteEntry = item; }
+      if (besteScore >= 150) break;
+    }
+
+    const drempel = straatZ ? 40 : 55;
+    if (!besteEntry || besteScore < drempel) {
+      console.log(`⚠️ Steinweg adres: geen match voor "${zoekNaam}"${zoekAdres ? ` @ ${zoekAdres}` : ''}`);
+      return null;
+    }
+    console.log(`📍 Steinweg adres: "${zoekNaam}" → ${besteEntry.naam} (score ${besteScore}) adres="${besteEntry.adres}"`);
+    return {
+      naam:       besteEntry.naam      || zoekNaam,
+      adres:      besteEntry.adres     || '',
+      postcode:   normPostcode(besteEntry.postcode || ''),
+      plaats:     besteEntry.plaats    || '',
+      land:       normLand(besteEntry.land || 'NL'),
+      ean:        (besteEntry.ean       || '').replace(/\.0+$/, ''),
+      locatiecode: besteEntry.locatiecode || ''
+    };
+  } catch (e) {
+    console.error('❌ getSteinwegAdres error:', e);
+    return null;
+  }
+}
+
 // ─── Klantdata ────────────────────────────────────────────────────────────────
 
 /**
