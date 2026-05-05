@@ -18,7 +18,10 @@ function clean(value) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    // Gewone apostrof → typografische rechter aanhalingsteken (U+2019).
+    // EasyTrip/Access gebruikt intern SQL-queries; een letterlijke ' breekt die query.
+    // U+2019 ziet er identiek uit maar is géén SQL string-delimiter.
+    .replace(/'/g, '’');
 }
 // korte alias, zodat alle bestaande c(...) calls werken
 const c = clean;
