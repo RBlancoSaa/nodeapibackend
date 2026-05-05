@@ -31,10 +31,20 @@ function extractSection(ls, startIdx) {
   const naam = ls[i] || '';
   i++;
 
-  let datum = '', adres = '', postcode = '', plaats = '', referentie = '';
+  let datum = '', tijd = '', adres = '', postcode = '', plaats = '', referentie = '';
   for (let j = i; j < startIdx + 14 && j < ls.length; j++) {
     if (/^Datum\s*\/\s*tijd\s*:?\s*$/i.test(ls[j])) {
-      datum  = parseDatum(ls[j + 1] || '');
+      const datumTijdLine = ls[j + 1] || '';
+      datum = parseDatum(datumTijdLine);
+      // Tijdformaten: "om 0700 uur" | "om 07:00 uur" | "14:00"
+      const omM = datumTijdLine.match(/\bom\s+(\d{2})(\d{2})\s*uur\b/i)
+               || datumTijdLine.match(/\bom\s+(\d{1,2}):(\d{2})/i);
+      if (omM) {
+        tijd = `${omM[1].padStart(2, '0')}:${omM[2]}:00`;
+      } else {
+        const tijdM = datumTijdLine.match(/\b(\d{1,2}):(\d{2})\b/);
+        if (tijdM) tijd = `${tijdM[1].padStart(2, '0')}:${tijdM[2]}:00`;
+      }
       const adresLine = ls[j + 2] || '';
       const refSplit  = adresLine.split(/\s*Referentie:\s*/i);
       adres      = refSplit[0].trim();
@@ -48,7 +58,7 @@ function extractSection(ls, startIdx) {
       break;
     }
   }
-  return { naam, datum, adres, postcode, plaats, referentie };
+  return { naam, datum, tijd, adres, postcode, plaats, referentie };
 }
 
 export default async function parseNeelevat(buffer) {
@@ -140,6 +150,7 @@ export default async function parseNeelevat(buffer) {
   console.log(`🏭 Neelevat secties: sec1[${sec1Idx}] naam="${loc1.naam}" ref="${loc1.referentie}" | sec2[${sec2Idx}] naam="${loc2.naam}" ref="${loc2.referentie}" | sec3[${sec3Idx}] naam="${loc3.naam}" ref="${loc3.referentie}"`);
 
   const datum = loc1.datum || loc2.datum || '';
+  const tijd  = loc2.tijd  || loc1.tijd  || '';
 
   // Ruwe locaties — enrichOrder doet alle lookups
   const locaties = [
@@ -168,7 +179,7 @@ export default async function parseNeelevat(buffer) {
     containertype:     containertypeDisplay,
 
     datum,
-    tijd: '',
+    tijd,
     referentie:        loc1.referentie || '',
     laadreferentie:    loc2.referentie || '',
     inleverreferentie: loc3.referentie || '',

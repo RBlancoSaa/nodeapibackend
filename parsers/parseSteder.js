@@ -28,8 +28,15 @@ function extractSection(ls, startIdx) {
     if (/^Datum\s*[\/\-]?\s*tijd\s*:?\s*$/i.test(ls[j])) {
       const datumTijdLine = ls[j + 1] || '';
       datum = parseDatum(datumTijdLine);
-      const tijdM = datumTijdLine.match(/(\d{1,2}:\d{2})/);
-      if (tijdM) tijd = tijdM[1];
+      // Tijdformaten: "om 0700 uur" | "om 07:00 uur" | "14:00"
+      const omM = datumTijdLine.match(/\bom\s+(\d{2})(\d{2})\s*uur\b/i)
+               || datumTijdLine.match(/\bom\s+(\d{1,2}):(\d{2})/i);
+      if (omM) {
+        tijd = `${omM[1].padStart(2, '0')}:${omM[2]}:00`;
+      } else {
+        const tijdM = datumTijdLine.match(/\b(\d{1,2}):(\d{2})\b/);
+        if (tijdM) tijd = `${tijdM[1].padStart(2, '0')}:${tijdM[2]}:00`;
+      }
       const adresLine = ls[j + 2] || '';
       const refSplit  = adresLine.split(/\s*Referentie:\s*/i);
       adres      = refSplit[0].trim();
