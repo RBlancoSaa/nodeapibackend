@@ -82,8 +82,17 @@ function extractSectie(pls, headerIdx, volgendeHeaderIdx = -1) {
 
   const adres = (pls[i++] || '').trim();
 
-  // Skip ": PORTBASE" of ": ?" (portbase-referenties beginnen met ":")
-  while (i < eindIdx && /^\s*:/.test(pls[i])) i++;
+  // Verwerk ": PORTBASE" en ": <code>" regels
+  // ": PORTBASE" = systeemnaam → overslaan; ": <CODE>" = de eigenlijke portbase-referentie
+  let portbaseRef = '';
+  while (i < eindIdx && /^\s*:/.test(pls[i])) {
+    const colonVal = (pls[i] || '').replace(/^\s*:\s*/, '').trim();
+    // Sla op als portbase referentie: alfanumerieke code, NIET het label "PORTBASE" zelf
+    if (colonVal && !/^portbase$/i.test(colonVal) && /^[A-Z0-9]{4,}$/i.test(colonVal)) {
+      portbaseRef = colonVal;
+    }
+    i++;
+  }
 
   const pcStadLijn = (pls[i++] || '').trim();
   const landRaw    = (pls[i++] || '').trim();
@@ -91,20 +100,19 @@ function extractSectie(pls, headerIdx, volgendeHeaderIdx = -1) {
   const { postcode, plaats } = parsePostcodeStad(pcStadLijn);
   const land = normLand(landRaw);
 
-  // Referentie: zoek in resterende regels van deze sectie
+  // Referentie: zoek in resterende regels van deze sectie (ná postcode/land)
   // "Referentie: 39407780" OF standalone 7-8-cijferig getal
-  // "PORTBASE" is GEEN referentie — dat is een terminalsysteemnaam (verschijnt als ": PORTBASE")
+  // portbaseRef (gevonden in ": <CODE>" regels hierboven) dient als fallback
   let referentie = '';
   for (let j = i; j < eindIdx; j++) {
     const l = pls[j] || '';
-    // Sla portbase-regels over (beginnen met ":" of bevatten alleen "PORTBASE")
     if (/^\s*:/.test(l) || /^portbase$/i.test(l.trim())) continue;
     const refLabel = l.match(/(?:referentie|reference|ref\.?)[:\s]+(\d[A-Z0-9\/\-]*)/i);
     if (refLabel && !/portbase/i.test(refLabel[1])) { referentie = refLabel[1].trim(); break; }
     if (/^\d{7,}$/.test(l.trim())) { referentie = l.trim(); break; }
   }
 
-  return { naam, datum, tijd, adres, postcode, plaats, land, referentie };
+  return { naam, datum, tijd, adres, postcode, plaats, land, referentie: referentie || portbaseRef };
 }
 
 /**
@@ -214,7 +222,7 @@ Verplichte structuur:
     "postcode":   "postcode",
     "plaats":     "plaatsnaam",
     "land":       "2-letter landcode: NL, BE, DE, GB, FR",
-    "referentie": "PIN-code of ophaalreferentie bij deze terminal — ALLEEN een getal (bijv. '39407780'). NOOIT 'PORTBASE', 'PORTBASE_CODE' of een systeemnaam. Leeg als er geen numerieke referentie staat."
+    "referentie": "De portbase-referentie / PIN-code bij deze terminal. Zoek naar een getal of code na ':' of na het woord 'PORTBASE' in sectie 1 (bijv. '39407780'). Dit is de ophaalcode voor de chauffeur. NOOIT het woord 'PORTBASE' zelf — alleen de bijbehorende code/getal. Leeg als er geen code staat."
   },
   "sec2": {
     "naam":       "ALLEEN de naam van het bedrijf / klant op het afleveradres, ZONDER datum of tijd",
