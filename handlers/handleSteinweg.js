@@ -65,7 +65,7 @@ async function sendSteinwegEmail({ ritnummer, emailTekst, attachments }) {
     from,
     to: RECIPIENT_EMAIL,
     subject: `easytrip file - ${ritnummer}`,
-    text: emailTekst || `Transportopdracht verwerkt: ${ritnummer}`,
+    text: emailTekst,
     attachments: formatted
   });
 }
@@ -131,14 +131,10 @@ export default async function handleSteinweg({
   }
 
   const easyBestanden = [];
-  const easyAttachments = [];
-  // Samenvatting voor de email-body
-  const emailSamenvattingRegels = [];
 
-  // ── Per groep: één .easy aanmaken ─────────────────────────────────────────
+  // ── Per groep: één .easy aanmaken + één aparte email versturen ───────────
   for (const { depotNaam, containers: groep } of groepen) {
-    // Base container = eerste in de groep (de rest wordt in de nota gezet)
-    // Maak een kopie zodat we instructies kunnen aanpassen zonder het origineel te muteren
+    // Base container = eerste in de groep; kopie zodat instructies niet muteert
     const base = { ...groep[0] };
 
     // Duplicatienota toevoegen aan bijzonderheden als de groep >1 container heeft
@@ -147,7 +143,7 @@ export default async function handleSteinweg({
       base.instructies = base.instructies
         ? `${base.instructies}\n\n${nota}`
         : nota;
-      console.log(`📋 Groep "${depotNaam}": ${groep.length}x container → duplicatienota toegevoegd`);
+      console.log(`📋 Groep "${depotNaam}": ${groep.length}x → duplicatienota in bijzonderheden`);
     }
 
     try {
@@ -157,7 +153,7 @@ export default async function handleSteinweg({
       const isRetour = !base.brutogewicht || base.brutogewicht === '0';
       const suffix   = isRetour ? 'Retour' : 'Lossen';
 
-      // Bestandsnaam: voor groepen het aantal tonen in plaats van enkel het eerste containernummer
+      // Bestandsnaam: groepen tonen aantal, enkelen tonen containernummer
       const easyFilename = groep.length > 1
         ? `Order_${ref}_${groep.length}x_Steinweg_${suffix}.easy`
         : `Order_${ref}_${cntr}_Steinweg_${suffix}.easy`;
@@ -179,23 +175,39 @@ export default async function handleSteinweg({
       }
 
       easyBestanden.push(easyFilename);
-      easyAttachments.push({ filename: easyFilename, path: easyPath });
 
-      // Email-samenvatting opbouwen
-      if (groep.length > 1) {
-        emailSamenvattingRegels.push(`${easyFilename} → ${groep.length}x dupliceren voor depot: ${depotNaam}`);
-        const containerRegels = groep.map(c => {
-          const delen = [`  • ${c.containernummer}`];
-          if (c.zegel)                                  delen.push(`zegel: ${c.zegel}`);
-          if (c.referentie)                             delen.push(`ref: ${c.referentie}`);
-          if (c.inleverreferentie)                      delen.push(`afzetref: ${c.inleverreferentie}`);
-          if (c.brutogewicht && c.brutogewicht !== '0') delen.push(`${c.brutogewicht} kg`);
-          if (c.adr === 'Waar')                         delen.push('ADR');
-          return delen.join(' - ');
-        });
-        emailSamenvattingRegels.push(...containerRegels);
-      } else {
-        emailSamenvattingRegels.push(`${easyFilename}`);
+      // ── Stuur aparte email per .easy ──────────────────────────────────────
+      if (useGmail) {
+        // Bijlagen: het .easy bestand + originele Excel(s) + eml
+        const attachments = [{ filename: easyFilename, path: easyPath }];
+        if (elmPath && fs.existsSync(elmPath))  attachments.push({ filename: elmFilename, path: elmPath });
+        if (route1Buffer) attachments.push({ filename: route1Filename || 'Steinweg-Route1.xlsx', content: route1Buffer });
+        if (route2Buffer) attachments.push({ filename: route2Filename || 'Steinweg-Route2.xlsx', content: route2Buffer });
+
+        // Email-tekst: duplicatienota ook zichtbaar in de email body
+        let emailTekst;
+        if (groep.length > 1) {
+          const containerRegels = groep.map(c => {
+            const delen = [`  • ${c.containernummer}`];
+            if (c.zegel)                                  delen.push(`zegel: ${c.zegel}`);
+            if (c.referentie)                             delen.push(`ref: ${c.referentie}`);
+            if (c.inleverreferentie)                      delen.push(`afzetref: ${c.inleverreferentie}`);
+            if (c.brutogewicht && c.brutogewicht !== '0') delen.push(`${c.brutogewicht} kg`);
+            if (c.adr === 'Waar')                         delen.push('ADR');
+            return delen.join(' - ');
+          });
+          emailTekst = [
+            `Steinweg — ${groep.length}x dupliceren naar: ${depotNaam}`,
+            '',
+            `${groep.length}x dupliceren:`,
+            ...containerRegels
+          ].join('\n');
+        } else {
+          emailTekst = `Steinweg transportopdracht: ${cntr} → ${depotNaam}`;
+        }
+
+        await sendSteinwegEmail({ ritnummer: ref, emailTekst, attachments });
+        console.log(`📧 Email verstuurd: ${easyFilename} (${groep.length}x container)`);
       }
 
       // logOpdracht voor elke container in de groep
@@ -223,26 +235,6 @@ export default async function handleSteinweg({
     }
   }
 
-  // ── Stuur één email met alle .easy + originele Excel + eml ───────────────
-  if (useGmail && easyAttachments.length > 0) {
-    const attachments = [...easyAttachments];
-    if (elmPath && fs.existsSync(elmPath)) {
-      attachments.push({ filename: elmFilename, path: elmPath });
-    }
-    if (route1Buffer) attachments.push({ filename: route1Filename || 'Steinweg-Route1.xlsx', content: route1Buffer });
-    if (route2Buffer) attachments.push({ filename: route2Filename || 'Steinweg-Route2.xlsx', content: route2Buffer });
-
-    const emailTekst = [
-      `Steinweg transportopdracht: ${ordernummer}`,
-      `${containers.length} container(s) → ${groepen.length} .easy bestand(en)`,
-      '',
-      ...emailSamenvattingRegels
-    ].join('\n');
-
-    await sendSteinwegEmail({ ritnummer: ordernummer, emailTekst, attachments });
-    console.log(`📧 Verstuurd: ${easyAttachments.length} .easy | ${route1Buffer ? 1 : 0}+${route2Buffer ? 1 : 0} xlsx`);
-  }
-
-  console.log(`✅ ${easyBestanden.length} .easy bestand(en) voor ${containers.length} Steinweg container(s)`);
+  console.log(`✅ ${easyBestanden.length} email(s) verstuurd voor ${containers.length} Steinweg container(s) in ${groepen.length} groep(en)`);
   return easyBestanden;
 }
