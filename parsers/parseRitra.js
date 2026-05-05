@@ -201,16 +201,18 @@ export default async function parseRitra(buffer) {
 
   // === Los opmerking / instructies / gasmeten ===
   // Formaat in PDF: "TAV STEINMEIJER/GASMEETING:Losopm"
+  // GASMETEN_RE: detecteert gasmeten/wegen/weeg — MOET altijd prominent in instructies verschijnen
+  const GASMETEN_RE = /gasme[ae]ti?n?g?|\bweeg\b|\bwegen\b/i;
   let gasmeten = 'Onwaar';
   let losOpm   = '';
   const losOpmLine = ls.find(l => /Losopm/i.test(l));
   if (losOpmLine) {
     const content = losOpmLine.replace(/:?Losopm.*$/i, '').trim();
-    if (/gasme[ae]t/i.test(content)) gasmeten = 'Waar';
-    losOpm = content.split('/').filter(p => !/gasme[ae]t/i.test(p)).join(' ').trim();
+    if (GASMETEN_RE.test(content)) gasmeten = 'Waar';
+    losOpm = content.split('/').filter(p => !GASMETEN_RE.test(p)).join(' ').trim();
   }
-  // Extra check: ergens in het document "gasmeting" / "gasmeeting" vermeld?
-  if (gasmeten === 'Onwaar' && ls.some(l => /gasme[ae]t/i.test(l))) gasmeten = 'Waar';
+  // Extra check: ergens in het document gasmeten / wegen vermeld?
+  if (gasmeten === 'Onwaar' && ls.some(l => GASMETEN_RE.test(l))) gasmeten = 'Waar';
 
   // Afzetten: terminal/depot na afleveradres — breed zoekpatroon (incl. Kramer, RCT, enz.)
   let afzettenNaam = '', afzettenAdres = '', afzettenRef = '';
@@ -218,10 +220,15 @@ export default async function parseRitra(buffer) {
     const afzetStart = afleverIdx + 1;
     const afzetEnd   = Math.min(afleverIdx + 35, ls.length);
 
-    // Stap 1: afleverref staat DIRECT NA "Bestand" (bijv. "Bestand\nONEMT")
+    // Stap 1: afleverref staat bij het "Bestand" label (kan ":Bestand" zijn met voorloopdubbele punt)
+    // Ritra PDFs: waarden staan VOOR hun label → primair ls[i-1] controleren
+    // Fallback: waarde NA het label (ONEMT-stijl)
     for (let i = afzetStart; i < afzetEnd - 1; i++) {
-      if (/^Bestand$/i.test(ls[i])) {
-        const kandidaat = (ls[i + 1] || '').trim();
+      if (/^:?Bestand$/i.test(ls[i])) {
+        const kandidaatVoor = i > afzetStart ? (ls[i - 1] || '').trim() : '';
+        const kandidaatNa   = (ls[i + 1] || '').trim();
+        // Waarde vóór label heeft voorkeur als het een numerieke code is (bijv. 39407780)
+        const kandidaat = /^\d{4,}/.test(kandidaatVoor) ? kandidaatVoor : kandidaatNa;
         if (kandidaat && !/^(Afleveradres|Afhaaladres|Reisnr|Releasenummer)/i.test(kandidaat)) {
           afzettenRef = kandidaat;
           console.log(`🏷️  Ritra afzettenRef via "Bestand": "${afzettenRef}"`);
@@ -233,8 +240,19 @@ export default async function parseRitra(buffer) {
     // Stap 2: zoek de terminalnaam
     for (let i = afzetStart; i < afzetEnd; i++) {
       if (TERMINAL_RE.test(ls[i]) && ls[i].length > 3) {
-        afzettenNaam  = ls[i].replace(/,\s*$/, '').trim();
-        afzettenAdres = ls[i + 1] || '';
+        const rawLijn = ls[i];
+        // Controleer of naam-regel een ingebed adres bevat na de eerste komma
+        // Patroon: "APM 2 Terminals Maasvlakte II b.v., Europaweg 910,"
+        // Het adres bevat altijd een huisnummer (cijfer); naam bevat geen huisnummer
+        const ingebedAdres = rawLijn.match(/^(.+?),\s*([A-Za-z][^,]+\d[^,]*),?\s*$/);
+        if (ingebedAdres) {
+          afzettenNaam  = ingebedAdres[1].trim();
+          afzettenAdres = ingebedAdres[2].trim();
+          console.log(`📍 Ritra afzetNaam/adres gesplitst: naam="${afzettenNaam}" adres="${afzettenAdres}"`);
+        } else {
+          afzettenNaam  = rawLijn.replace(/,\s*$/, '').trim();
+          afzettenAdres = ls[i + 1] || '';
+        }
 
         // Als ref nog niet gevonden: zoek vóór de terminalmatch voor standalone code (bijv. "ONEMT")
         if (!afzettenRef) {
@@ -316,7 +334,10 @@ export default async function parseRitra(buffer) {
     adr: 'Onwaar',
     gasmeten,
     ladenOfLossen: 'Laden',
-    instructies: losOpm || '',
+    // Gasmeten MOET altijd prominent in instructies staan
+    instructies: gasmeten === 'Waar'
+      ? ('⚠️ GASMETEN' + (losOpm ? ' | ' + losOpm : ''))
+      : (losOpm || ''),
     tar: '', documentatie: '', tarra: '0', brix: '0',
 
     locaties
