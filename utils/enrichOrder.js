@@ -149,7 +149,7 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
   if (order.gasmeten === 'Waar') {
     const al = (order.instructies || '').toUpperCase();
     if (!al.includes('GASMETEN') && !al.includes('WEGEN')) {
-      order.instructies = '⚠️ GASMETEN'
+      order.instructies = '⚠️ GASMETEN / WEGEN'
         + (order.instructies ? ' | ' + order.instructies : '');
     }
   }
