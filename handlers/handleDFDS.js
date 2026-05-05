@@ -12,6 +12,12 @@ import { mergeRelease } from '../utils/mergeRelease.js';
 export default async function handleDFDS({ buffer, base64, filename, fromEmail = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van DFDS-bestand: ${filename}`);
 
+  // Lege buffer = geen echte PDF (bijv. afkoppelen/planning email, inline bijlage)
+  if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
+    console.log(`⏭️ DFDS: geen PDF-buffer voor "${filename || '(geen bestand)'}" — overgeslagen`);
+    return [];
+  }
+
   const result = await parseDFDS(buffer);
   const containers = Array.isArray(result) ? result : (result?.containers || []);
 
