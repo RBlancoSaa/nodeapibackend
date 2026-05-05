@@ -23,33 +23,50 @@ export function isReleasePdf(text) {
 }
 
 /**
- * Extraheer opzet- en afzetreferentie + containernummer uit een release PDF.
- * @returns {{ containernummer, referentie, inleverreferentie }}
+ * Extraheer opzet- en afzetreferentie + ALL containernummers uit een release PDF.
+ * @returns {{ containernummers: string[], containernummer: string, referentie, inleverreferentie, emptyReturnNaam }}
  */
 export async function parseRelease(buffer) {
   const { text } = await pdfParse(buffer);
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-  // ── Containernummer ──────────────────────────────────────────────────────
-  const cntrM = text.match(/\b([A-Z]{3}U\d{7})\b/i);
-  const containernummer = cntrM ? cntrM[1].toUpperCase() : '';
+  // ── Alle containernummers ────────────────────────────────────────────────
+  const allCntrMatches = [...text.matchAll(/\b([A-Z]{3}U\d{7})\b/gi)];
+  const containernummers = [...new Set(allCntrMatches.map(m => m[1].toUpperCase()))];
+  const containernummer  = containernummers[0] || '';
 
-  // ── Opzetreferentie (PIN / pickup release) ───────────────────────────────
-  // Patronen in volgorde van specificiteit
+  // ── Opzetreferentie (PIN / Release Notification Number) ──────────────────
   let referentie = '';
-  const opzetPatterns = [
-    // PIN-code: sluit gewone Engelse woorden uit die na "PIN" kunnen staan (bijv. "PIN valid until")
-    /\bPIN(?:\s*(?:code|nr|number|:))?\s*[:\-]?\s*(?!valid|until|date|is|the|was|for|code|nr|no|num|not|has|have|been)([A-Z0-9]{4,20})\b/i,
-    /\bopzet\s*referentie\s*[:\-]\s*([A-Z0-9\-\/]{4,30})/i,
-    /\bpickup\s*(?:reference|ref\.?)\s*[:\-]\s*([A-Z0-9\-\/]{4,30})/i,
-    /\brelease\s*(?:nr|number|code|ref\.?)\s*[:\-]\s*([A-Z0-9\-\/]{4,30})/i,
-    /\bvrijgave\s*(?:nr|code)?\s*[:\-]\s*([A-Z0-9\-\/]{4,30})/i,
-    // Release Notification Number (bijv. CMA CGM "DORTM01408664")
-    /\bRelease\s+Notification\s+(?:NR|NO|Nr\.?|#)?\s*[:\-]?\s*([A-Z0-9]{6,20})\b/i,
-    /\bReference\s*[:\-]\s*([A-Z0-9\-\/]{6,30})/i,
-  ];
-  for (const pat of opzetPatterns) {
-    const m = text.match(pat);
-    if (m && m[1]) { referentie = m[1].trim(); break; }
+
+  // 1. CMA CGM stijl: waarde staat op de regel VÓÓR "Release Notification NR :"
+  //    (PDF-layout leest de waarde voor het label uit)
+  for (let i = 1; i < lines.length; i++) {
+    if (/\bRelease\s+Notification\s+(?:NR|NO|Nr\.?|#)?\s*[:\-]?\s*$/i.test(lines[i])) {
+      const prev = lines[i - 1] || '';
+      if (/^[A-Z0-9]{6,20}$/.test(prev)) { referentie = prev; break; }
+      // Waarde staat op de VOLGENDE regel
+      const next = lines[i + 1] || '';
+      if (/^[A-Z0-9]{6,20}$/.test(next)) { referentie = next; break; }
+    }
+    // Inline variant: "Release Notification NR : DORTM01408664"
+    const mInline = lines[i].match(/\bRelease\s+Notification\s+(?:NR|NO|Nr\.?|#)?\s*[:\-]\s*([A-Z0-9]{6,20})\b/i);
+    if (mInline) { referentie = mInline[1]; break; }
+  }
+
+  // 2. Fallback-patronen als Release Notification niet gevonden
+  if (!referentie) {
+    const fallbackPatterns = [
+      // PIN-code: sluit gewone Engelse woorden uit
+      /\bPIN(?:\s*(?:code|nr|number|:))?\s*[:\-]?\s*(?!valid|until|date|is|the|was|for|code|nr|no|num|not|has|have|been)([A-Z0-9]{4,20})\b/i,
+      /\bopzet\s*referentie\s*[:\-]\s*([A-Z0-9\-\/]{4,30})/i,
+      /\bpickup\s*(?:reference|ref\.?)\s*[:\-]\s*([A-Z0-9\-\/]{4,30})/i,
+      /\brelease\s*(?:nr|number|code|ref\.?)\s*[:\-]\s*([A-Z0-9\-\/]{4,30})/i,
+      /\bvrijgave\s*(?:nr|code)?\s*[:\-]\s*([A-Z0-9\-\/]{4,30})/i,
+    ];
+    for (const pat of fallbackPatterns) {
+      const m = text.match(pat);
+      if (m && m[1]) { referentie = m[1].trim(); break; }
+    }
   }
 
   // ── Afzetreferentie (inlever / booking / B/L) ────────────────────────────
@@ -67,33 +84,45 @@ export async function parseRelease(buffer) {
     if (m) { inleverreferentie = m[1].trim(); break; }
   }
 
-  // ── Leeg-retour terminal (afzetadres) ────────────────────────────────────
-  // In CMA CGM releases staat de terminalnaam VOOR het label "EMPTY RETURN ADDRESS".
-  // Bijv.:
-  //   KRAMER HOME
-  //   CONTAINERS
-  //   EMPTY RETURN ADDRESS
+  // ── Leeg-retour terminalnaam ─────────────────────────────────────────────
+  // Hulpfunctie: check of een regel eruitziet als een terminalnaam
+  function isTerminalNaam(ln) {
+    if (!ln || ln.length < 4) return false;
+    if (/@/.test(ln)) return false;                                          // e-mailadressen
+    if (/^[+\d\s\(\)\-\.]{7,}$/.test(ln)) return false;                    // puur telefoonnummer
+    if (!/[A-Za-z]{3,}/.test(ln)) return false;                            // moet letters bevatten
+    // Sla bekende niet-terminalnamen over
+    if (/\b(office\s+hours|customer\s+service|after\s+office|for\s+further|please\s+(note|contact|release)|for\s+ssl|contact\s+us|our\s+general|conditions|inland\s+transport|standard\s+location|agreed\s+a\s+different|confirmation|demurrage|wasted\s+journey|maximum\s+release|ultimate\s+release)\b/i.test(ln)) return false;
+    if (/^(CONTAINERS?|TOTAL|TARE|SIZE|TYPE|NB\s+OF|PER\s+SIZE|VESSEL|VOYAGE|LLOYDS(\s+NO)?|CUST\s+(ID|STATUS|REF)|OOG|REEF|TEMP|PLR|PLD|SEAL|B\/L|MRN|AGENT|CUSTOMS?|PIN\s+VALID|LAST\s+FREE|DEDICATED|QUAY|TERMINAL|POL|POD|TURN.IN|D&D|CMA\s+STOCK|STOCK|CLAUSES?|REMARKS?)$/i.test(ln)) return false;
+    return true;
+  }
+
   let emptyReturnNaam = '';
-  const releaseLines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const eraIdx = releaseLines.findIndex(l => /EMPTY\s+RETURN\s+ADDRESS/i.test(l));
-  if (eraIdx > 0) {
-    // Zoek achterwaarts naar eerste echte terminalnaam (sla generieke labels over)
-    for (let i = eraIdx - 1; i >= Math.max(0, eraIdx - 4); i--) {
-      const ln = releaseLines[i];
-      if (
-        ln && ln.length > 3 &&
-        !/@/.test(ln) &&                                           // geen e-mailadressen
-        !/^[+\d\s\(\)\-\.]{7,}$/.test(ln) &&                      // geen telefoonnummers
-        !/^(CONTAINERS?|TOTAL|TARE|SIZE|TYPE|NB\s+OF|PER\s+SIZE|PLEASE|NOTE|FOR\s+FURTHER|CONTACT|DEDICATED|QUAY|TERMINAL|POL|POD)$/i.test(ln) &&
-        /[A-Za-z]{3,}/.test(ln)                                    // moet echte letters bevatten
-      ) {
-        emptyReturnNaam = ln;
+  const eraIdx = lines.findIndex(l => /EMPTY\s+RETURN\s+ADDRESS/i.test(l));
+
+  if (eraIdx >= 0) {
+    // 1. Zoek ACHTERWAARTS — klassiek CMA CGM layout: depotnaam staat vóór het label
+    for (let i = eraIdx - 1; i >= Math.max(0, eraIdx - 6); i--) {
+      const ln = lines[i];
+      if (isTerminalNaam(ln)) {
+        // Trim eventuele containernummers achter de naam ("KRAMER HOME SEGU6476333" → "KRAMER HOME")
+        emptyReturnNaam = ln.replace(/\s+[A-Z]{3}U\d{7}.*/i, '').trim();
         break;
+      }
+    }
+    // 2. Zoek VOORWAARTS — tabelstijl: "EMPTY RETURN ADDRESS | CONTAINERS\nKRAMER HOME | ..."
+    if (!emptyReturnNaam) {
+      for (let i = eraIdx + 1; i <= Math.min(lines.length - 1, eraIdx + 5); i++) {
+        const ln = lines[i].split('|')[0].trim(); // strip kolom-info na "|"
+        if (isTerminalNaam(ln)) {
+          emptyReturnNaam = ln;
+          break;
+        }
       }
     }
   }
 
-  console.log(`📋 Release data: container="${containernummer}" opzetRef="${referentie}" afzetRef="${inleverreferentie}" emptyReturn="${emptyReturnNaam}"`);
+  console.log(`📋 Release data: containers="${containernummers.join(', ')}" opzetRef="${referentie}" afzetRef="${inleverreferentie}" emptyReturn="${emptyReturnNaam}"`);
 
-  return { containernummer, referentie, inleverreferentie, emptyReturnNaam };
+  return { containernummers, containernummer, referentie, inleverreferentie, emptyReturnNaam };
 }

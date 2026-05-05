@@ -73,9 +73,14 @@ export default async function handleB2L({
       const { text } = await pdfParse(pdf.buffer);
       if (isReleasePdf(text)) {
         const rd = await parseRelease(pdf.buffer);
-        const key = rd.containernummer || '_any';
-        lokaalReleaseMap[key] = rd;
-        console.log(`📋 B2L release gevonden in bijlage "${pdf.filename}": ref="${rd.referentie}" afzetRef="${rd.inleverreferentie}"`);
+        // Sla release op onder elk containernummer dat erin staat (CMA CGM heeft meerdere)
+        const nummers = rd.containernummers?.length ? rd.containernummers : (rd.containernummer ? [rd.containernummer] : []);
+        if (nummers.length) {
+          for (const cntr of nummers) lokaalReleaseMap[cntr] = rd;
+        } else {
+          lokaalReleaseMap['_any'] = rd;
+        }
+        console.log(`📋 B2L release gevonden in bijlage "${pdf.filename}": containers=[${nummers.join(', ')}] ref="${rd.referentie}" afzetRef="${rd.inleverreferentie}" emptyReturn="${rd.emptyReturnNaam}"`);
       } else {
         console.log(`📄 B2L bijlage "${pdf.filename}" overgeslagen (geen release, geen TO)`);
       }
@@ -108,14 +113,23 @@ export default async function handleB2L({
       const easyPath = path.join(os.tmpdir(), easyFilename);
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
+      // Bijlagen: .easy + TO PDF + alle overige bijlagen (releases, IMA, etc.)
+      const attachments = [
+        { filename: easyFilename, path: easyPath },
+        ...(toBase64 ? [{ filename: toFilename, content: Buffer.from(toBase64, 'base64') }] : []),
+        ...bijlagePdfs
+          .filter(p => p.buffer)
+          .map(p => ({
+            filename: p.filename,
+            content: p.buffer
+          }))
+      ];
+
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,
         subject: `easytrip file - ${ref}`,
         text: `B2L transportopdracht verwerkt: ${ref}`,
-        attachments: [
-          { filename: easyFilename, path: easyPath },
-          ...(toBase64 ? [{ filename: toFilename, content: Buffer.from(toBase64, 'base64') }] : [])
-        ]
+        attachments
       });
       console.log(`📧 B2L verstuurd: ${easyFilename}`);
       easyBestanden.push(easyFilename);
