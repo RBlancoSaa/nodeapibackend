@@ -175,10 +175,18 @@ export default async function parseRitra(buffer) {
         if (d) {
           leverdatumNaAfhaal = d;
           // Zoek tijd op dezelfde regel, de regel erna (richting label) en de regel ervoor
+          // Formaten: "om 07:00 uur"  OF  "om 0700 uur"  OF  "07:00"
           const kandidaten = [line, ls[i + 1] || '', ls[i - 1] || ''];
           for (const cl of kandidaten) {
-            const tijdM = cl.match(/om\s+(\d{1,2}):(\d{2})/i)
-                       || cl.match(/\b(\d{1,2}):(\d{2})\b/);
+            // "om 0700 uur" of "om 07:00 uur"
+            const omM = cl.match(/\bom\s+(\d{2})(\d{2})\s*uur\b/i)
+                     || cl.match(/\bom\s+(\d{1,2}):(\d{2})/i);
+            if (omM) {
+              ritra_tijd = `${omM[1].padStart(2, '0')}:${omM[2]}:00`;
+              break;
+            }
+            // Losse HH:MM
+            const tijdM = cl.match(/\b(\d{1,2}):(\d{2})\b/);
             if (tijdM) {
               ritra_tijd = `${tijdM[1].padStart(2, '0')}:${tijdM[2]}:00`;
               break;
