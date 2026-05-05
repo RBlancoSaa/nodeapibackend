@@ -18,7 +18,7 @@ export async function fetchUnreadMails() {
   const { data } = await gmail.users.messages.list({
     userId: 'me',
     q: 'is:unread in:inbox',
-    maxResults: 20
+    maxResults: 50
   });
 
   const messages = data.messages || [];
@@ -98,12 +98,17 @@ export async function sendViaGmailApi({ from, to, subject, text, attachments = [
 export async function markAsRead(ids) {
   if (!ids || ids.length === 0) return;
   const gmail = getGmailClient();
-  await Promise.all(ids.map(id =>
+  const results = await Promise.allSettled(ids.map(id =>
     gmail.users.messages.modify({
       userId: 'me',
       id,
       requestBody: { removeLabelIds: ['UNREAD'] }
-    }).catch(err => console.warn(`⚠️ Markeren mislukt voor ${id}:`, err.message))
+    })
   ));
-  console.log(`✉️ ${ids.length} email(s) gemarkeerd als gelezen`);
+  const mislukt = results.filter(r => r.status === 'rejected');
+  if (mislukt.length > 0) {
+    console.error(`❌ Markeren als gelezen mislukt voor ${mislukt.length}/${ids.length} emails:`,
+      mislukt.map(r => r.reason?.message).join(', '));
+  }
+  console.log(`✉️ ${ids.length - mislukt.length}/${ids.length} email(s) gemarkeerd als gelezen`);
 }
