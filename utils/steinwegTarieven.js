@@ -223,18 +223,18 @@ export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr, afsprake
   }
   // Terminal-specifieke toeslag (altijd vol bedrag — Route 1 containers rijden nooit gepaard)
   const termKeyVol     = normTerminalKey(terminalNaam);
-  const dieselChart    = afspraken ? afspraken.toeslag('diesel') : 9;
+  const dieselChart    = (afspraken?.toeslag('diesel')) || 9;
   let deltaChart   = 0;
   let euromaxChart = 0;
   let blanco2Chart = 0;
   let blanco2Text  = '';
 
   if (termKeyVol === 'ect_delta') {
-    deltaChart = afspraken ? afspraken.toeslag('delta') : 28.50;
+    deltaChart = (afspraken?.toeslag('delta')) || 28.50;
   } else if (termKeyVol === 'emx') {
-    euromaxChart = afspraken ? afspraken.toeslag('euromax') : 28.50;
+    euromaxChart = (afspraken?.toeslag('euromax')) || 28.50;
   } else if (termKeyVol === 'rwg') {
-    blanco2Chart = afspraken ? afspraken.toeslag('rwg') : 31;
+    blanco2Chart = (afspraken?.toeslag('rwg')) || 31;
     blanco2Text  = 'RWG toeslag';
   }
 
@@ -275,10 +275,10 @@ export function berekenLeegTarief(depotNaam, opzetNaam, sizeStr, isPaired, afspr
 
   // Terminal-specifieke toeslag bij afzetdepot (gehalveerd bij setje)
   const depotTerminalKey = normTerminalKey(depotNaam);
-  const dieselChart      = afspraken ? afspraken.toeslag('diesel') : 9;
-  const deltaBase        = afspraken ? afspraken.toeslag('delta')   : 28.50;
-  const euromaxBase      = afspraken ? afspraken.toeslag('euromax') : 28.50;
-  const rwgBase          = afspraken ? afspraken.toeslag('rwg')     : 31;
+  const dieselChart  = (afspraken?.toeslag('diesel'))  || 9;
+  const deltaBase    = (afspraken?.toeslag('delta'))   || 28.50;
+  const euromaxBase  = (afspraken?.toeslag('euromax')) || 28.50;
+  const rwgBase      = (afspraken?.toeslag('rwg'))     || 31;
   let deltaChart   = 0;
   let euromaxChart = 0;
   let blanco2Chart = 0;
