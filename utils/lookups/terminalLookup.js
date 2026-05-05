@@ -112,7 +112,29 @@ function berekenScore(zoek, terminal, zoekAdres = '') {
   let score = 0;
 
   // Exacte naam
-  if (nNaam && nNaam === nZoek) return 100 + adresBonus;
+  // Als adres GEGEVEN is maar NIET overeenkomt → verlaag naar 90, zodat een andere terminal
+  // met beter adres (80 naam + 90 adres = 170) of met haakjescode (95) kan winnen.
+  // Bijv. "APM Terminals Rotterdam" + adres "II (0APMA)" → correct terminal is de II-variant.
+  if (nNaam && nNaam === nZoek) {
+    const exactScore = (zoekAdres && adresBonus === 0) ? 90 : 100;
+    return exactScore + adresBonus;
+  }
+
+  // Haakjescode in zoekAdres matcht terminal naam
+  // Bijv. adres "Maasvlakte II (0APMA)" → code "0APMA" zit in naam "APM Terminals Rotterdam II (0APMA)"
+  const adresHaakjesM = (zoekAdres || '').match(/\(([A-Z0-9]{2,8})\)/i);
+  if (adresHaakjesM) {
+    const adresCode = normStr(adresHaakjesM[1]);
+    if (adresCode.length >= 2) {
+      if (nNaam.includes(adresCode)) score = Math.max(score, 95);
+      else {
+        const altCodeHit = (terminal.altNamen || [])
+          .flatMap(a => (typeof a === 'string' ? a.split(',').map(s => s.trim()) : [a]))
+          .some(a => normStr(a).includes(adresCode) || adresCode.includes(normStr(a)));
+        if (altCodeHit) score = Math.max(score, 80);
+      }
+    }
+  }
 
   // Naam bevat zoekterm of omgekeerd
   // Korte entry-naam (< 50% van zoekterm) = zwakke match (bijv. "STEINWEG" bij zoek "C. STEINWEG BOTLEK TERMINAL BV")

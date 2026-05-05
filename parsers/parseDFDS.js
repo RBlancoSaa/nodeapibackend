@@ -252,8 +252,8 @@ export default async function parseDFDS(buffer) {
   };
 
   if (containerBlokken.length === 0) {
-    console.warn('⚠️ Geen containers gevonden in transport tabel');
-    return [await enrichOrder({ ...base, containertype: '', containernummer: '', datum: orderDatum }, { bron: 'DFDS' })];
+    console.warn('⚠️ Geen containers gevonden in transport tabel — geen transport-order, overslaan');
+    return [];
   }
 
   const results = await Promise.all(containerBlokken.map(async blok => {

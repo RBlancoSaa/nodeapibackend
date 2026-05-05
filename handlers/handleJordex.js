@@ -12,6 +12,12 @@ import { mergeRelease } from '../utils/mergeRelease.js';
 export default async function handleJordex({ buffer, base64, filename, fromEmail = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Jordex-bestand: ${filename}`);
 
+  // Cancelled orders overslaan — geen .easy aanmaken voor gecancelde opdrachten
+  if (/cancelled/i.test(filename || '')) {
+    console.log(`⏭️ Jordex cancelled order overgeslagen: ${filename}`);
+    return [];
+  }
+
   const containers = await parseJordex(buffer);
 
   if (!containers || containers.length === 0) {

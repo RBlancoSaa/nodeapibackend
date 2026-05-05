@@ -429,8 +429,36 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
   const colli            = pdfData?.colli           || '0';
 
   // Containertype: van ISO code naar EasyTrip-omschrijving
-  const isoCode          = pdfData?.containertypeIso || '';
-  const containertypeOms = isoCode ? (ISO_TYPE[isoCode] || isoCode.toLowerCase()) : '';
+  let isoCode          = pdfData?.containertypeIso || '';
+  let containertypeOms = isoCode ? (ISO_TYPE[isoCode] || isoCode.toLowerCase()) : '';
+
+  // Fallback: probeer containertype uit email body of onderwerp te halen
+  // Bijv. "1 X 20' container", "2x 40 ft HC", "40 ft standard"
+  if (!containertypeOms) {
+    const bronnen = [...bodyLines, sub];
+    for (const regel of bronnen) {
+      const m = regel.match(/\b(\d+)\s*[xX×]\s*(\d{2})['\s]?\s*(?:ft|voet)?(?:\s*(hc|high\s*cube|reefer|reefer\s*hc|standard|std))?/i);
+      if (m) {
+        const maat    = m[2];           // "20" of "40" of "45"
+        const variant = (m[3] || '').toLowerCase().replace(/\s+/g, '');
+        if (maat === '20') {
+          isoCode = '22G1'; containertypeOms = '20 ft standard';
+        } else if (maat === '40' && (variant === 'hc' || variant === 'highcube')) {
+          isoCode = '45G1'; containertypeOms = '40 ft hc';
+        } else if (maat === '40' && (variant === 'reefer' || variant === 'reeferhc')) {
+          isoCode = '42R1'; containertypeOms = '40 ft reefer';
+        } else if (maat === '40') {
+          isoCode = '42G1'; containertypeOms = '40 ft standard';
+        } else if (maat === '45') {
+          isoCode = 'L5G1'; containertypeOms = '45 ft hc';
+        }
+        if (containertypeOms) {
+          console.log(`📦 Containertype uit body/onderwerp: "${regel.trim()}" → ${isoCode} (${containertypeOms})`);
+          break;
+        }
+      }
+    }
+  }
 
   if (!containertypeOms) {
     console.warn(`⚠️ Containertype niet herkend. ISO code uit PDF: "${isoCode}"`);
