@@ -208,13 +208,114 @@ export async function getTerminalInfoFallback(zoekwaarde, zoekAdres = '') {
   }
 }
 
+// ─── Terminal cache (Supabase) ────────────────────────────────────────────────
+/**
+ * Zoekt een terminal op in de Supabase terminal_cache.
+ * Cache bevat eerder succesvolle PDF-naam/adres → officiële terminal matches.
+ * Geeft een object met terminaalinfo terug (compatibel met op_afzetten.json formaat),
+ * of null als niet gevonden.
+ */
+async function zoekInTerminalCache(pdfNaam, pdfAdres) {
+  try {
+    const naam  = (pdfNaam  || '').trim().toLowerCase();
+    const adres = (pdfAdres || '').trim().toLowerCase();
+    if (!naam && !adres) return null;
+
+    let query = supabase
+      .from('terminal_cache')
+      .select('match_naam,match_adres,match_portbase,match_bics,match_voorgemeld')
+      .limit(1);
+
+    if (naam && adres) {
+      query = query.eq('pdf_naam', naam).eq('pdf_adres', adres);
+    } else if (naam) {
+      query = query.eq('pdf_naam', naam);
+    } else {
+      query = query.eq('pdf_adres', adres);
+    }
+
+    const { data, error } = await query.maybeSingle();
+    if (error || !data) return null;
+
+    console.log(`📋 Terminal cache hit: "${pdfNaam}" @ "${pdfAdres}" → ${data.match_naam}`);
+
+    // Bump hit counter + laatste_match asynchroon (niet wachten)
+    supabase.from('terminal_cache')
+      .update({ hits: supabase.rpc ? undefined : undefined, laatste_match: new Date().toISOString() })
+      .eq('pdf_naam', naam).eq('pdf_adres', adres)
+      .then(() => {});
+
+    return {
+      naam:          data.match_naam,
+      adres:         data.match_adres,
+      portbase_code: data.match_portbase,
+      bicsCode:      data.match_bics,
+      voorgemeld:    data.match_voorgemeld === 'Waar' ? 'ja' : 'nee'
+    };
+  } catch (e) {
+    console.warn('⚠️ terminal_cache lookup mislukt:', e.message);
+    return null;
+  }
+}
+
+/**
+ * Slaat een succesvolle terminal match op in de cache.
+ * Wordt aangeroepen vanuit enrichOrder na elke succesvolle terminal lookup.
+ * Bestaande entries worden bijgewerkt (hits + laatste_match).
+ *
+ * @param {string} pdfNaam    - Naam zoals in de PDF stond
+ * @param {string} pdfAdres   - Adres zoals in de PDF stond
+ * @param {object} terminal   - Gevonden terminal-entry uit op_afzetten.json
+ * @param {string} bron       - Naam van de klant/parser voor logging
+ */
+export async function slaTerminalCacheOp(pdfNaam, pdfAdres, terminal, bron = '') {
+  try {
+    const naam  = (pdfNaam  || '').trim().toLowerCase();
+    const adres = (pdfAdres || '').trim().toLowerCase();
+    if (!naam && !adres) return;
+    if (!terminal?.naam) return;
+
+    const entry = {
+      pdf_naam:        naam,
+      pdf_adres:       adres,
+      match_naam:      terminal.naam        || '',
+      match_adres:     terminal.adres       || '',
+      match_portbase:  cleanFloat(terminal.portbase_code || ''),
+      match_bics:      cleanFloat(terminal.bicsCode      || ''),
+      match_voorgemeld: terminal.voorgemeld?.toLowerCase() === 'ja' ? 'Waar' : 'Onwaar',
+      bron:            bron,
+      laatste_match:   new Date().toISOString()
+    };
+
+    const { error } = await supabase
+      .from('terminal_cache')
+      .upsert(entry, {
+        onConflict:    'pdf_naam,pdf_adres',
+        ignoreDuplicates: false
+      });
+
+    if (error) {
+      console.warn('⚠️ terminal_cache opslaan mislukt:', error.message);
+    } else {
+      console.log(`💾 Terminal cache opgeslagen: "${pdfNaam}" → ${terminal.naam}`);
+    }
+  } catch (e) {
+    console.warn('⚠️ slaTerminalCacheOp error:', e.message);
+  }
+}
+
 // ─── Gecombineerde lookup (alleen uit lijst — nooit invullen) ─────────────────
 /**
- * Zoekt een terminal in de lijst via exacte of fuzzy match.
+ * Zoekt een terminal via:
+ *  1. Supabase terminal_cache (eerder succesvolle matches uit echte orders)
+ *  2. Exacte naam/referentie-match in op_afzetten.json
+ *  3. Fuzzy naam+adres match (adres = primair, 90pts voor exact adres)
+ *
  * Geeft null terug als niets gevonden — de parser beslist dan wat er in de
  * bijzonderheden/instructies komt. Er wordt NOOIT iets verzonnen.
  *
- * @param {string} key  - Terminalnaam uit PDF
+ * @param {string} key       - Terminalnaam uit PDF
+ * @param {string} zoekAdres - Adres uit PDF
  * @returns {object|null}
  */
 export async function getTerminalInfoMetFallback(key, zoekAdres = '') {
@@ -222,19 +323,23 @@ export async function getTerminalInfoMetFallback(key, zoekAdres = '') {
     const zoek = (key || '').trim();
     if (!zoek && !zoekAdres) return null;
 
-    // 1. Exacte naam/referentie-match (alleen als naam beschikbaar)
+    // 1. Supabase cache — snelste pad, gevuld door eerdere succesvolle orders
+    const cached = await zoekInTerminalCache(zoek, zoekAdres);
+    if (cached) return cached;
+
+    // 2. Exacte naam/referentie-match in op_afzetten.json
     if (zoek) {
       const exact = await getTerminalInfo(zoek);
       if (exact && exact !== '0') return exact;
     }
 
-    // 2. Fuzzy naam+adres match — adres is primair wanneer het overeenkomt
+    // 3. Fuzzy naam+adres match
     // Volledig adres (straat + huisnummer) geeft 90 punten → altijd gevonden
     // Als naam leeg is maar adres bekend, zoekt dit puur op adres
     const fuzzy = await getTerminalInfoFallback(zoek, zoekAdres);
     if (fuzzy && fuzzy !== '0') return fuzzy;
 
-    console.log(`⚠️ Terminal niet gevonden in lijst: "${zoek}"${zoekAdres ? ` @ ${zoekAdres}` : ''}`);
+    console.log(`⚠️ Terminal niet gevonden: "${zoek}"${zoekAdres ? ` @ ${zoekAdres}` : ''}`);
     return null;
   } catch (e) {
     console.error('❌ getTerminalInfoMetFallback error:', e);
@@ -251,6 +356,9 @@ export async function getTerminalInfoMetFallback(key, zoekAdres = '') {
  */
 export async function getTerminalByAdres(adres) {
   if (!adres || adres.trim().length < 4) return null;
+  // Check cache eerst
+  const cached = await zoekInTerminalCache('', adres.trim());
+  if (cached) return cached;
   const result = await getTerminalInfoFallback('', adres.trim());
   if (result && result !== '0') return result;
   return null;

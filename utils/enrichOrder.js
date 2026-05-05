@@ -20,6 +20,7 @@
 import './fsPatch.js';
 import {
   getTerminalInfoMetFallback,
+  slaTerminalCacheOp,
   getAdresboekEntry,
   voegAdresboekEntryToe,
   getRederijNaam,
@@ -79,8 +80,14 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
         loc.voorgemeld    = 'Onwaar';
         loc.land          = normLand(loc.land || 'NL');
       } else {
+        const rawNaam  = loc.naam;
+        const rawAdres = loc.adres;
         const info = await getTerminalInfoMetFallback(loc.naam, loc.adres);
         if (info) {
+          // Cache opslaan: ruwe PDF-naam/adres → officiële terminal
+          // (asynchroon, niet wachten — mag falen zonder impact op order)
+          slaTerminalCacheOp(rawNaam, rawAdres, info, bron).catch(() => {});
+
           loc.naam          = info.naam;
           loc.adres         = info.adres         || loc.adres    || '';
           loc.postcode      = info.postcode       || loc.postcode || '';

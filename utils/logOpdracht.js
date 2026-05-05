@@ -21,6 +21,10 @@ export async function logOpdracht({ bron, afzenderEmail = '', bestandsnaam = '',
       (l.naam || '').toUpperCase() !== 'OMRIJDER'
     );
 
+    // Haal opzet/afzet terminaldata op uit locaties-array
+    const opzetLoc  = (container.locaties || []).find(l => (l.actie || '').toLowerCase() === 'opzetten');
+    const afzetLoc  = (container.locaties || []).find(l => (l.actie || '').toLowerCase() === 'afzetten');
+
     await supabase.from('opdrachten_log').insert([{
       bron,
       afzender_email:   afzenderEmail,
@@ -33,6 +37,15 @@ export async function logOpdracht({ bron, afzenderEmail = '', bestandsnaam = '',
       klant_plaats:     laadLosLocatie?.plaats     || container.klantplaats || '',
       laadreferentie:   container.laadreferentie   || '',
       inleverreferentie: container.inleverreferentie || '',
+      // Terminal traceerbaarheid — portbase/bics voor voormelding
+      opzet_naam:       opzetLoc?.naam             || '',
+      opzet_adres:      opzetLoc?.adres            || '',
+      opzet_portbase:   opzetLoc?.portbase_code    || '',
+      opzet_bics:       opzetLoc?.bicsCode         || '',
+      afzet_naam:       afzetLoc?.naam             || '',
+      afzet_adres:      afzetLoc?.adres            || '',
+      afzet_portbase:   afzetLoc?.portbase_code    || '',
+      afzet_bics:       afzetLoc?.bicsCode         || '',
       status,
       foutmelding,
       easy_bestand:     easyBestand
