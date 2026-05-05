@@ -294,27 +294,78 @@ export default async function handler(req, res) {
       }).join('');
     }
 
+    // ── Update detectie ─────────────────────────────────────────────────────
+    // Groepeer ALLE geladen opdrachten op containernummer (oldest-first).
+    // Elk exemplaar na de eerste is een UPDATE; vergelijk velden met vorige versie.
+    const VELD_LABELS = {
+      datum:          'Datum',
+      tijd:           'Tijd',
+      klant_naam:     'Klant',
+      klant_plaats:   'Plaats',
+      opzet_naam:     'Ophaal terminal',
+      afzet_naam:     'Afzet terminal',
+      laadreferentie: 'Referentie',
+      containertype:  'Type',
+    };
+    const cntrHistory = new Map(); // cntr → laatste bekende versie
+    const updateMap   = new Map(); // id   → { isUpdate, wijzigingen[], datumTijdGewijzigd }
+    const allOpSorted = [...opdrachten]
+      .filter(r => r.containernummer)
+      .sort((a, b) => new Date(a.verwerkt_op) - new Date(b.verwerkt_op));
+    for (const r of allOpSorted) {
+      const key = r.containernummer.toUpperCase().trim();
+      const prev = cntrHistory.get(key);
+      if (prev) {
+        const wijzigingen = [];
+        let datumTijdGewijzigd = false;
+        for (const [veld, label] of Object.entries(VELD_LABELS)) {
+          const oud   = (prev[veld]  || '').trim();
+          const nieuw = (r[veld]     || '').trim();
+          if (oud && nieuw && oud !== nieuw) {
+            wijzigingen.push(`${label}: ${esc(oud)} → ${esc(nieuw)}`);
+            if (veld === 'datum' || veld === 'tijd') datumTijdGewijzigd = true;
+          }
+        }
+        updateMap.set(r.id, { isUpdate: true, wijzigingen, datumTijdGewijzigd });
+      }
+      cntrHistory.set(key, r); // overschrijf met meest recente versie
+    }
+
     function opdrachtenTable() {
       if (!opFiltered.length) return `<div class="empty">Geen opdrachten gevonden</div>`;
       return `<div class="table-wrap"><table>
         <thead><tr>
           <th>Datum</th><th>Bron</th><th>Container</th><th>Type</th>
           <th>Klant</th><th>Plaats</th><th>Laad datum</th>
-          <th>TO bestand</th><th>Status</th><th>Fout</th>
+          <th>TO bestand</th><th>Status</th><th>Update</th><th>Wijzigingen</th>
         </tr></thead>
         <tbody>
-        ${opFiltered.map(r => `<tr class="${r.status !== 'OK' ? 'row-err' : ''}">
-          <td class="td-time">${fmt(r.verwerkt_op)}</td>
-          <td>${bronBadge(r.bron)}</td>
-          <td class="td-mono">${esc(r.containernummer||r.ritnummer||'—')}</td>
-          <td class="td-type">${esc(r.containertype||'')}</td>
-          <td class="td-klant">${esc(r.klant_naam||'—')}</td>
-          <td class="td-plaats">${esc(r.klant_plaats||'—')}</td>
-          <td class="td-datum">${esc(r.datum||'—')}</td>
-          <td class="td-to">${r.easy_bestand ? `<span class="to-inline">📄 ${esc(r.easy_bestand)}</span>` : '<span class="td-empty">—</span>'}</td>
-          <td>${statusChip(r.status)}</td>
-          <td class="td-fout">${esc((r.foutmelding||'').slice(0,60))}</td>
-        </tr>`).join('')}
+        ${opFiltered.map(r => {
+          const upd  = updateMap.get(r.id);
+          const rowClass = upd?.datumTijdGewijzigd ? 'row-update-crit'
+                         : upd?.isUpdate           ? 'row-update'
+                         : r.status !== 'OK'       ? 'row-err'
+                         : '';
+          const updBadge = upd?.isUpdate
+            ? `<span class="upd-badge ${upd.datumTijdGewijzigd ? 'upd-crit' : ''}">↑ UPDATE</span>`
+            : '';
+          const wijzTxt = upd?.wijzigingen?.length
+            ? `<span class="td-wijz" title="${upd.wijzigingen.join('\n')}">${upd.wijzigingen.join(' · ')}</span>`
+            : '';
+          return `<tr class="${rowClass}">
+            <td class="td-time">${fmt(r.verwerkt_op)}</td>
+            <td>${bronBadge(r.bron)}</td>
+            <td class="td-mono">${esc(r.containernummer||r.ritnummer||'—')}</td>
+            <td class="td-type">${esc(r.containertype||'')}</td>
+            <td class="td-klant">${esc(r.klant_naam||'—')}</td>
+            <td class="td-plaats">${esc(r.klant_plaats||'—')}</td>
+            <td class="td-datum">${esc(r.datum||'—')}${r.tijd ? `<span class="td-tijd"> ${esc(r.tijd)}</span>` : ''}</td>
+            <td class="td-to">${r.easy_bestand ? `<span class="to-inline">📄 ${esc(r.easy_bestand)}</span>` : '<span class="td-empty">—</span>'}</td>
+            <td>${statusChip(r.status)}</td>
+            <td class="td-upd">${updBadge}</td>
+            <td class="td-wijz-cel">${wijzTxt}</td>
+          </tr>`;
+        }).join('')}
         </tbody>
       </table></div>`;
     }
@@ -886,9 +937,19 @@ thead th     { padding: 10px 14px; text-align: left; font-size: 10px; font-weigh
 tbody tr     { border-bottom: 1px solid var(--border-light); }
 tbody tr:last-child { border-bottom: none; }
 tbody tr:hover { background: var(--light-bg); }
-tbody tr.row-err  { background: #FAF0F0; }
-tbody tr.row-err:hover { background: #F5E0E0; }
-tbody tr.row-skip { background: #FAF5E8; }
+tbody tr.row-err        { background: #FAF0F0; }
+tbody tr.row-err:hover  { background: #F5E0E0; }
+tbody tr.row-skip       { background: #FAF5E8; }
+tbody tr.row-update     { background: #EEF3FA; }
+tbody tr.row-update:hover { background: #E4EBF7; }
+tbody tr.row-update-crit { background: #FDECEA; border-left: 3px solid #C0392B; }
+tbody tr.row-update-crit:hover { background: #FAD7D7; }
+.upd-badge  { display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;background:#D6E1F0;color:#1B2A4A;white-space:nowrap; }
+.upd-crit   { background:#FAD7D7;color:#8B1A1A; }
+.td-upd     { white-space:nowrap; }
+.td-tijd    { font-size:11px;color:var(--text-muted);margin-left:4px; }
+.td-wijz    { font-size:11px;color:#5A4234;cursor:help; }
+.td-wijz-cel { max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 td           { padding: 8px 14px; vertical-align: middle; }
 .td-time     { font-size: 11px; color: var(--text-med); white-space: nowrap; }
 .td-mono     { font-family: 'Consolas', monospace; font-size: 12px; font-weight: 600; color: var(--text); }
