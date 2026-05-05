@@ -83,16 +83,44 @@ export async function fetchUnreadMails() {
 export async function sendViaGmailApi({ from, to, subject, text, attachments = [] }) {
   const gmail = getGmailClient();
 
-  // Build raw RFC 2822 message using nodemailer (no SMTP, just encoding)
-  const builder = nodemailer.createTransport({ streamTransport: true, buffer: true });
-  const info = await builder.sendMail({ from, to, subject, text, attachments });
-  const raw = info.message.toString('base64url');
+  // Build raw RFC 2822 message using nodemailer streamTransport
+  // Handles both Buffer and Stream returns (nodemailer v6 vs v7 differ)
+  const rawBuffer = await new Promise((resolve, reject) => {
+    const transport = nodemailer.createTransport({ streamTransport: true, buffer: true });
+    transport.sendMail({ from, to, subject, text, attachments }, (err, info) => {
+      if (err) return reject(err);
+      if (!info || !info.message) {
+        return reject(new Error('Nodemailer gaf geen message-object terug'));
+      }
+      if (Buffer.isBuffer(info.message)) {
+        resolve(info.message);
+      } else if (typeof info.message.pipe === 'function') {
+        // Stream (nodemailer without buffer:true or some versions)
+        const chunks = [];
+        info.message.on('data', c => chunks.push(c));
+        info.message.on('end', () => resolve(Buffer.concat(chunks)));
+        info.message.on('error', reject);
+      } else {
+        reject(new Error(`Onverwacht message-type: ${typeof info.message}`));
+      }
+    });
+  });
 
-  await gmail.users.messages.send({
+  // RFC 4648 base64url: gebruik + → - en / → _ en verwijder padding
+  const raw = rawBuffer
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  console.log(`📤 Gmail API send: subject="${subject}" to="${to}" rawSize=${rawBuffer.length}`);
+
+  const result = await gmail.users.messages.send({
     userId: 'me',
     requestBody: { raw }
   });
-  console.log(`📧 Verstuurd via Gmail API: ${subject} → ${to}`);
+
+  console.log(`📧 Verstuurd via Gmail API: ${subject} → ${to} (gmailId: ${result?.data?.id})`);
 }
 
 export async function markAsRead(ids) {
