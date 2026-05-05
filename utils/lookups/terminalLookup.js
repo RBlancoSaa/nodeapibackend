@@ -75,16 +75,36 @@ async function getTerminalLijst() {
  * @param {string} [zoekAdres] - Adres uit PDF ter verificatie (optioneel maar zwaarst)
  */
 function berekenScore(zoek, terminal, zoekAdres = '') {
-  // Adres-bonus — gebruik alleen echt zoekAdres (niet de terminalnaam als fallback)
-  const straatZ = straatNaam(zoekAdres);
-  const straatT = straatNaam(terminal.adres || '');
+  // ── Adres-matching ──────────────────────────────────────────────────────────
+  // Volledig adres (straat + huisnummer) is uniek identificerend — hoogste prioriteit.
+  // Alleen straatnaam (zonder huisnummer): lager gewicht, want meerdere depots
+  // kunnen op dezelfde straat staan (bijv. Missouriweg 17/25/30 bij Kramer).
+  //
+  // adresBonus 90 = volledig adres exact → terminal ALTIJD gevonden (boven beide drempels)
+  // adresBonus 70 = volledig adres gedeeltelijk (bijv. "Europaweg 8" in "Europaweg 872")
+  // adresBonus 40 = straatnaam klopt, maar geen huisnummer beschikbaar
+  // adresBonus 20 = straatnaam deels overlapend
+  const normAdresZ = normStr(zoekAdres);
+  const normAdresT = normStr(terminal.adres || '');
+  const straatZ    = straatNaam(zoekAdres);
+  const straatT    = straatNaam(terminal.adres || '');
+
   let adresBonus = 0;
-  if (straatZ && straatT) {
-    if (straatZ === straatT)                                           adresBonus = 50;
-    else if (straatT.includes(straatZ) || straatZ.includes(straatT))  adresBonus = 25;
+  if (normAdresZ && normAdresT) {
+    if (normAdresZ === normAdresT)
+      adresBonus = 90;  // volledig adres exact → altijd boven drempel
+    else if (normAdresT.includes(normAdresZ) || normAdresZ.includes(normAdresT))
+      adresBonus = 70;  // gedeeltelijk adres match
+    else if (straatZ && straatT) {
+      if (straatZ === straatT)                                           adresBonus = 40;
+      else if (straatT.includes(straatZ) || straatZ.includes(straatT)) adresBonus = 20;
+    }
+  } else if (straatZ && straatT) {
+    if (straatZ === straatT)                                             adresBonus = 40;
+    else if (straatT.includes(straatZ) || straatZ.includes(straatT))   adresBonus = 20;
   }
 
-  // Adres-only lookup: geen naam → score alleen op adres
+  // Adres-only lookup: geen naam → score puur op adres
   if (!zoek) return adresBonus;
 
   const nZoek = normStr(zoek);
@@ -164,9 +184,12 @@ export async function getTerminalInfoFallback(zoekwaarde, zoekAdres = '') {
     if (!zoekwaarde && !zoekAdres) return '0';
     const lijst = await getTerminalLijst();
 
-    // Met adres: lagere drempel — adres is doorslaggevend (EAN-codes/portbase nodig)
+    // Met adres: drempel 55 — volledig adres match geeft 90 punten (altijd gevonden)
     // Zonder adres: drempel 65 — altNamen, acroniemen en multi-word naam-contains passen
     // (enkelvoudige generieke woorden als "Rotterdam" worden door berekenScore al afgestraft)
+    // Stel drempel bij op basis van het type zoekopdracht:
+    // – Als adres exact matcht (normAdres) scoort berekenScore al 90 → drempel 55 is ruimschoots genoeg
+    // – Adres-only zoekopdracht (geen naam): drempel ook 55
     const drempel = zoekAdres ? 55 : 65;
 
     const beste = lijst
@@ -205,8 +228,9 @@ export async function getTerminalInfoMetFallback(key, zoekAdres = '') {
       if (exact && exact !== '0') return exact;
     }
 
-    // 2. Fuzzy naam+adres match — adres meegeven zodat het als tiebreaker werkt
-    // Als naam leeg is maar adres bekend, zoek dan puur op adres
+    // 2. Fuzzy naam+adres match — adres is primair wanneer het overeenkomt
+    // Volledig adres (straat + huisnummer) geeft 90 punten → altijd gevonden
+    // Als naam leeg is maar adres bekend, zoekt dit puur op adres
     const fuzzy = await getTerminalInfoFallback(zoek, zoekAdres);
     if (fuzzy && fuzzy !== '0') return fuzzy;
 
@@ -216,6 +240,20 @@ export async function getTerminalInfoMetFallback(key, zoekAdres = '') {
     console.error('❌ getTerminalInfoMetFallback error:', e);
     return null;
   }
+}
+
+/**
+ * Zoekt een terminal PUUR op adres — voor gevallen waar de naam niet beschikbaar is.
+ * Geeft null terug als het adres niet in de lijst staat.
+ *
+ * @param {string} adres  - Volledig adres uit PDF (straat + huisnummer)
+ * @returns {object|null}
+ */
+export async function getTerminalByAdres(adres) {
+  if (!adres || adres.trim().length < 4) return null;
+  const result = await getTerminalInfoFallback('', adres.trim());
+  if (result && result !== '0') return result;
+  return null;
 }
 
 // ─── Rederijen ────────────────────────────────────────────────────────────────
