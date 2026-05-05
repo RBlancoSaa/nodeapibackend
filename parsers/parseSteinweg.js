@@ -17,13 +17,21 @@ import { getPrijsafspraken } from '../utils/getPrijsafspraken.js';
  * @param {number}  opts.extraStops   - aantal extra laden/lossen stops (boven de standaard 1)
  * @param {object}  afspraken         - result van getPrijsafspraken()
  */
+// ── Hardcoded standaard-toeslagen (worden gebruikt als database ontbreekt of 0 geeft) ──
+const STD_ADR_PCT    = 10;    // ADR = 10% van het basistarief
+const STD_GENSET     = 100;   // Genset toeslag = €100
+const STD_EXTRA_STOP = 55;    // Extra stop = €55
+// Diesel is fluctuerend — geen hardcoded fallback; moet in database staan
+
 function calcOrderToeslagen({ tarief, heeftAdr, heeftGenset, heeftGasmeten, extraStops }, afspraken) {
-  const adrPercent     = afspraken?.toeslag('adr') ?? 0;           // percentage (bijv. 10)
-  const adrBedrag      = heeftAdr  ? (afspraken?.toeslag('adr', tarief) ?? 0) : 0;
-  const adrToeslag     = heeftAdr  ? adrPercent  : 0;              // % in XML veld
-  const genChart       = heeftGenset   ? (afspraken?.toeslag('genset')   ?? 0) : 0;
-  const gasMetenChart  = heeftGasmeten ? (afspraken?.toeslag('gasmeten') ?? 0) : 0;
-  const extraStopChart = extraStops > 0 ? (afspraken?.toeslag('extra_stop') ?? 0) * extraStops : 0;
+  const adrPercent     = (afspraken?.toeslag('adr'))        || STD_ADR_PCT;    // 10%
+  const adrBedrag      = heeftAdr ? (tarief * adrPercent / 100) : 0;
+  const adrToeslag     = heeftAdr ? adrPercent : 0;                            // % in XML
+  const genChart       = heeftGenset   ? ((afspraken?.toeslag('genset'))    || STD_GENSET)     : 0;
+  const gasMetenChart  = heeftGasmeten ? ((afspraken?.toeslag('gasmeten'))  || 0)              : 0;
+  const extraStopChart = extraStops > 0
+    ? (((afspraken?.toeslag('extra_stop')) || STD_EXTRA_STOP) * extraStops)
+    : 0;
   return { adrToeslagChart: adrToeslag, adrBedragChart: adrBedrag, genChart, gasMetenChart, extraStopChart };
 }
 

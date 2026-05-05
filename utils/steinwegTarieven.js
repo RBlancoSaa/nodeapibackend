@@ -223,7 +223,7 @@ export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr, afsprake
   }
   // Terminal-specifieke toeslag (altijd vol bedrag — Route 1 containers rijden nooit gepaard)
   const termKeyVol     = normTerminalKey(terminalNaam);
-  const dieselChart    = (afspraken?.toeslag('diesel')) || 9;
+  const dieselChart    = afspraken?.toeslag('diesel') || 0;  // fluctuerend — moet in DB staan
   let deltaChart   = 0;
   let euromaxChart = 0;
   let blanco2Chart = 0;
