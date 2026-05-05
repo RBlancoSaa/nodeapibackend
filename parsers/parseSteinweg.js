@@ -112,30 +112,67 @@ function canonicalTerminalNaam(naam) {
   if (/\bwbt\b/.test(s))                                                 return 'WBT';
   if (/\brst\b/.test(s))                                                 return 'Rst Zuid';
   // ── Return-depots (Route 2) ───────────────────────────────────────────
-  if (/dcs kramer|kramer.*delta|qterminals.*kramer/.test(s))             return 'DCS Kramer Group';
+  if (/dcs kramer|kramer.*delta|qterminals.*kramer|rct.*kramer|kramer.*rct/.test(s)) return 'DCS Kramer Group';
+  if (/kramer.*distri|dr.*depot|van\s*doorn.*delta/.test(s))             return 'KRAMER DISTRI - DR Depot';
+  if (/kramer.*home|kramer.*city|reeweg.*kramer/.test(s))                return 'Kramer home / city REEWEG';
   if (/medrepair|med repair/.test(s))                                    return 'MedRepair';
   if (/van\s*doorn/.test(s))                                             return 'VAN DOORN';
+  if (/\buwt\b.*maasvlakte|maasvlakte.*\buwt\b/.test(s))                return 'UWT MAASVLAKTE';
   if (/\buwt\b|\buct\b/.test(s))                                        return 'UWT';
   if (/cetem/.test(s))                                                   return 'Cetem';
+  if (/\brst\s*(noord|north)\b/.test(s))                                 return 'Rst noord';
+  if (/\bwht\b/.test(s))                                                 return 'WHT';
+  if (/\bbcw\b/.test(s))                                                 return 'Bcw';
+  if (/occ\b|overbeek/.test(s))                                          return 'Occ';
+  if (/star\s*(container|depot|service)/.test(s))                        return 'Star Container Depot';
+  if (/hacon|hacon.*depot/.test(s))                                      return 'HACON CONTAINER DEPOT B.V.';
+  if (/hacon.*waalhaven|bunschotenweg.*131/.test(s))                     return 'HACON CONTAINER BV';
   return naam;
 }
 
 /**
- * Normaliseert Steinweg-eigen leverlocaties (r1.to / r2.from).
- * Verwijdert "C." prefix, standaardiseert schrijfwijze.
- * Behoudt vestigingsinfo zodat de chauffeur weet waar hij moet zijn.
- *   "C. Steinweg Parmentierplein" → "STEINWEG Parmentierplein"
- *   "C. Steinweg"                 → "STEINWEG"
- *   "Steinweg Beatrix Terminal"   → "STEINWEG Beatrix Terminal"
+ * Bekende Steinweg-eigen vestigingen met volledig adres.
+ * Key = lowercase zoekpatroon (zonder "steinweg" prefix).
+ * Gebruikt door resolveSteinwegLocatie() om naam + adres terug te geven.
  */
-function normSteinwegLocatieNaam(naam) {
-  if (!naam) return '';
-  return (naam)
-    .replace(/^C[.\s]+/i, '')                    // verwijder "C." of "C " prefix
-    .replace(/^steinweg\b/i, 'STEINWEG')          // normaliseer hoofdletters
+const STEINWEG_LOCATIES = [
+  // Patroon: [regex,  { naam, adres, postcode, plaats, land }]
+  [/\bpier\s*2\b/,          { naam: 'STEINWEG PIER 2',             adres: 'Nijmegenstraat 44',          postcode: '3087 CD', plaats: 'Rotterdam',  land: 'NL' }],
+  [/\bpier\s*6\b/,          { naam: 'STEINWEG PIER 6',             adres: 'Zaltbommelstraat 10',        postcode: '3089 KE', plaats: 'Rotterdam',  land: 'NL' }],
+  [/beatrix/,               { naam: 'STEINWEG BEATRIX TERMINAL',   adres: 'Den Hamweg Port 2732',       postcode: '3089 KK', plaats: 'Rotterdam',  land: 'NL' }],
+  [/benelux/,               { naam: 'STEINWEG BENELUXHAVEN',       adres: 'Elbeweg 101',                postcode: '3198 LC', plaats: 'Europoort',  land: 'NL' }],
+  [/parmentier/,            { naam: 'STEINWEG PARMENTIERPLEIN',    adres: 'Parmentierplein 1',          postcode: '3088 GN', plaats: 'Rotterdam',  land: 'NL' }],
+  [/botlek/,                { naam: 'STEINWEG BOTLEK TERMINAL BV', adres: 'Professor Gerbrandyweg 17',  postcode: '3197 KK', plaats: 'Rotterdam',  land: 'NL' }],
+  [/seinehaven|theemsweg|handelsveem/, { naam: 'STEINWEG SEINEHAVEN', adres: 'Theemsweg 26',            postcode: '3197 KM', plaats: 'Rotterdam',  land: 'NL' }],
+  [/spakenburg/,            { naam: 'STEINWEG',                    adres: 'Spakenburgweg 45',           postcode: '3089 KN', plaats: 'Rotterdam',  land: 'NL' }],
+];
+
+/**
+ * Resolveert een Steinweg-eigen locatienaam naar naam + volledig adres.
+ * Doorzoekt STEINWEG_LOCATIES op patroon-match; bij geen match → normaliseer naam + leeg adres.
+ */
+function resolveSteinwegLocatie(naam) {
+  if (!naam) return { naam: '', adres: '', postcode: '', plaats: '', land: 'NL' };
+  const s = naam.toLowerCase();
+  for (const [re, loc] of STEINWEG_LOCATIES) {
+    if (re.test(s)) {
+      console.log(`🏭 Steinweg locatie: "${naam}" → ${loc.naam} (${loc.adres})`);
+      return { ...loc };
+    }
+  }
+  // Geen match: normaliseer naam, adres onbekend
+  const normNaam = naam
+    .replace(/^C[.\s]+/i, '')
+    .replace(/^steinweg\b/i, 'STEINWEG')
     .replace(/^STEINWEG\s+handelsveem\b/i, 'STEINWEG Handelsveem')
-    .trim()
-    || naam;
+    .trim() || naam;
+  console.warn(`⚠️ Steinweg locatie onbekend: "${naam}" → naam="${normNaam}" (geen adres)`);
+  return { naam: normNaam, adres: '', postcode: '', plaats: '', land: 'NL' };
+}
+
+/** @deprecated — gebruik resolveSteinwegLocatie */
+function normSteinwegLocatieNaam(naam) {
+  return resolveSteinwegLocatie(naam).naam;
 }
 
 function sizetypeToDescription(sizetype) {
@@ -371,13 +408,14 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
           volgorde: '0', actie: 'Lossen',
           naam: 'OMRIJDER', adres: '', postcode: '', plaats: '', land: 'NL'
         },
-        {
-          volgorde: '0', actie: 'Afzetten',
-          // Steinweg eigen vestiging — GEEN haventerminal
-          // normSteinwegLocatieNaam behoudt vestigingsinfo (bijv. "STEINWEG Parmentierplein")
-          naam: normSteinwegLocatieNaam(r1.to), adres: '', postcode: '', plaats: '', land: 'NL',
-          _noTerminalLookup: true
-        }
+        (() => {
+          const sw = resolveSteinwegLocatie(r1.to);
+          return {
+            volgorde: '0', actie: 'Afzetten',
+            naam: sw.naam, adres: sw.adres, postcode: sw.postcode, plaats: sw.plaats, land: sw.land,
+            _noTerminalLookup: true  // Steinweg eigen vestiging — geen haventerminal lookup
+          };
+        })()
       ];
 
       results.push(await enrichOrder({
@@ -469,13 +507,14 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
 
       // Omrijder: Opzetten (Steinweg) → Lossen (OMRIJDER) → Afzetten (return depot)
       const locaties = [
-        {
-          volgorde: '0', actie: 'Opzetten',
-          // Steinweg eigen vestiging — GEEN haventerminal
-          // normSteinwegLocatieNaam behoudt vestigingsinfo (bijv. "STEINWEG Parmentierplein")
-          naam: normSteinwegLocatieNaam(r2.from), adres: '', postcode: '', plaats: '', land: 'NL',
-          _noTerminalLookup: true
-        },
+        (() => {
+          const sw = resolveSteinwegLocatie(r2.from);
+          return {
+            volgorde: '0', actie: 'Opzetten',
+            naam: sw.naam, adres: sw.adres, postcode: sw.postcode, plaats: sw.plaats, land: sw.land,
+            _noTerminalLookup: true  // Steinweg eigen vestiging — geen haventerminal lookup
+          };
+        })(),
         {
           volgorde: '0', actie: 'Lossen',
           naam: 'OMRIJDER', adres: '', postcode: '', plaats: '', land: 'NL'
