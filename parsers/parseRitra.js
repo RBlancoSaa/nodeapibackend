@@ -96,7 +96,11 @@ export default async function parseRitra(buffer) {
 
   // === Referenties ===
   // In Ritra PDFs staan waarden VOOR hun label
-  const notaRef   = ls.find(l => /nota ref/i.test(l))?.match(/:\s*(\d{6,})/)?.[1] || '';
+  // Nota ref: "Op uw nota ons nota ref vermelden s.v.p.: 22604067 WBH"
+  // Vang getal + eventuele letters erna (bijv. "22604067 WBH")
+  const notaRefLijn = ls.find(l => /nota\s*ref/i.test(l)) || '';
+  const notaRefM    = notaRefLijn.match(/:\s*(\d{4,}(?:\s+[A-Z]{2,5})?)/i);
+  const notaRef     = notaRefM ? notaRefM[1].trim() : '';
 
   // Releasenummer = terminal PIN (uithaalreferentie) — waarde vóór "Releasenummer" label
   // Dit is de ophaalcode bij de terminal (opzetref)
@@ -314,7 +318,9 @@ export default async function parseRitra(buffer) {
     // Reisnr        = voyage/reisreferentie (laadreferentie)
     // afzettenRef   = inleverreferentie bij afzetten (bijv. "ONEMT")
     referentie:        uithaalRef || releasenr || notaRef,
-    laadreferentie:    reisnr || notaRef || '',
+    // notaRef altijd opnemen in laadreferentie — dit is de klant-factuurreferentie
+    // die op de transportopdracht vermeld moet worden (ook als reisnr al aanwezig is)
+    laadreferentie:    [reisnr, notaRef].filter(Boolean).join(' / ') || '',
     inleverreferentie: afzettenRef || '',
     inleverBestemming: '',
 
