@@ -97,12 +97,10 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
           loc.portbase_code = cleanFloat(info.portbase_code || '');
           loc.bicsCode      = cleanFloat(info.bicsCode      || '');
 
-          // Veiligheidscheck: terminal gevonden maar zonder portbase-code → voormelding onmogelijk
-          // Voeg altijd een duidelijke waarschuwing toe zodat dit nooit stil faalt.
+          // Veiligheidscheck: terminal gevonden maar zonder portbase-code.
+          // Alleen loggen — NIET toevoegen aan instructies (vervuilt het veld voor de klant).
           if (!loc.portbase_code) {
-            const melding = `⚠️ GEEN PORTBASE CODE voor ${loc.naam} — voormelding niet mogelijk`;
-            console.warn(`⚠️ ${tag} ${loc.actie}-terminal "${loc.naam}" heeft geen portbase_code`);
-            onbekendeMeldingen.push(melding);
+            console.warn(`⚠️ ${tag} ${loc.actie}-terminal "${loc.naam}" heeft geen portbase_code — voormelding niet mogelijk`);
           }
         } else {
           // Niet in lijst: bewaar ruwe PDF-data + meld in bijzonderheden

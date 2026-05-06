@@ -238,7 +238,15 @@ export async function getTerminalInfoFallback(zoekwaarde, zoekAdres = '') {
     const beste = lijst
       .map(item => ({ item, score: berekenScore(zoekwaarde || '', item, zoekAdres) }))
       .filter(s => s.score >= drempel)
-      .sort((a, b) => b.score - a.score)[0];
+      .sort((a, b) => {
+        // Primair: score (hoogste eerst)
+        if (b.score !== a.score) return b.score - a.score;
+        // Tiebreaker bij gelijke score: terminal MÉT portbase_code wint
+        // (bijv. "UWT Bunschotenweg" met portbase vs "UWT Depot 2" zonder portbase)
+        const aPort = cleanFloat(a.item.portbase_code || '') ? 1 : 0;
+        const bPort = cleanFloat(b.item.portbase_code || '') ? 1 : 0;
+        return bPort - aPort;
+      })[0];
 
     if (beste) {
       console.log(`🔍 getTerminalInfoFallback("${zoekwaarde || ''}"${zoekAdres ? ` @ ${zoekAdres.slice(0,30)}` : ''}) → ${beste.item.naam} (score ${beste.score})`);
@@ -370,17 +378,45 @@ export async function getTerminalInfoMetFallback(key, zoekAdres = '') {
     const cached = await zoekInTerminalCache(zoek, zoekAdres);
     if (cached) return cached;
 
+    let exactZonderPortbase = null;
+
     // 2. Exacte naam/referentie-match in op_afzetten.json
     if (zoek) {
       const exact = await getTerminalInfo(zoek);
-      if (exact && exact !== '0') return exact;
+      if (exact && exact !== '0') {
+        const portbase = cleanFloat(exact.portbase_code || '');
+        if (portbase) {
+          // Volledig met portbase → direct teruggeven
+          return exact;
+        }
+        // Exacte naamsmatch maar zonder portbase_code:
+        // Bewaar als nooduitgang en probeer eerst fuzzy — er bestaat mogelijk
+        // een identieke terminal met wél portbase (bijv. "UWT Bunschotenweg" bij
+        // zoekterm "UWT Depot 2"). Dit is de meest voorkomende oorzaak van
+        // ontbrekende portbase/EAN-codes in het .easy bestand.
+        exactZonderPortbase = exact;
+        console.log(`⚠️ Exacte match "${zoek}" heeft geen portbase_code — zoek ook fuzzy voor betere terminal`);
+      }
     }
 
     // 3. Fuzzy naam+adres match
-    // Volledig adres (straat + huisnummer) geeft 90 punten → altijd gevonden
-    // Als naam leeg is maar adres bekend, zoekt dit puur op adres
+    // Volledig adres (straat + huisnummer) geeft 90 punten → altijd gevonden.
+    // Als naam leeg is maar adres bekend, zoekt dit puur op adres.
+    // Fuzzy-sort geeft al voorkeur aan terminals MÉT portbase bij gelijke score.
     const fuzzy = await getTerminalInfoFallback(zoek, zoekAdres);
-    if (fuzzy && fuzzy !== '0') return fuzzy;
+    if (fuzzy && fuzzy !== '0') {
+      const fuzzyPortbase = cleanFloat(fuzzy.portbase_code || '');
+      // Fuzzy met portbase wint altijd van exact zonder portbase
+      if (fuzzyPortbase || !exactZonderPortbase) return fuzzy;
+      // Beide zonder portbase → exacte naamsmatch is betrouwbaarder
+      console.log(`ℹ️ Fuzzy ook zonder portbase — gebruik exacte match "${exactZonderPortbase.naam}"`);
+    }
+
+    // Nooduitgang: exact gevonden maar zonder portbase
+    if (exactZonderPortbase) {
+      console.warn(`⚠️ Terminal "${zoek}" gevonden maar zonder portbase_code`);
+      return exactZonderPortbase;
+    }
 
     console.log(`⚠️ Terminal niet gevonden: "${zoek}"${zoekAdres ? ` @ ${zoekAdres}` : ''}`);
     return null;

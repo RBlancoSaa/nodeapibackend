@@ -240,10 +240,15 @@ export default async function parseB2L(buffer) {
   const klantPlaats = pcMatch?.[2]?.trim() || '';
 
   // === Instructies ===
-  const instrStart = ls.findIndex(l => /SPECIAL INSTRUCTIONS/i.test(l));
-  const instrEind  = ls.findIndex(l => /GENERAL INFORMATION/i.test(l));
-  const instructies = (instrStart >= 0 && instrEind > instrStart)
-    ? ls.slice(instrStart + 1, instrEind).filter(Boolean).join(' ').slice(0, 300)
+  // Alles tussen "SPECIAL INSTRUCTIONS / COMMENTS" en "GENERAL INFORMATION" (of max 8 regels).
+  // "GENERAL INFORMATION" is niet altijd aanwezig — gebruik dan positie-gebaseerde fallback.
+  const instrStart    = ls.findIndex(l => /SPECIAL INSTRUCTIONS/i.test(l));
+  const instrEindRaw  = ls.findIndex((l, i) => i > instrStart && /GENERAL INFORMATION/i.test(l));
+  const instrEind     = instrEindRaw > instrStart
+    ? instrEindRaw
+    : (instrStart >= 0 ? Math.min(instrStart + 8, ls.length) : -1);
+  const instructies   = instrStart >= 0
+    ? ls.slice(instrStart + 1, instrEind).filter(Boolean).join(' | ').slice(0, 300)
     : '';
 
   // === Ruwe postcode/plaats voor afzetten uit klantPCPlaats-achtige string ===
