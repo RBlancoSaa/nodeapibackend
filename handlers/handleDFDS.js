@@ -10,22 +10,19 @@ import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 
-// ── Opdrachtgever-overrides op basis van lading/body-tekst ───────────────────
+// ── Laad/los-adres overrides op basis van lading/body-tekst ─────────────────
+// Overschrijft het laad/losadres (klantnaam/adres) — NIET de opdrachtgever.
 // Volgorde van specificiteit: eerste match wint.
 const DFDS_OPDRACHTGEVER_OVERRIDES = [
   {
-    // RADTEC-orders: vaste prijs 285 all-in excl. diesel met DFDS RT ESTRON
+    // RADTEC-orders: laad/losadres = DFDS RT ESTRON, vaste prijs €285 excl. diesel
     test: text => /radtec/i.test(text),
     data: {
-      opdrachtgeverNaam:     'DFDS RT ESTRON',
-      opdrachtgeverAdres:    'WOLGAWEG 3',
-      opdrachtgeverPostcode: '3198 LR',
-      opdrachtgeverPlaats:   'ROTTERDAM',
-      opdrachtgeverTelefoon: '+31 103334600',
-      opdrachtgeverEmail:    'nl-rtm-invoices@dfds.com',
-      opdrachtgeverBTW:      'NL007129099B01',
-      opdrachtgeverKVK:      '24232781',
-      tarief:                285,   // vaste prijs excl. diesel
+      klantnaam:     'DFDS RT ESTRON',
+      klantadres:    'WOLGAWEG 3',
+      klantpostcode: '3198 LR',
+      klantplaats:   'ROTTERDAM',
+      tarief:        285,
     }
   }
 ];
@@ -244,13 +241,21 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
   if (opdrachtgeverOverride) {
     for (const c of containers) {
       Object.assign(c, opdrachtgeverOverride);
-      // Diesel: EasyTrip verwacht een percentage (bijv. 10), geen euro-bedrag.
-      // EasyTrip berekent het bedrag zelf (10% van €285 = €28,50).
-      // Zet het percentage terug op 10 zodat enrichOrder het niet al heeft omgezet.
+      // Diesel percentage terugzetten zodat enrichOrder het bedrag berekent over het nieuwe tarief
       c.dieselToeslagChart = 10;
-      console.log(`💧 Diesel toeslag na tarief-override: 10% (EasyTrip berekent bedrag van tarief €${parseFloat(c.tarief) || 0})`);
+      // Laad/losadres ook doorzetten naar de Laden/Lossen-locatie (body-orders hebben die leeg)
+      if (opdrachtgeverOverride.klantnaam) {
+        const laadLoc = (c.locaties || []).find(l => /laden|lossen/i.test(l.actie || ''));
+        if (laadLoc) {
+          laadLoc.naam     = opdrachtgeverOverride.klantnaam;
+          laadLoc.adres    = opdrachtgeverOverride.klantadres    || laadLoc.adres;
+          laadLoc.postcode = opdrachtgeverOverride.klantpostcode || laadLoc.postcode;
+          laadLoc.plaats   = opdrachtgeverOverride.klantplaats   || laadLoc.plaats;
+        }
+      }
+      console.log(`💧 Diesel toeslag na tarief-override: 10% (tarief €${parseFloat(c.tarief) || 0})`);
     }
-    console.log(`🔄 DFDS opdrachtgever overschreven: ${opdrachtgeverOverride.opdrachtgeverNaam}`);
+    console.log(`🔄 DFDS laad/losadres overschreven: ${opdrachtgeverOverride.klantnaam} — tarief €${opdrachtgeverOverride.tarief || '?'}`);
   }
 
   // ── ADR uit email body overnemen als PDF het niet detecteerde ─────────────
