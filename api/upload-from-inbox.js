@@ -17,6 +17,7 @@ import handleSteinweg from '../handlers/handleSteinweg.js';
 import handleSteder from '../handlers/handleSteder.js';
 import handleReservering from '../handlers/handleReservering.js';
 import handleEimskip from '../handlers/handleEimskip.js';
+import handleLeegmelding from '../handlers/handleLeegmelding.js';
 
 // Elke klant heeft: matchFile, optioneel matchSender + matchSubject, en handler
 const handlers = {
@@ -98,6 +99,17 @@ function findHandler(filename, mailFrom, mailSubject) {
 function classifyEmail(mail) {
   const subject = (mail.subject || '').toLowerCase();
   const body    = (mail.bodyText || '').toLowerCase();
+
+  // ── Leegmeldingen ─────────────────────────────────────────────────────────
+  // Vóór de transport-check: Steinweg-afzender zou anders als transport matchen
+  if (
+    /\d{7,}\s*=\s*leeg\b/.test(subject) ||                                   // "61550524 = leeg"
+    /containers?\s+order\s+\d+\s+zijn\s+leeg/.test(subject) ||               // "Containers order 62686235 zijn leeg"
+    /^=leeg\b/m.test(body) ||                                                  // body begint met "=leeg [code]"
+    /hereby\s+we\s+confirm\s+we\s+have\s+unloaded\s+the\s+goods/.test(body)  // DFDS leegmelding
+  ) {
+    return 'leegmelding';
+  }
 
   if (/\b(update|wijziging|aanpassing|gewijzigd|correction|corrected|amendment)\b/.test(subject)) {
     return 'update';
@@ -201,6 +213,23 @@ export default async function handler(req, res) {
         } catch (err) {
           console.error('❌ handleReservering fout:', err.message);
           addLog(mail, 'reservering', 'reservering', [], 'fout', err.message);
+        }
+        continue;
+      }
+
+      // ── Leegmeldingen ─────────────────────────────────────────────────────
+      if (type === 'leegmelding') {
+        try {
+          const { klant } = await handleLeegmelding({
+            from:     mail.from,
+            subject:  mail.subject,
+            bodyText: mail.bodyText
+          });
+          addLog(mail, 'leegmelding', klant, [], 'verwerkt');
+          console.log(`📭 Leegmelding verwerkt [${klant}]: ${mail.subject}`);
+        } catch (err) {
+          console.error('❌ handleLeegmelding fout:', err.message);
+          addLog(mail, 'leegmelding', null, [], 'fout', err.message);
         }
         continue;
       }
@@ -375,22 +404,24 @@ export default async function handler(req, res) {
     }
 
     // Samenvatting
-    const transport   = logEntries.filter(e => e.type === 'transport'   && e.status === 'verwerkt');
-    const reservering = logEntries.filter(e => e.type === 'reservering' && e.status === 'verwerkt');
-    const updates     = logEntries.filter(e => e.type === 'update');
-    const onbekend    = logEntries.filter(e => e.type === 'onbekend');
-    const fouten      = logEntries.filter(e => e.status === 'fout');
+    const transport    = logEntries.filter(e => e.type === 'transport'    && e.status === 'verwerkt');
+    const reservering  = logEntries.filter(e => e.type === 'reservering'  && e.status === 'verwerkt');
+    const leegmeldingen = logEntries.filter(e => e.type === 'leegmelding' && e.status === 'verwerkt');
+    const updates      = logEntries.filter(e => e.type === 'update');
+    const onbekend     = logEntries.filter(e => e.type === 'onbekend');
+    const fouten       = logEntries.filter(e => e.status === 'fout');
 
     return res.status(200).json({
       success:   true,
       run_id:    runId,
       mailCount: mails.length,
       verwerkt: {
-        transport:   transport.length,
-        reservering: reservering.length,
-        updates:     updates.length,
-        onbekend:    onbekend.length,
-        fouten:      fouten.length
+        transport:    transport.length,
+        reservering:  reservering.length,
+        leegmeldingen: leegmeldingen.length,
+        updates:      updates.length,
+        onbekend:     onbekend.length,
+        fouten:       fouten.length
       },
       easy_bestanden: transport.flatMap(e => e.easy_bestanden),
       fouten_detail:  fouten.map(e => ({ subject: e.email_subject, klant: e.klant, fout: e.fout_melding })),
