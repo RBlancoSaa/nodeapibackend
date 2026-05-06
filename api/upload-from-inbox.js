@@ -47,6 +47,7 @@ const handlers = {
   kwe: {
     matchFile:    fn  => fn.includes('kwe'),
     matchSender:  frm => /@kwe\.com/i.test(frm),
+    preferBody:   true,  // body is de transportorder; PDFs zijn release-documenten
     handler: handleKWE
   },
   neelevat: {
