@@ -81,6 +81,7 @@ export default async function handler(req, res) {
 
     const periode = req.query?.periode || 'deze-maand';
     let   tab     = req.query?.tab    || 'opdrachten';
+    const etype   = req.query?.etype  || '';   // email-type filter binnen Emails-tab
     const zoek    = (req.query?.zoek  || '').toLowerCase().trim();
     // base = relative query-prefix; URLs blijven relatief t.o.v. /<tenant-slug>.
     const base    = `?token=${encodeURIComponent(token)}`;
@@ -252,19 +253,22 @@ export default async function handler(req, res) {
 
     function statsBar() {
       const bq = `${base}&periode=${periode}`;
+      // href: tab + optioneel etype-filter
+      const link = (t, et='') => `${bq}&tab=${t}${et ? '&etype='+et : ''}`;
+      const isActive = (t, et='') => tab === t && etype === et;
       const cards = [
-        { n: totTO,           l: "TO's",          accent: '#8B1A2E', tab: 'opdrachten'   },
-        { n: okOp,            l: 'Verwerkt',       accent: '#2D7A4F', tab: 'opdrachten'   },
-        { n: foutOp + foutVl, l: 'Fouten',         accent: '#C0392B', tab: 'fouten'       },
-        { n: cancelVl,        l: 'Annuleringen',   accent: '#FF4444', tab: 'annuleringen' },
-        { n: skipVl,          l: 'Overgeslagen',   accent: '#B5870F', tab: 'overgeslagen' },
-        { n: updatesVl,       l: 'Updates',        accent: '#3b82f6', tab: 'updates'      },
-        { n: totLm,           l: 'Leegmeldingen',  accent: '#f59e0b', tab: 'leegmeldingen'},
-        { n: totVl,           l: 'Emails',         accent: '#1B2A4A', tab: 'runs'         },
-        { n: totOp,           l: 'Opdrachten',     accent: '#6B4E8A', tab: 'opdrachten'   },
+        { n: totTO,           l: "TO's aangemaakt", accent: '#8B1A2E', href: link('opdrachten')              },
+        { n: okOp,            l: 'Verwerkt',        accent: '#2D7A4F', href: link('opdrachten')              },
+        { n: foutOp + foutVl, l: 'Fouten',          accent: '#C0392B', href: link('emails','fout')           },
+        { n: cancelVl,        l: 'Annuleringen',    accent: '#FF4444', href: link('emails','cancellatie')     },
+        { n: skipVl,          l: 'Overgeslagen',    accent: '#B5870F', href: link('emails','overgeslagen')    },
+        { n: updatesVl,       l: 'Updates',         accent: '#3b82f6', href: link('emails','update')         },
+        { n: totLm,           l: 'Leegmeldingen',   accent: '#f59e0b', href: link('leegmeldingen')           },
+        { n: totVl,           l: 'Emails totaal',   accent: '#1B2A4A', href: link('emails')                  },
+        { n: totOp,           l: 'Opdrachten',      accent: '#6B4E8A', href: link('opdrachten')              },
       ];
       return cards.map(c => `
-        <a href="${bq}&tab=${c.tab}" class="stat-card${tab === c.tab ? ' stat-card-active' : ''}">
+        <a href="${c.href}" class="stat-card">
           <span class="stat-num" style="color:${c.accent}">${c.n}</span>
           <span class="stat-lbl">${c.l}</span>
         </a>`).join('');
@@ -500,6 +504,84 @@ export default async function handler(req, res) {
       </table></div>`;
     }
 
+    function emailsTab() {
+      // Filter-chips definitie
+      const etypes = [
+        { id: '',              label: 'Alles'         },
+        { id: 'verwerkt',      label: 'Verwerkt'      },
+        { id: 'fout',          label: 'Fouten'        },
+        { id: 'cancellatie',   label: 'Annuleringen'  },
+        { id: 'wijziging',     label: 'Wijzigingen'   },
+        { id: 'overgeslagen',  label: 'Overgeslagen'  },
+        { id: 'update',        label: 'Updates'       },
+        { id: 'leegmelding',   label: 'Leegmeldingen' },
+        { id: 'onbekend',      label: 'Onbekend'      },
+      ];
+
+      // Filter toepassen op verwerkingslog
+      let rows = vlFiltered;
+      if (etype === 'verwerkt')     rows = rows.filter(r => r.status === 'verwerkt');
+      else if (etype === 'fout')    rows = rows.filter(r => r.status === 'fout');
+      else if (etype)               rows = rows.filter(r => r.type === etype || r.status === etype);
+
+      // Fout-entries uit opdrachten_log toevoegen bij filter 'fout' of alles
+      const opFouten = (etype === '' || etype === 'fout')
+        ? opFiltered.filter(r => r.status === 'FOUT').map(r => ({
+            _fromOp:       true,
+            created_at:    r.verwerkt_op,
+            email_van:     r.bron || '—',
+            email_subject: r.bestandsnaam || r.containernummer || r.ritnummer || '(geen bestand)',
+            type:          'opdracht',
+            status:        'fout',
+            klant:         r.bron,
+            fout_melding:  r.foutmelding || '',
+          }))
+        : [];
+
+      const alleRows = [...rows, ...opFouten]
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      const bq = `${base}&periode=${periode}&tab=emails`;
+      const chips = etypes.map(et => {
+        const active = etype === et.id;
+        // Aantal per type
+        let cnt = et.id === ''           ? vlFiltered.length
+                : et.id === 'verwerkt'   ? vlFiltered.filter(r => r.status === 'verwerkt').length
+                : et.id === 'fout'       ? vlFiltered.filter(r => r.status === 'fout').length + opFiltered.filter(r => r.status === 'FOUT').length
+                : vlFiltered.filter(r => r.type === et.id || r.status === et.id).length;
+        return `<a href="${bq}${et.id ? '&etype='+et.id : ''}"
+          style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;border:1px solid ${active ? 'var(--accent)' : 'var(--border)'};background:${active ? 'var(--accent-light)' : 'var(--card)'};color:${active ? 'var(--accent)' : 'var(--text-med)'};white-space:nowrap">
+          ${et.label} <span style="font-size:10px;opacity:.8">${cnt}</span>
+        </a>`;
+      }).join('');
+
+      if (!alleRows.length) return `
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">${chips}</div>
+        <div class="empty">Geen emails gevonden voor dit filter ✅</div>`;
+
+      return `
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">${chips}</div>
+        <div class="table-wrap"><table>
+          <thead><tr>
+            <th>Datum</th><th>Afzender</th><th>Onderwerp</th><th>Type</th><th>Klant</th><th>Status</th><th>Fout</th>
+          </tr></thead>
+          <tbody>
+          ${alleRows.map(r => {
+            const isErr = r.status === 'fout' || r.status === 'FOUT';
+            return `<tr class="${isErr ? 'row-err' : r.status === 'overgeslagen' ? 'row-skip' : ''}">
+              <td class="td-time">${fmt(r.created_at)}</td>
+              <td class="td-van">${esc((r.email_van||'').replace(/^"([^"]+)".*/, '$1').trim())}</td>
+              <td class="td-sub">${esc((r.email_subject||'').slice(0,80))}</td>
+              <td><span class="type-badge">${esc(r.type||'—')}</span></td>
+              <td>${r.klant ? bronBadge(r.klant) : '—'}</td>
+              <td>${statusChip(r.status)}</td>
+              <td class="td-fout-big" style="max-width:220px">${esc((r.fout_melding||'').slice(0,80))}</td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table></div>`;
+    }
+
     function leegmeldingenTable() {
       if (!leegmeldingen.length) return `<div class="empty">Geen leegmeldingen in deze periode ✅</div>`;
       return `<div class="table-wrap"><table>
@@ -561,15 +643,11 @@ export default async function handler(req, res) {
     }
 
     const ALL_TABS = [
-      { id: 'opdrachten',      label: 'Opdrachten',    icon: '📦', count: totOp,            perm: 'view_opdrachten' },
-      { id: 'runs',            label: 'Runs',          icon: '⚡',                            perm: 'view_runs' },
-      { id: 'leegmeldingen',   label: 'Leegmeldingen', icon: '🟡', count: totLm,            perm: 'view_opdrachten' },
-      { id: 'overgeslagen',    label: 'Overgeslagen',  icon: '⏭',  count: skipVl,           perm: 'view_overgeslagen' },
-      { id: 'updates',         label: 'Updates',       icon: '🔄', count: updatesVl,         perm: 'view_runs' },
-      { id: 'annuleringen',    label: 'Annuleringen',  icon: '❌', count: cancelVl, alert: cancelVl > 0, perm: 'view_opdrachten' },
-      { id: 'fouten',          label: 'Fouten',        icon: '⚠️', count: foutOp + foutVl, alert: true, perm: 'view_fouten' },
-      { id: 'prijsafspraken',  label: 'Tarieven',      icon: '💶',                            perm: 'view_tarieven' },
-      { id: 'gebruikers',      label: 'Gebruikers',    icon: '👥',                            perm: 'manage_users' },
+      { id: 'opdrachten',     label: 'Opdrachten',    icon: '📦', count: totOp,   perm: 'view_opdrachten'  },
+      { id: 'emails',         label: 'Emails',        icon: '📧', count: totVl,   perm: 'view_runs'        },
+      { id: 'leegmeldingen',  label: 'Leegmeldingen', icon: '🟡', count: totLm,   perm: 'view_opdrachten'  },
+      { id: 'prijsafspraken', label: 'Tarieven',      icon: '💶',                  perm: 'view_tarieven'    },
+      { id: 'gebruikers',     label: 'Gebruikers',    icon: '👥',                  perm: 'manage_users'     },
     ];
     const TABS = ALL_TABS.filter(t => perms[t.perm]);
     if (!TABS.find(t => t.id === tab)) tab = TABS[0]?.id || 'opdrachten';
@@ -856,14 +934,16 @@ export default async function handler(req, res) {
       if (tab === 'gebruikers') return gebruikersTab();
       if (!isLive) return emptyTenantNote();
       switch (tab) {
-        case 'runs':           return `<div class="runs-list">${runsList()}</div>`;
         case 'opdrachten':     return opdrachtenTable();
+        case 'emails':         return emailsTab();
         case 'leegmeldingen':  return leegmeldingenTable();
-        case 'updates':        return updatesTable();
-        case 'overgeslagen':   return overgeslagenTable();
-        case 'annuleringen':   return annuleringenTable();
-        case 'fouten':         return foutenTable();
         case 'prijsafspraken': return perms.view_tarieven ? prijsafsprakenTab() : geenToegangBlok();
+        // Legacy redirects (oude bladwijzers/links)
+        case 'runs':
+        case 'overgeslagen':
+        case 'updates':
+        case 'annuleringen':
+        case 'fouten':         return emailsTab();
         default:               return opdrachtenTable();
       }
     }
@@ -1313,13 +1393,9 @@ td           { padding: 8px 14px; vertical-align: middle; }
   <header class="topbar">
     <div class="topbar-left">
       <span class="page-title">${
-        tab === 'runs'           ? '⚡ Runs' :
         tab === 'opdrachten'     ? '📦 Opdrachten' :
+        tab === 'emails'         ? `📧 Emails${etype ? ' — ' + etype : ''}` :
         tab === 'leegmeldingen'  ? '🟡 Leegmeldingen' :
-        tab === 'updates'        ? '🔄 Updates' :
-        tab === 'overgeslagen'   ? '⏭ Overgeslagen emails' :
-        tab === 'annuleringen'   ? '❌ Annuleringen' :
-        tab === 'fouten'         ? '⚠️ Fouten' :
         tab === 'prijsafspraken' ? '💶 Tarieven per klant' :
         tab === 'gebruikers'     ? '👥 Gebruikers' : '📦 Opdrachten'
       }</span>
