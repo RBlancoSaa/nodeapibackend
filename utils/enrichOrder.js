@@ -267,17 +267,21 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
       const effectiveDeltaCount = deltaCount + hpdCount;
       order.deltaChart   = effectiveDeltaCount > 0 ? eenheidDelta   * effectiveDeltaCount : 0;
       order.euromaxChart = euromaxCount > 0 ? eenheidEuromax * euromaxCount : 0;
-      // APM + RWG zijn beide Maasvlakte 2 → gaan naar MV2_Chart in XML
-      order.rwgChart     = rwgCount > 0 ? eenheidRwg * rwgCount : 0;
+      // APM → MV2_Chart in XML
       order.apmChart     = apmCount > 0 ? eenheidApm * apmCount : 0;
-      order.mv2Chart     = order.rwgChart + order.apmChart;
+      order.mv2Chart     = order.apmChart;
+      // RWG → Blanco1 (bedrag + tekst "RWG TOESLAG") voor alle klanten
+      order.rwgChart     = rwgCount > 0 ? eenheidRwg * rwgCount : 0;
+      if (rwgCount > 0) {
+        order.blanco1Chart = order.rwgChart;
+        order.blanco1Text  = 'RWG TOESLAG';
+      }
       order.botlekChart  = botlekCount  > 0 ? eenheidBotlek  * botlekCount  : 0;
 
       if (effectiveDeltaCount > 0) console.log(`${tag} Delta/HPD toeslag: ${effectiveDeltaCount}× €${eenheidDelta} = €${order.deltaChart} (delta=${deltaCount}, hpd=${hpdCount})`);
       if (euromaxCount > 0) console.log(`${tag} Euromax toeslag: ${euromaxCount}× €${eenheidEuromax} = €${order.euromaxChart}`);
-      if (rwgCount > 0)     console.log(`${tag} RWG toeslag: ${rwgCount}× €${eenheidRwg} = €${order.rwgChart}`);
-      if (apmCount > 0)     console.log(`${tag} APM toeslag: ${apmCount}× €${eenheidApm} = €${order.apmChart}`);
-      if (order.mv2Chart > 0) console.log(`${tag} MV2 toeslag (APM+RWG): €${order.mv2Chart}`);
+      if (rwgCount > 0)     console.log(`${tag} RWG toeslag: ${rwgCount}× €${eenheidRwg} → Blanco1 €${order.rwgChart}`);
+      if (apmCount > 0)     console.log(`${tag} APM toeslag: ${apmCount}× €${eenheidApm} = €${order.apmChart} (MV2_Chart)`);
 
       // ADR
       const heeftAdr   = order.adr === 'Waar';
