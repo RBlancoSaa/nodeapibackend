@@ -176,22 +176,25 @@ if (data.containertypeCode && data.containertypeCode !== '0') {
   data.containertype = data.containertypeCode;
 }
 
-const isCode = containers.some(c => c.code === data.containertype);
-let code = data.containertype;
-if (!isCode) {
-  const omschrijving = data.containertypeOmschrijving || data.containertype;
-  code = getContainerCodeFromOmschrijving(omschrijving, containers);
-  if (!code) {
-    throw new Error(`❌ Geen geldig containertype gevonden: "${data.containertype}"`);
+// Alleen opzoeken als er een waarde is (lege string = al als ontbrekend gemarkeerd)
+if (data.containertype) {
+  const isCode = containers.some(c => c.code === data.containertype);
+  if (!isCode) {
+    const omschrijving = data.containertypeOmschrijving || data.containertype;
+    const code = getContainerCodeFromOmschrijving(omschrijving, containers);
+    if (code) {
+      data.containertype = code;
+    } else {
+      // Niet bekend → instructie bijwerken, leeg laten (niet blokkeren)
+      console.warn(`⚠️ Containertype "${data.containertype}" niet herkend — bestand gegenereerd met lege waarde`);
+      data.instructies = data.instructies
+        ? `${data.instructies} | ⚠️ Containertype onbekend — handmatig invullen`
+        : '⚠️ Containertype onbekend — handmatig invullen';
+      data.containertype = '';
+    }
   }
-  data.containertype = code;
 }
-console.log('🔎 ContainerType na mapping:', data.containertype);
-
-// ✅ Minimale vereisten check – verplaatst naar ná code-matching
-if (!data.containertype || data.containertype === '0') {
-  throw new Error('❌ Geen geldig containertype gevonden op basis van omschrijving.');
-}
+console.log('🔎 ContainerType na mapping:', data.containertype || '(leeg)');
 
 if (!data.actie || data.actie === '0') {
   const acties = (data.locaties || []).map(loc => loc.actie?.toLowerCase());
