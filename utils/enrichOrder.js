@@ -28,7 +28,7 @@ import {
   normLand,
   cleanFloat
 } from './lookups/terminalLookup.js';
-import { getPrijsafspraken } from './getPrijsafspraken.js';
+import { getPrijsafspraken, getDefaultAfspraken } from './getPrijsafspraken.js';
 
 // Acties die een terminal zijn (Opzetten / Afzetten)
 const TERMINAL_ACTIES = new Set(['opzetten', 'afzetten']);
@@ -213,8 +213,8 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
       const klantNaamKey = (klantKey || (order.klantnaam || '')).toLowerCase().trim();
       let afspraken = klantNaamKey ? await getPrijsafspraken(klantNaamKey) : null;
       if (!afspraken && bron) afspraken = await getPrijsafspraken(bron.toLowerCase().trim());
-      // Nog steeds null → gebruik DEFAULTS inline
-      if (!afspraken) afspraken = { velden: {}, all_in: false, toeslag: () => 0, isPercent: () => false, toeslagText: () => '' };
+      // Nog steeds null → gebruik standaard-toeslagen als basis
+      if (!afspraken) afspraken = getDefaultAfspraken();
 
       // Vul basistarief uit prijsafspraken als de parser het niet heeft gezet
       if (!parseFloat(order.tarief) && afspraken) {
@@ -290,17 +290,24 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
         ? afspraken.toeslag('extra_stop') * extraStops
         : 0;
 
+      // Diesel toeslag
+      // isPercent=true (standaard) → chart is % van tarief; tarief=0 → geef % als getal terug
+      const dieselBedrag = afspraken ? afspraken.toeslag('diesel', tarief) : 0;
+      order.dieselToeslagChart = dieselBedrag;
+      if (dieselBedrag > 0) console.log(`${tag} Diesel toeslag: €${dieselBedrag}${afspraken.isPercent('diesel') ? ` (${afspraken.velden?.diesel?.chart ?? 10}% van tarief ${tarief})` : ''}`);
+
     } catch (e) {
       console.warn(`⚠️ ${tag} Toeslagen berekening mislukt:`, e.message);
-      order.adrToeslagChart = order.adrToeslagChart ?? 0;
-      order.adrBedragChart  = order.adrBedragChart  ?? 0;
-      order.genChart        = order.genChart        ?? 0;
-      order.gasMetenChart   = order.gasMetenChart   ?? 0;
-      order.extraStopChart  = order.extraStopChart  ?? 0;
-      order.deltaChart      = order.deltaChart      ?? 0;
-      order.euromaxChart    = order.euromaxChart    ?? 0;
-      order.rwgChart        = order.rwgChart        ?? 0;
-      order.botlekChart     = order.botlekChart     ?? 0;
+      order.adrToeslagChart    = order.adrToeslagChart    ?? 0;
+      order.adrBedragChart     = order.adrBedragChart     ?? 0;
+      order.genChart           = order.genChart           ?? 0;
+      order.gasMetenChart      = order.gasMetenChart      ?? 0;
+      order.extraStopChart     = order.extraStopChart     ?? 0;
+      order.deltaChart         = order.deltaChart         ?? 0;
+      order.euromaxChart       = order.euromaxChart       ?? 0;
+      order.rwgChart           = order.rwgChart           ?? 0;
+      order.botlekChart        = order.botlekChart        ?? 0;
+      order.dieselToeslagChart = order.dieselToeslagChart ?? 0;
     }
   }
 

@@ -14,7 +14,7 @@ import { mergeRelease } from '../utils/mergeRelease.js';
 // Volgorde van specificiteit: eerste match wint.
 const DFDS_OPDRACHTGEVER_OVERRIDES = [
   {
-    // RADTEC-orders: aparte prijsafspraak met DFDS RT ESTRON
+    // RADTEC-orders: vaste prijs 285 all-in excl. diesel met DFDS RT ESTRON
     test: text => /radtec/i.test(text),
     data: {
       opdrachtgeverNaam:     'DFDS RT ESTRON',
@@ -25,6 +25,7 @@ const DFDS_OPDRACHTGEVER_OVERRIDES = [
       opdrachtgeverEmail:    'nl-rtm-invoices@dfds.com',
       opdrachtgeverBTW:      'NL007129099B01',
       opdrachtgeverKVK:      '24232781',
+      tarief:                285,   // vaste prijs excl. diesel
     }
   }
 ];
@@ -223,11 +224,21 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
   }
 
   // ── Opdrachtgever-override (RADTEC etc.) ──────────────────────────────────
-  // Controleer lading uit PDF + email body op bekende klant-patronen
+  // Controleer lading uit PDF + email body op bekende klant-patronen.
+  // NB: enrichOrder loopt al in parseDFDS, dus diesel herberekenen met het nieuwe tarief.
   const combinedText = containers.map(c => c.lading || '').join(' ') + ' ' + bodyText;
   const opdrachtgeverOverride = getDFDSOpdrachtgeverOverride(combinedText);
   if (opdrachtgeverOverride) {
-    for (const c of containers) Object.assign(c, opdrachtgeverOverride);
+    for (const c of containers) {
+      Object.assign(c, opdrachtgeverOverride);
+      // Herbereken diesel met het vaste tarief dat de override meebrengt
+      const nieuwTarief = parseFloat(c.tarief) || 0;
+      if (nieuwTarief > 0) {
+        const DIESEL_PERCENT = 10;
+        c.dieselToeslagChart = Math.round(nieuwTarief * DIESEL_PERCENT / 100 * 100) / 100;
+        console.log(`💧 Diesel herberekend na tarief-override: €${c.dieselToeslagChart} (${DIESEL_PERCENT}% van €${nieuwTarief})`);
+      }
+    }
     console.log(`🔄 DFDS opdrachtgever overschreven: ${opdrachtgeverOverride.opdrachtgeverNaam}`);
   }
 

@@ -19,7 +19,7 @@ const TTL = 60_000;       // 60 seconden
 // isPercent: true → chart is een percentage van het basistarief (bijv. ADR = 10%)
 const DEFAULTS = {
   tarief:     { chart: 0,    label: 'Basistarief',        actief: true  },
-  diesel:     { chart: 9,    label: 'Diesel toeslag',    actief: true  },
+  diesel:     { chart: 10,   label: 'Diesel toeslag',    actief: true,  isPercent: true },
   delta:      { chart: 28.5, label: 'ECT Delta toeslag', actief: true  },
   euromax:    { chart: 28.5, label: 'Euromax toeslag',   actief: true  },
   rwg:        { chart: 31,   label: 'RWG toeslag',       actief: true  },
@@ -32,6 +32,11 @@ const DEFAULTS = {
   blanco1:    { chart: 0, text: '', label: 'Blanco 1',   actief: false },
   blanco2:    { chart: 0, text: '', label: 'Blanco 2',   actief: false },
 };
+
+/** Geeft een afspraken-object met de standaard-toeslagen (voor gebruik als fallback). */
+export function getDefaultAfspraken() {
+  return buildAfspraken({ klant: '_default', velden: DEFAULTS, all_in: false });
+}
 
 export async function getPrijsafspraken(klantKey) {
   const key = (klantKey || '').toLowerCase().trim();
