@@ -363,8 +363,14 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
   const rederijRaw  = r1?.rederij    || r2?.rederij    || '';
 
   const afspraken  = await getPrijsafspraken('steinweg');
+  // Stop bij aanhef/afsluiting — de rest van de mail is niet relevant voor de opdracht
+  const knipBijAfsluiting = s => {
+    const m = (s || '').match(/^(.*?)(?:\bmet\s+vriendelijke\s+groet\b|\bkind\s+regards?\b|\bmet\s+vriendelijke\b|\bgroet\b|\bregards\b)/i);
+    return m ? m[1].trim() : (s || '').trim();
+  };
+
   const instructies = [emailSubject, emailBody]
-    .map(s => (s || '').trim())
+    .map(s => knipBijAfsluiting(s))
     .filter(Boolean)
     .join(' | ')
     .replace(/[<>&"']/g, ' ')
