@@ -121,13 +121,12 @@ function extractSectie(pls, headerIdx, volgendeHeaderIdx = -1) {
 function parsePDFLines(pls) {
   // ── Referentie ──────────────────────────────────────────────────────────
   const refIdx = pls.findIndex(l => /^referentie\s*$/i.test(l));
-  let ritnummer     = '';
-  let laadreferentie = '';
+  let ritnummer = '';
   if (refIdx >= 0) {
     const volgende = (pls[refIdx + 1] || '').replace(/^:/, '').trim();
     const nrs = volgende.match(/\d{5,}/g) || [];
-    ritnummer      = nrs[0] || '';
-    laadreferentie = volgende.replace(/\s*-\s*$/, '').trim();  // bijv. "120563 - 520483"
+    ritnummer = nrs[0] || '';   // alleen het eerste getal: "120629" (niet "120629 - 520549 -")
+    console.log(`🔎 Eimskip referentieregel: "${volgende}" → ritnummer="${ritnummer}"`);
   }
 
   // ── Schip ──────────────────────────────────────────────────────────────
@@ -184,7 +183,7 @@ function parsePDFLines(pls) {
   console.log(`🔍 PDF: sec1="${sec1?.naam}" ref="${sec1?.referentie}" sec2="${sec2?.naam}" sec3="${sec3?.naam}" ref3="${sec3?.referentie}"`);
   console.log(`🔍 PDF: laadreferentie="${laadreferentie}" rederij="${rederij}" schip="${bootnaam}"`);
 
-  return { ritnummer, laadreferentie, bootnaam, rederij, containernummer, containertypeIso,
+  return { ritnummer, bootnaam, rederij, containernummer, containertypeIso,
            zegel, lading, brutogewicht, colli, sec1, sec2, sec3 };
 }
 
@@ -420,7 +419,6 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
   const zegel            = pdfData?.zegel           || '';
   const bootnaam         = pdfData?.bootnaam        || '';
   const rederijRaw       = pdfData?.rederij         || 'EIMSKIP';
-  const laadreferentie   = pdfData?.laadreferentie  || '';
   const ritnummer        = pdfData?.ritnummer       || '';
   const lading           = pdfData?.lading          || '';
   // Gewicht: verwijder decimalen (Claude geeft soms "5410.00")
@@ -524,11 +522,12 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
 
     datum,
     tijd,
-    // referentie = PIN / ophaalreferentie bij opzetterminal (sec1)
-    // laadreferentie = de gecombineerde referentieregel (bijv. "120563 - 520483") voor op de vrachtbrief
-    // inleverreferentie = afzetterminaalreferentie (sec3) — anders dan de opzetreferentie
-    referentie:        pdfData?.sec1?.referentie || laadreferentie || '',
-    laadreferentie,
+    // referentie        = portbase PIN bij opzetterminal (sec1), anders ritnummer
+    // laadreferentie    = leeg — Eimskip heeft geen aparte laad/losreferentie
+    //                     (de klant-referentie staat al in ritnummer)
+    // inleverreferentie = afzetterminaalreferentie (sec3)
+    referentie:        pdfData?.sec1?.referentie || ritnummer || '',
+    laadreferentie:    '',
     inleverreferentie: pdfData?.sec3?.referentie || '',
     inleverBestemming: afzetRaw?.naam || '',
 
