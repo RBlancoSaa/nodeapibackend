@@ -18,6 +18,7 @@ import handleSteder from '../handlers/handleSteder.js';
 import handleReservering from '../handlers/handleReservering.js';
 import handleEimskip from '../handlers/handleEimskip.js';
 import handleLeegmelding from '../handlers/handleLeegmelding.js';
+import handleCancellatie from '../handlers/handleCancellatie.js';
 
 // Elke klant heeft: matchFile, optioneel matchSender + matchSubject, en handler
 const handlers = {
@@ -111,12 +112,22 @@ function classifyEmail(mail) {
     return 'leegmelding';
   }
 
-  if (/\b(update|wijziging|aanpassing|gewijzigd|correction|corrected|amendment)\b/.test(subject)) {
-    return 'update';
+  // ── Annuleringen (alle klanten) ───────────────────────────────────────────
+  // Vóór de update-check: annulering is een aparte actie (niet stilzwijgend overslaan)
+  if (
+    /\b(annuleer|annulering|annulatie|gecanceld|gecancelled|cancel(?:led|lation)?)\b/i.test(subject) ||
+    /\b(cancel(?:led)?|annuleer|annuler)\b/i.test(body.slice(0, 300))
+  ) {
+    return 'cancellatie';
+  }
+
+  // ── Datum-wijzigingen (alle klanten) — stuur notificatie, sla NIET stilzwijgend over ─────
+  if (/\b(update|wijziging|aanpassing|gewijzigd|correction|corrected|amendment|reschedule|rescheduled)\b/.test(subject)) {
+    return 'wijziging';
   }
   // DFDS release-notificaties: lege PDF, geen nieuwe opdracht
   if (/container may be picked up again for drop.?off/i.test(subject)) {
-    return 'update';
+    return 'update';   // → blijft overgeslagen (echte release, geen actie nodig)
   }
   if (/reservering|ter\s+reservering/.test(subject) || /ter\s+reservering/.test(body)) {
     return 'reservering';
@@ -213,6 +224,32 @@ export default async function handler(req, res) {
         } catch (err) {
           console.error('❌ handleReservering fout:', err.message);
           addLog(mail, 'reservering', 'reservering', [], 'fout', err.message);
+        }
+        continue;
+      }
+
+      // ── Annuleringen ──────────────────────────────────────────────────────
+      if (type === 'cancellatie') {
+        try {
+          await handleCancellatie({ subject: mail.subject, bodyText: mail.bodyText, fromEmail: mail.from, type: 'cancellatie' });
+          addLog(mail, 'cancellatie', null, [], 'GECANCELD');
+          console.log(`❌ Annulering verwerkt: ${mail.subject}`);
+        } catch (err) {
+          console.error('❌ handleCancellatie fout:', err.message);
+          addLog(mail, 'cancellatie', null, [], 'fout', err.message);
+        }
+        continue;
+      }
+
+      // ── Datum-wijzigingen ─────────────────────────────────────────────────
+      if (type === 'wijziging') {
+        try {
+          await handleCancellatie({ subject: mail.subject, bodyText: mail.bodyText, fromEmail: mail.from, type: 'wijziging' });
+          addLog(mail, 'wijziging', null, [], 'GEWIJZIGD');
+          console.log(`⚠️ Wijziging verwerkt: ${mail.subject}`);
+        } catch (err) {
+          console.error('❌ handleCancellatie (wijziging) fout:', err.message);
+          addLog(mail, 'wijziging', null, [], 'fout', err.message);
         }
         continue;
       }
@@ -406,24 +443,28 @@ export default async function handler(req, res) {
     }
 
     // Samenvatting
-    const transport    = logEntries.filter(e => e.type === 'transport'    && e.status === 'verwerkt');
-    const reservering  = logEntries.filter(e => e.type === 'reservering'  && e.status === 'verwerkt');
+    const transport     = logEntries.filter(e => e.type === 'transport'    && e.status === 'verwerkt');
+    const reservering   = logEntries.filter(e => e.type === 'reservering'  && e.status === 'verwerkt');
     const leegmeldingen = logEntries.filter(e => e.type === 'leegmelding' && e.status === 'verwerkt');
-    const updates      = logEntries.filter(e => e.type === 'update');
-    const onbekend     = logEntries.filter(e => e.type === 'onbekend');
-    const fouten       = logEntries.filter(e => e.status === 'fout');
+    const cancellaties  = logEntries.filter(e => e.type === 'cancellatie');
+    const wijzigingen   = logEntries.filter(e => e.type === 'wijziging');
+    const updates       = logEntries.filter(e => e.type === 'update');
+    const onbekend      = logEntries.filter(e => e.type === 'onbekend');
+    const fouten        = logEntries.filter(e => e.status === 'fout');
 
     return res.status(200).json({
       success:   true,
       run_id:    runId,
       mailCount: mails.length,
       verwerkt: {
-        transport:    transport.length,
-        reservering:  reservering.length,
+        transport:     transport.length,
+        reservering:   reservering.length,
         leegmeldingen: leegmeldingen.length,
-        updates:      updates.length,
-        onbekend:     onbekend.length,
-        fouten:       fouten.length
+        cancellaties:  cancellaties.length,
+        wijzigingen:   wijzigingen.length,
+        updates:       updates.length,
+        onbekend:      onbekend.length,
+        fouten:        fouten.length
       },
       easy_bestanden: transport.flatMap(e => e.easy_bestanden),
       fouten_detail:  fouten.map(e => ({ subject: e.email_subject, klant: e.klant, fout: e.fout_melding })),

@@ -62,9 +62,19 @@ function parseDFDSBodyOrder(bodyText = '', mailSubject = '') {
   const datumMatch = bodyText.match(/(?:Drop-off|Unloading)\s+date[^:]*:\s*(\d{2}-\d{2}-\d{4})/i);
   const datum = datumMatch ? datumMatch[1] : '';
 
-  // Locatie/dockcode bijv. "DC6"
+  // Datumbereik als er geen enkel-datum staat: "2x 13-05 + 2x 14-05" → instructie-tekst
+  const datumBereikMatch = !datum
+    ? bodyText.match(/(?:Drop-off|Unloading)\s+date[^:]*:\s*(.+?)(?:\r?\n|$)/i)
+    : null;
+  const datumBereikTekst = datumBereikMatch ? datumBereikMatch[1].trim() : '';
+
+  // Locatie/dockcode bijv. "DC1", "DC6"
   const locMatch = bodyText.match(/Drop-off\s+location[^:]*:\s*(.+?)(?:\r?\n|$)/i);
   const locCode = locMatch ? locMatch[1].trim() : '';
+
+  // LET OP-tekst (bijv. "LET OP, DEZE CONTAINERS WORDEN ZELFDE DAG OVERGELADEN IN TRAILER!!!")
+  const letOpMatch = bodyText.match(/LET\s+OP[,!:\s]*([^\r\n]{5,})/i);
+  const letOpTekst = letOpMatch ? `LET OP: ${letOpMatch[1].replace(/!+$/, '').trim()}` : '';
 
   const opdrachtgeverOverride = getDFDSOpdrachtgeverOverride(`${lading} ${bodyText}`);
 
@@ -81,6 +91,8 @@ function parseDFDSBodyOrder(bodyText = '', mailSubject = '') {
 
   const instructiesDelen = [
     locCode ? `Locatie: ${locCode}` : '',
+    datumBereikTekst ? `Datum: ${datumBereikTekst}` : '',
+    letOpTekst,
     mailSubject || '',
     '⚠️ Body-order — containernummer ontbreekt'
   ].filter(Boolean);
@@ -102,6 +114,7 @@ function parseDFDSBodyOrder(bodyText = '', mailSubject = '') {
     referentie:        ritnummer,
     laadreferentie:    '',
     inleverreferentie: '',
+    inleverBestemming: '',   // wordt na enrichOrder gevuld vanuit Afzetten-locatienaam
     adr,
     bootnaam:          '',
     rederijRaw:        '',

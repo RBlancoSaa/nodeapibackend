@@ -26,7 +26,7 @@ function valAfterLabel(line, label) {
 }
 
 // Herkent sectie-headers die we moeten overslaan als naam/adres
-const SECTION_LABEL_RE = /^(?:EMPTY|FULL)\s+PICK-?UP\s+TERMINAL|^FULL\s+DELIVERY\s+TERMINAL|^EMPTY\s+(?:RETURN|DELIVERY)\s+TERMINAL|^EMPTY\s+DEPOT|^PLACE\s+OF\s+(?:LOADING|DELIVERY|UNLOADING|DISCHARGE)|^DELIVERY\s+ADDRESS|^DATE\/?TIME|^PORT\s+(?:OF|NUMBER)|^VOYAGE|^CARRIER|^MAIN\s+VESSEL|^ROUTINGS|^FROM\s+/i;
+const SECTION_LABEL_RE = /^(?:EMPTY|FULL)\s+PICK-?UP\s+TERMINAL|^FULL\s+DELIVERY\s+TERMINAL|^EMPTY\s+(?:RETURN|DELIVERY)\s+TERMINAL|^EMPTY\s+DEPOT|^PLACE\s+OF\s+(?:LOADING|DELIVERY|UNLOADING|DISCHARGE|EXTRA)|^DELIVERY\s+ADDRESS|^DATE\/?TIME|^PORT\s+(?:OF|NUMBER)|^VOYAGE|^CARRIER|^MAIN\s+VESSEL|^ROUTINGS|^FROM\s+/i;
 
 // Geeft de eerste 'echte' bedrijfs/terminalnaam terug na een sectie-index.
 // Strips REFERENCE:... van de regel en slaat sectie-headers over.
@@ -43,6 +43,63 @@ function nextRealLine(arr, startIdx) {
 function safeAdres(arr, idx) {
   const raw = arr[idx] || '';
   return SECTION_LABEL_RE.test(raw) ? '' : raw;
+}
+
+/**
+ * Extracts REFERENCE: value from lines starting at fromIdx.
+ * Handles combined lines like "LOGWISE B.V.REFERENCE:26050038 - NVWA".
+ */
+function extractRef(ls, fromIdx, maxLines = 3) {
+  for (let i = fromIdx; i < Math.min(fromIdx + maxLines, ls.length); i++) {
+    const m = (ls[i] || '').match(/REFERENCE[:\s]+(.+)/i);
+    if (m) return m[1].trim();
+  }
+  return '';
+}
+
+/**
+ * Extracts a multi-line address block starting at startIdx.
+ * Handles Dutch addresses like:
+ *   "IND.TERRAIN BT A12,"
+ *   "SCHABERNAUSEWEG 1"
+ *   "6718 XE EDE GLD, NETHERLANDS"
+ * Returns { adres, postcode, plaats, land }.
+ * `adres` = last non-postcode address line (e.g. "SCHABERNAUSEWEG 1").
+ */
+function extractAdresBlok(ls, startIdx, maxLines = 8) {
+  const end = Math.min(startIdx + maxLines, ls.length);
+  const adresLijnen = [];
+  let postcode = '', plaats = '', land = 'NL';
+
+  for (let i = startIdx; i < end; i++) {
+    const raw = (ls[i] || '').trim();
+    if (!raw) break;
+    if (SECTION_LABEL_RE.test(raw)) break;
+
+    // Postcode-regel herkenning: "1234 AB, STAD" of "1234 AB STAD" of "1234 AB STAD PROV, LAND"
+    const pcM = raw.match(/^(\d{4}\s*[A-Z]{2})[,\s]+(.+)/i);
+    if (pcM) {
+      postcode = pcM[1].replace(/(\d{4})\s*([A-Z]{2})/i, '$1 $2');
+      const rest = pcM[2].trim();
+      const restDelen = rest.split(',');
+      const plaatsDelen = restDelen[0].trim().split(/\s+/);
+      // Verwijder provincieafkorting (2-3 hoofdletters) aan het einde (bijv. "GLD", "ZH", "NH")
+      if (plaatsDelen.length > 1 && /^[A-Z]{2,3}$/.test(plaatsDelen[plaatsDelen.length - 1])) {
+        plaatsDelen.pop();
+      }
+      plaats = plaatsDelen.join(' ').trim();
+      if (restDelen.length > 1) {
+        const landStr = restDelen[restDelen.length - 1].trim();
+        land = normLand(landStr) || 'NL';
+      }
+      break; // klaar na postcoderegel
+    }
+    adresLijnen.push(raw);
+  }
+
+  // Gebruik de LAATSTE adresregel als primair adres (bijv. "SCHABERNAUSEWEG 1")
+  const adres = adresLijnen[adresLijnen.length - 1] || '';
+  return { adres, postcode, plaats, land };
 }
 
 export default async function parseB2L(buffer) {
@@ -156,23 +213,30 @@ export default async function parseB2L(buffer) {
   // Sectie-headers staan als standalone regel met optionele ":" aan het einde.
   const epuIdx = ls.findIndex(l => /^(?:EMPTY|FULL)\s+PICK-?UP\s+TERMINAL\s*:?\s*$/i.test(l));
   const polIdx = ls.findIndex(l => /^PLACE\s+OF\s+LOADING\s*:?\s*$/i.test(l));
+  const pesIdx = ls.findIndex(l => /^PLACE\s+OF\s+EXTRA\s+STOP\s*:?\s*$/i.test(l));
   const fdtIdx = ls.findIndex(l => /^FULL\s+DELIVERY\s+TERMINAL\s*:?\s*$/i.test(l));
   const podIdx = ls.findIndex(l => /^PLACE\s+OF\s+(?:DELIVERY|UNLOADING|DISCHARGE)\s*:?\s*$|^DELIVERY\s+ADDRESS\s*:?\s*$/i.test(l));
   const erdIdx = ls.findIndex(l => /^EMPTY\s+(?:RETURN|DELIVERY)\s+TERMINAL\s*:?\s*$|^EMPTY\s+DEPOT\s*:?\s*$/i.test(l));
 
-  // === Referenties ===
-  // Terminal/boekingsreferentie (uit EMPTY/FULL PICK-UP TERMINAL sectie)
-  // Bijv. "KRAMER CITY DEPOTREFERENCE:YMTRTM0031219" → "YMTRTM0031219"
-  const referentie = epuIdx >= 0
-    ? (ls[epuIdx + 1] || '').replace(/.*REFERENCE[:\s]*/i, '').trim()
-    : '';
+  console.log(`🔎 B2L sectie-indices: epu=${epuIdx} pol=${polIdx} pes=${pesIdx} fdt=${fdtIdx} pod=${podIdx} erd=${erdIdx}`);
 
-  // Laadreferentie: klantreferentie uit PLACE OF LOADING (export) of PLACE OF DELIVERY (import)
-  // Bijv. "LOGWISE B.V.REFERENCE:TBA" → "TBA"
-  const laadSecIdx = isImport ? podIdx : polIdx;
-  const laadreferentie = laadSecIdx >= 0
-    ? (ls[laadSecIdx + 1] || '').replace(/.*REFERENCE[:\s]*/i, '').trim()
-    : '';
+  // === Referenties per sectie ===
+  // extractRef haalt REFERENCE: op uit een gecombineerde naamregel (bijv. "LOGWISE B.V.REFERENCE:26050038 - NVWA")
+  const epuRef = epuIdx >= 0 ? extractRef(ls, epuIdx + 1) : '';
+  const polRef = polIdx >= 0 ? extractRef(ls, polIdx + 1) : '';
+  const pesRef = pesIdx >= 0 ? extractRef(ls, pesIdx + 1) : '';
+  const fdtRef = fdtIdx >= 0 ? extractRef(ls, fdtIdx + 1) : '';
+  const podRef = podIdx >= 0 ? extractRef(ls, podIdx + 1) : '';
+  const erdRef = erdIdx >= 0 ? extractRef(ls, erdIdx + 1) : '';
+
+  // Veldmapping:
+  //   Export: referentie = POL ref (laadlocatie), laadreferentie = PES ref (extra stop), inleverreferentie = FDT ref (terminal)
+  //   Import: referentie = EPU ref (terminal), laadreferentie = POD ref (loslocatie), inleverreferentie = ERD ref (leeg depot)
+  const referentie        = isImport ? epuRef : polRef;
+  const laadreferentie    = isImport ? podRef : pesRef;
+  const inleverreferentie = isImport ? erdRef : fdtRef;
+
+  console.log(`📎 B2L refs: referentie="${referentie}" laad="${laadreferentie}" inlever="${inleverreferentie}"`);
 
   // === Rederij & Bootnaam ===
   // Combinatieregel: "CARRIER:YANG MING (NETHERLANDS) BVMAIN VESSEL:ONE HAMMERSMITH"
@@ -180,14 +244,23 @@ export default async function parseB2L(buffer) {
   const rederijRaw = voyageLine?.match(/CARRIER[:\s]+(.+?)(?=MAIN VESSEL)/i)?.[1]?.trim() || '';
   const bootnaam   = voyageLine?.match(/MAIN VESSEL[:\s]+(.+)/i)?.[1]?.trim() || '';
 
+  // === PORT OF DISCHARGE (export) → inleverBestemming ===
+  // Bijv. "PORT OF DISCHARGE:DURBAN, SOUTH AFRICA" → "DURBAN"
+  const portOfDischargeLine = ls.find(l => /^PORT\s+OF\s+DISCHARGE\s*:/i.test(l));
+  const portOfDischarge = portOfDischargeLine
+    ? portOfDischargeLine.replace(/^PORT\s+OF\s+DISCHARGE\s*:\s*/i, '').split(',')[0].trim()
+    : '';
+  if (portOfDischarge) console.log(`🌍 B2L PORT OF DISCHARGE: "${portOfDischarge}"`);
+
   // === Locaties — export vs import ===
   let opzettenNaam = '', opzettenAdres = '';
-  let klantNaam = '', klantAdres = '', klantPCPlaats = '', klantLand = '';
+  let klantNaam = '', klantAdres = '', klantPC = '', klantPlaats = '', klantLand = 'NL';
+  let pesNaam = '', pesAdres = '', pesPC = '', pesPlaats = '', pesLand = 'NL';
   let laadActie = 'Laden';
-  let afzettenNaam = '', afzettenAdres = '', afzettenPCPlaats = '';
+  let afzettenNaam = '', afzettenAdres = '';
 
   if (!isImport) {
-    // ── Export: lege container ophalen (Opzetten) → laden bij klant → terminal inleveren (Afzetten) ──
+    // ── Export: lege container ophalen (Opzetten/EPU) → laden bij klant (POL) → optionele extra stop (PES) → terminal inleveren (Afzetten/FDT) ──
     if (epuIdx >= 0) {
       const { line, idx } = nextRealLine(ls, epuIdx + 1);
       opzettenNaam  = line;
@@ -195,20 +268,30 @@ export default async function parseB2L(buffer) {
     }
     if (polIdx >= 0) {
       const { line, idx } = nextRealLine(ls, polIdx + 1);
-      klantNaam     = line;
-      klantAdres    = safeAdres(ls, idx + 1);
-      klantPCPlaats = safeAdres(ls, idx + 2);
-      klantLand     = safeAdres(ls, idx + 3);
+      klantNaam = line;
+      const blok = extractAdresBlok(ls, idx + 1);
+      klantAdres  = blok.adres;
+      klantPC     = blok.postcode;
+      klantPlaats = blok.plaats;
+      klantLand   = blok.land;
     }
     laadActie = 'Laden';
+    if (pesIdx >= 0) {
+      const { line, idx } = nextRealLine(ls, pesIdx + 1);
+      pesNaam = line;
+      const blok = extractAdresBlok(ls, idx + 1);
+      pesAdres  = blok.adres;
+      pesPC     = blok.postcode;
+      pesPlaats = blok.plaats;
+      pesLand   = blok.land;
+    }
     if (fdtIdx >= 0) {
       const { line, idx } = nextRealLine(ls, fdtIdx + 1);
-      afzettenNaam     = line;
-      afzettenAdres    = safeAdres(ls, idx + 1);
-      afzettenPCPlaats = safeAdres(ls, idx + 2);
+      afzettenNaam  = line;
+      afzettenAdres = safeAdres(ls, idx + 1);
     }
   } else {
-    // ── Import: volle container ophalen (Opzetten) → lossen bij klant → leeg depot retour (Afzetten) ──
+    // ── Import: volle container ophalen (Opzetten/EPU) → lossen bij klant (POD) → leeg depot retour (Afzetten/ERD) ──
     if (epuIdx >= 0) {
       const { line, idx } = nextRealLine(ls, epuIdx + 1);
       opzettenNaam  = line;
@@ -216,28 +299,25 @@ export default async function parseB2L(buffer) {
     }
     if (podIdx >= 0) {
       const { line, idx } = nextRealLine(ls, podIdx + 1);
-      klantNaam     = line;
-      klantAdres    = safeAdres(ls, idx + 1);
-      klantPCPlaats = safeAdres(ls, idx + 2);
-      klantLand     = safeAdres(ls, idx + 3);
+      klantNaam = line;
+      const blok = extractAdresBlok(ls, idx + 1);
+      klantAdres  = blok.adres;
+      klantPC     = blok.postcode;
+      klantPlaats = blok.plaats;
+      klantLand   = blok.land;
     }
     laadActie = 'Lossen';
     if (erdIdx >= 0) {
       const { line, idx } = nextRealLine(ls, erdIdx + 1);
-      afzettenNaam     = line;
-      afzettenAdres    = safeAdres(ls, idx + 1);
-      afzettenPCPlaats = safeAdres(ls, idx + 2);
+      afzettenNaam  = line;
+      afzettenAdres = safeAdres(ls, idx + 1);
     }
   }
 
   console.log(`🔍 B2L opzetten: "${opzettenNaam}" | adres: "${opzettenAdres}"`);
-  console.log(`🔍 B2L klant:    "${klantNaam}" | adres: "${klantAdres}"`);
+  console.log(`🔍 B2L klant:    "${klantNaam}" | adres: "${klantAdres}" | pc: "${klantPC}" | plaats: "${klantPlaats}"`);
+  if (pesNaam) console.log(`🔍 B2L extra stop: "${pesNaam}" | adres: "${pesAdres}" | pc: "${pesPC}" | plaats: "${pesPlaats}"`);
   console.log(`🔍 B2L afzetten: "${afzettenNaam}" | adres: "${afzettenAdres}"`);
-
-  // === Postcode + plaats uit klantPCPlaats ("3225 MA, HELLEVOETSLUIS" of "3225MA HELLEVOETSLUIS") ===
-  const pcMatch     = klantPCPlaats.match(/^(\d{4}\s*[A-Z]{2})[,\s]+(.+)/i);
-  const klantPC     = pcMatch?.[1]?.replace(/(\d{4})\s*([A-Z]{2})/, '$1 $2') || '';
-  const klantPlaats = pcMatch?.[2]?.trim() || '';
 
   // === Instructies ===
   // Alles tussen "SPECIAL INSTRUCTIONS / COMMENTS" en "GENERAL INFORMATION" (of max 8 regels).
@@ -250,10 +330,6 @@ export default async function parseB2L(buffer) {
   const instructies   = instrStart >= 0
     ? ls.slice(instrStart + 1, instrEind).filter(Boolean).join(' | ').slice(0, 300)
     : '';
-
-  // === Ruwe postcode/plaats voor afzetten uit klantPCPlaats-achtige string ===
-  const afzetPostcode = afzettenPCPlaats.match(/\d{4}\s*[A-Z]{2}/i)?.[0]?.replace(/(\d{4})\s*([A-Z]{2})/, '$1 $2') || '';
-  const afzetPlaats   = afzettenPCPlaats.replace(/^\d{4}\s*[A-Z]{2}[,\s]*/i, '').split(',')[0].trim() || '';
 
   // === Bouw resultaat per container — enrichOrder doet alle lookups ===
   // Gebruik RIDER-containers als die gevonden zijn, anders generieke telling
@@ -272,7 +348,7 @@ export default async function parseB2L(buffer) {
     const cDatum   = delivery.datum || datum;
     const cTijd    = delivery.tijd  || tijden[i] || '';
 
-    // Ruwe locaties: enrichOrder doet terminal + adresboek lookups
+    // Locaties opbouwen
     const locaties = [
       {
         volgorde: '0', actie: 'Opzetten',
@@ -281,13 +357,23 @@ export default async function parseB2L(buffer) {
       {
         volgorde: '0', actie: laadActie,
         naam: klantNaam, adres: klantAdres, postcode: klantPC, plaats: klantPlaats,
-        land: normLand(klantLand || 'NL')
+        land: klantLand
       },
-      {
-        volgorde: '0', actie: 'Afzetten',
-        naam: afzettenNaam, adres: afzettenAdres, postcode: afzetPostcode, plaats: afzetPlaats, land: 'NL'
-      }
     ];
+
+    // Extra laadstop (alleen export, alleen als PLACE OF EXTRA STOP aanwezig)
+    if (!isImport && pesNaam) {
+      locaties.push({
+        volgorde: '0', actie: 'Laden',
+        naam: pesNaam, adres: pesAdres, postcode: pesPC, plaats: pesPlaats,
+        land: pesLand
+      });
+    }
+
+    locaties.push({
+      volgorde: '0', actie: 'Afzetten',
+      naam: afzettenNaam, adres: afzettenAdres, postcode: '', plaats: '', land: 'NL'
+    });
 
     results.push(await enrichOrder({
       ritnummer,
@@ -312,8 +398,11 @@ export default async function parseB2L(buffer) {
       tijd:   cTijd,
       referentie,
       laadreferentie,
-      inleverreferentie: referentie,
-      inleverBestemming: '',
+      inleverreferentie,
+      // Export: PORT OF DISCHARGE als bestemming (niet de terminal naam)
+      // Import: leeg (enrichOrder sync vanuit Afzetten terminal)
+      inleverBestemming:      !isImport && portOfDischarge ? portOfDischarge : '',
+      _inleverBestemmingFixed: !isImport && !!portOfDischarge,
 
       rederijRaw,
       rederij:         '',
@@ -330,6 +419,7 @@ export default async function parseB2L(buffer) {
 
       adr:           'Onwaar',
       ladenOfLossen: isImport ? 'Lossen' : 'Laden',
+      _ladenOfLossenFixed: true,
       instructies,
       tar: '', documentatie: '', tarra: '0', brix: '0',
 
