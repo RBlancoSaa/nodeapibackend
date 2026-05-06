@@ -58,6 +58,8 @@ function statusChip(s) {
     overgeslagen:['#F5E8C8','#7A5210','—'],
     update:      ['#D6E1F0','#1B2A4A','↑'],
     onbekend:    ['#EDE7DC','#7D6A53','?'],
+    GECANCELD:   ['#FF4444','#FFFFFF','❌'],
+    GEWIJZIGD:   ['#FF8C00','#FFFFFF','⚠️'],
   };
   const [bg, color, icon] = map[s] || ['#f1f5f9','#64748b','?'];
   return `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;background:${bg};color:${color}">${icon} ${esc(s)}</span>`;
@@ -210,6 +212,7 @@ export default async function handler(req, res) {
     const verwerktVl = vlFiltered.filter(r => r.status === 'verwerkt').length;
     const skipVl     = vlFiltered.filter(r => r.status === 'overgeslagen').length;
     const foutVl     = vlFiltered.filter(r => r.status === 'fout').length;
+    const cancelVl   = vlFiltered.filter(r => r.type === 'cancellatie' || r.type === 'wijziging').length;
 
     // TO's (easy bestanden)
     const allTOs = opFiltered.filter(r => r.easy_bestand && r.status === 'OK').map(r => r.easy_bestand);
@@ -242,6 +245,7 @@ export default async function handler(req, res) {
         { n: totTO,      l: 'TO\'s aangemaakt', icon: '📄', accent: '#8B1A2E' },
         { n: okOp,       l: 'Verwerkt',         icon: '✅', accent: '#2D7A4F' },
         { n: foutOp + foutVl, l: 'Fouten',      icon: '⚠️', accent: '#C0392B' },
+        { n: cancelVl,   l: 'Annuleringen',      icon: '❌', accent: '#FF4444' },
         { n: skipVl,     l: 'Overgeslagen',      icon: '⏭',  accent: '#B5870F' },
         { n: totVl,      l: 'Emails gelezen',    icon: '📧', accent: '#1B2A4A' },
         { n: totOp,      l: 'Opdrachten',        icon: '📦', accent: '#6B4E8A' },
@@ -438,6 +442,29 @@ export default async function handler(req, res) {
       </table></div>`;
     }
 
+    function annuleringenTable() {
+      const rows = vlFiltered.filter(r => r.type === 'cancellatie' || r.type === 'wijziging');
+      if (!rows.length) return `<div class="empty">Geen annuleringen of wijzigingen in deze periode ✅</div>`;
+      return `<div class="table-wrap"><table>
+        <thead><tr>
+          <th>Datum</th><th>Afzender</th><th>Onderwerp</th><th>Type</th><th>Status</th>
+        </tr></thead>
+        <tbody>
+        ${rows.map(r => {
+          const isCan = r.type === 'cancellatie';
+          const rowCls = isCan ? 'row-cancel' : 'row-wijziging';
+          return `<tr class="${rowCls}">
+            <td class="td-time">${fmt(r.created_at)}</td>
+            <td class="td-van">${esc((r.email_van||'').replace(/^"([^"]+)".*/, '$1').trim())}</td>
+            <td class="td-sub">${esc((r.email_subject||'').slice(0,90))}</td>
+            <td><span class="type-badge type-badge-${isCan ? 'cancel' : 'wijzig'}">${esc(r.type||'?')}</span></td>
+            <td>${statusChip(r.status)}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table></div>`;
+    }
+
     function foutenTable() {
       const opFouten = opFiltered.filter(r => r.status === 'FOUT');
       const vlFouten = vlFiltered.filter(r => r.status === 'fout');
@@ -488,6 +515,7 @@ export default async function handler(req, res) {
       { id: 'opdrachten',      label: 'Opdrachten',    icon: '📦', count: totOp,            perm: 'view_opdrachten' },
       { id: 'runs',            label: 'Runs',          icon: '⚡',                            perm: 'view_runs' },
       { id: 'overgeslagen',    label: 'Overgeslagen',  icon: '⏭',  count: skipVl,           perm: 'view_overgeslagen' },
+      { id: 'annuleringen',    label: 'Annuleringen',  icon: '❌', count: cancelVl, alert: cancelVl > 0, perm: 'view_opdrachten' },
       { id: 'fouten',          label: 'Fouten',        icon: '⚠️', count: foutOp + foutVl, alert: true, perm: 'view_fouten' },
       { id: 'prijsafspraken',  label: 'Tarieven',      icon: '💶',                            perm: 'view_tarieven' },
       { id: 'gebruikers',      label: 'Gebruikers',    icon: '👥',                            perm: 'manage_users' },
@@ -780,6 +808,7 @@ export default async function handler(req, res) {
         case 'runs':           return `<div class="runs-list">${runsList()}</div>`;
         case 'opdrachten':     return opdrachtenTable();
         case 'overgeslagen':   return overgeslagenTable();
+        case 'annuleringen':   return annuleringenTable();
         case 'fouten':         return foutenTable();
         case 'prijsafspraken': return perms.view_tarieven ? prijsafsprakenTab() : geenToegangBlok();
         default:               return opdrachtenTable();
@@ -992,6 +1021,13 @@ tbody tr:hover { background: var(--light-bg); }
 tbody tr.row-err        { background: #FAF0F0; }
 tbody tr.row-err:hover  { background: #F5E0E0; }
 tbody tr.row-skip       { background: #FAF5E8; }
+tbody tr.row-cancel     { background: #FFEAEA; border-left: 4px solid #FF4444; }
+tbody tr.row-cancel:hover { background: #FFD6D6; }
+tbody tr.row-wijziging  { background: #FFF4E5; border-left: 4px solid #FF8C00; }
+tbody tr.row-wijziging:hover { background: #FFE8C8; }
+.type-badge             { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; background:#EDE7DC; color:#5C4A34; }
+.type-badge-cancel      { background:#FFEAEA; color:#C0392B; }
+.type-badge-wijzig      { background:#FFF4E5; color:#A05000; }
 /* ── Update rijen ── */
 tbody tr.row-update-oud        { background: #F5F5F5; opacity: .75; }
 tbody tr.row-update-oud:hover  { background: #EBEBEB; opacity: 1; }
