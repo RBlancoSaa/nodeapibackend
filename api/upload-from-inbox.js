@@ -309,6 +309,8 @@ export default async function handler(req, res) {
                 filename:    eerste.filename,
                 mailSubject: mail.subject,
                 mailFrom:    mail.from,
+                fromEmail:   mail.from,
+                bodyText:    mail.bodyText || '',
                 // Alle PDFs meegeven zodat de handler zelf TO vs bijlage kan onderscheiden
                 allPdfs:     atts.map(a => ({ buffer: a.buffer, base64: a.base64, filename: a.filename })),
                 getReleaseData

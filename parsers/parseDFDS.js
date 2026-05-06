@@ -95,7 +95,16 @@ export default async function parseDFDS(buffer) {
   const klantpostcode = plaatsRegel?.match(/^(\d{4}\s*[A-Za-z]{2})/)?.[1]?.replace(/\s+/, ' ').trim() || '';
   const klantplaats   = plaatsRegel?.match(/^\d{4}\s+[A-Za-z]{2}\s+(.+)/)?.[1]?.trim() || '';
 
-  const adr = /ADR/i.test(regels.join(' ')) ? 'Waar' : 'Onwaar';
+  const tekstAll = regels.join(' ');
+  const adr = (
+    /\bADR\b/i.test(tekstAll)            ||  // letterlijk "ADR" in PDF
+    /Dangerous\s+Goods/i.test(tekstAll)  ||  // DFDS body-stijl in PDF
+    /\bUN\s*\d{4}\b/.test(tekstAll)      ||  // UN-nummer (bijv. UN3480)
+    /\bIMDG\b/i.test(tekstAll)           ||  // International Maritime Dangerous Goods
+    /\bIATA\b/i.test(tekstAll)           ||  // luchtvracht gevaarlijke stoffen
+    /\bKlasse\s+\d/i.test(tekstAll)      ||  // Klasse 9, Klasse 3 etc.
+    /\bClass\s+\d/i.test(tekstAll)           // Class 9 (Engels)
+  ) ? 'Waar' : 'Onwaar';
 
   // === Goederen informatie: container# → {zegel, colli, lading, gewicht, cbm} ===
   // Lijn: "MEDU2842649 20ft - 33,2 m ³ / Zegel: 236199"
