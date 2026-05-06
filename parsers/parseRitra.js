@@ -112,14 +112,25 @@ export default async function parseRitra(buffer) {
     }
   }
 
-  // Reisnr = reisreferentie / voyage number — waarde vóór "Reisnr" label
-  // Wordt opgeslagen als laadreferentie (niet als terminal PIN)
+  // Reisnr = voyage number — altijd een mix van letters én cijfers (bijv. "613W", "FE3S")
+  // In sommige Ritra PDFs staat de waarde vóór het label, in andere erna.
+  // Zuiver letters ("BREDA", "MAEU") of zuiver cijfers worden overgeslagen.
   const reisnrIdx = ls.findIndex(l => /^Reisnr$/i.test(l));
   let reisnr = '';
-  if (reisnrIdx > 0) {
+  // Voyage-nummer patroon: bevat zowel letters als cijfers (bijv. 613W, FE3S, 614E)
+  const isVoyageNr = s => /^(?=[A-Z0-9]*[0-9])(?=[A-Z0-9]*[A-Z])[A-Z0-9]{3,8}$/.test(s);
+  if (reisnrIdx >= 0) {
+    // Eerst achteruit (primaire Ritra-stijl: waarde vóór label)
     for (let i = reisnrIdx - 1; i >= Math.max(0, reisnrIdx - 5); i--) {
-      // Reisnr kan alfanumeriek zijn (bijv. "FE3S" of "123456")
-      if (/^[A-Z0-9]{4,}$/.test(ls[i])) { reisnr = ls[i]; break; }
+      if (isVoyageNr(ls[i])) { reisnr = ls[i]; break; }
+    }
+    // Dan vooruit (alternatieve Ritra PDFs waar waarde ná label staat)
+    if (!reisnr) {
+      const relNrIdx = ls.findIndex(l => /^Releasenummer$/i.test(l));
+      const endIdx   = relNrIdx > reisnrIdx ? relNrIdx : Math.min(reisnrIdx + 25, ls.length);
+      for (let i = reisnrIdx + 1; i < endIdx; i++) {
+        if (isVoyageNr(ls[i])) { reisnr = ls[i]; break; }
+      }
     }
   }
 
@@ -317,10 +328,10 @@ export default async function parseRitra(buffer) {
     // Releasenummer = terminal PIN (uithaalreferentie bij opzetten)
     // Reisnr        = voyage/reisreferentie (laadreferentie)
     // afzettenRef   = inleverreferentie bij afzetten (bijv. "ONEMT")
-    referentie:        uithaalRef || releasenr || notaRef,
-    // notaRef altijd opnemen in laadreferentie — dit is de klant-factuurreferentie
-    // die op de transportopdracht vermeld moet worden (ook als reisnr al aanwezig is)
-    laadreferentie:    [reisnr, notaRef].filter(Boolean).join(' / ') || '',
+    // referentie = terminal PIN (uithaalcode) — notaRef is een factuurref, GEEN transportref
+    referentie:        uithaalRef || releasenr || '',
+    // laadreferentie = voyage/reisnummer — notaRef is een factuurref, GEEN laad/los-ref
+    laadreferentie:    reisnr || '',
     inleverreferentie: afzettenRef || '',
     inleverBestemming: '',
 

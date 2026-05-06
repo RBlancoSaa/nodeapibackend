@@ -13,47 +13,99 @@ function parseDatum(str) {
 }
 
 /**
- * Extraheert een genummerde locatieblok uit de Neelevat PDF-regels.
- * Structuur: "N. Container terminal / Depot" of "N. Load/Unload"
- *            → optioneel "Depot"
- *            → naam (bijv. "Medrepair")
- *            → "Datum / tijd:"
- *            → datum
- *            → "adres  Referentie: ..."
- *            → "POSTCODE  PLAATS"
- *            → "Nederland"
+ * Extraheert een genummerd locatieblok uit de Neelevat PDF-regels.
+ *
+ * Ondersteunt twee varianten:
+ *
+ * Formaat A (standaard):
+ *   N. Container terminal / Depot
+ *   [optioneel "Depot"]
+ *   Naam
+ *   Datum / tijd :
+ *   DD/MM/YYYY [om HH:MM uur]
+ *   Adres  Referentie: XXX
+ *   POSTCODE PLAATS
+ *
+ * Formaat B (Neelevat Ocean / SEF):
+ *   N. Container terminal /
+ *   Depot
+ *   Naam DD/MM/YYYY HH:MM          ← datum ingebed op naamregel (sec1 + sec3)
+ *   Datum / tijd :
+ *   Adres  Referentie : XXX        ← let op spatie vóór ":"
+ *   POSTCODE PLAATS
+ *
+ *   of (sec2 in SEF):
+ *   N. Load/Unload
+ *   DD/MM/YYYY                     ← datum op eigen regel vóór naam
+ *   Naam
+ *   Datum / tijd :
+ *   Adres  Referentie : XXX
+ *   POSTCODE PLAATS
  */
 function extractSection(ls, startIdx) {
   let i = startIdx + 1;
   // Sla "Depot" of "terminal /" vervolgregels over
   while (i < startIdx + 4 && /^(Depot|terminal\s*\/)$/i.test(ls[i] || '')) i++;
 
-  const naam = ls[i] || '';
+  // Formaat B (sec2): losse datumregel VÓÓR de naam ("08-05-2026\nOOSTVOGELS LOGISTICS")
+  let datumVoorNaam = '';
+  const eersteRegel = ls[i] || '';
+  if (/^\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}(\s+\d{1,2}:\d{2})?\s*$/.test(eersteRegel)) {
+    datumVoorNaam = parseDatum(eersteRegel);
+    i++;
+  }
+
+  let naamRaw = ls[i] || '';
   i++;
 
-  let datum = '', tijd = '', adres = '', postcode = '', plaats = '', referentie = '';
-  for (let j = i; j < startIdx + 14 && j < ls.length; j++) {
+  // Formaat B (sec1/sec3): datum ingebed aan het einde van de naamregel
+  // bijv. "CETEM CONTAINERS BV 08-05-2026 14:00" of "Euromax Terminal 08-05-2026"
+  let datumUitNaam = '', tijdUitNaam = '';
+  const datumOpNaamMatch = naamRaw.match(/\b(\d{2}[\/\-]\d{2}[\/\-]\d{4})\s*(\d{2}:\d{2})?\s*$/);
+  if (datumOpNaamMatch) {
+    datumUitNaam = parseDatum(datumOpNaamMatch[1]);
+    tijdUitNaam  = datumOpNaamMatch[2] ? `${datumOpNaamMatch[2]}:00` : '';
+    naamRaw      = naamRaw.replace(datumOpNaamMatch[0], '').trim();
+  }
+  const naam = naamRaw;
+
+  // Datum-voor-naam heeft prioriteit boven datum-in-naam
+  let datum = datumVoorNaam || datumUitNaam;
+  let tijd  = tijdUitNaam;
+  let adres = '', postcode = '', plaats = '', referentie = '';
+
+  for (let j = i; j < startIdx + 16 && j < ls.length; j++) {
     if (/^Datum\s*\/\s*tijd\s*:?\s*$/i.test(ls[j])) {
-      const datumTijdLine = ls[j + 1] || '';
-      datum = parseDatum(datumTijdLine);
-      // Tijdformaten: "om 0700 uur" | "om 07:00 uur" | "14:00"
-      const omM = datumTijdLine.match(/\bom\s+(\d{2})(\d{2})\s*uur\b/i)
-               || datumTijdLine.match(/\bom\s+(\d{1,2}):(\d{2})/i);
-      if (omM) {
-        tijd = `${omM[1].padStart(2, '0')}:${omM[2]}:00`;
+      const volgende = ls[j + 1] || '';
+      const datumGeparsed = parseDatum(volgende);
+
+      if (datumGeparsed) {
+        // Formaat A: volgende regel is de datum
+        if (!datum) datum = datumGeparsed;
+        const omM = volgende.match(/\bom\s+(\d{2})(\d{2})\s*uur\b/i)
+                 || volgende.match(/\bom\s+(\d{1,2}):(\d{2})/i);
+        if (omM) {
+          tijd = `${omM[1].padStart(2, '0')}:${omM[2]}:00`;
+        } else {
+          const tijdM = volgende.match(/\b(\d{1,2}):(\d{2})\b/);
+          if (tijdM) tijd = `${tijdM[1].padStart(2, '0')}:${tijdM[2]}:00`;
+        }
+        const adresLine = ls[j + 2] || '';
+        const refSplit  = adresLine.split(/\s*Referentie\s*:\s*/i);
+        adres      = refSplit[0].trim();
+        referentie = (refSplit[1] || '').trim();
+        const pcLine = ls[j + 3] || '';
+        const pcM = pcLine.match(/^(\d{4})\s*([A-Z]{2})\s+(.*)/i);
+        if (pcM) { postcode = `${pcM[1]} ${pcM[2]}`; plaats = pcM[3].trim(); }
       } else {
-        const tijdM = datumTijdLine.match(/\b(\d{1,2}):(\d{2})\b/);
-        if (tijdM) tijd = `${tijdM[1].padStart(2, '0')}:${tijdM[2]}:00`;
-      }
-      const adresLine = ls[j + 2] || '';
-      const refSplit  = adresLine.split(/\s*Referentie:\s*/i);
-      adres      = refSplit[0].trim();
-      referentie = (refSplit[1] || '').trim();
-      const pcLine = ls[j + 3] || '';
-      const pcM = pcLine.match(/^(\d{4})\s*([A-Z]{2})\s+(.*)/i);
-      if (pcM) {
-        postcode = `${pcM[1]} ${pcM[2]}`;
-        plaats   = pcM[3].trim();
+        // Formaat B: datum staat al op naam-/pre-naamregel; volgende regel is het adres
+        const adresLine = volgende;
+        const refSplit  = adresLine.split(/\s*Referentie\s*:\s*/i);
+        adres      = refSplit[0].trim();
+        referentie = (refSplit[1] || '').trim();
+        const pcLine = ls[j + 2] || '';
+        const pcM = pcLine.match(/^(\d{4})\s*([A-Z]{2})\s+(.*)/i);
+        if (pcM) { postcode = `${pcM[1]} ${pcM[2]}`; plaats = pcM[3].trim(); }
       }
       break;
     }
@@ -68,11 +120,20 @@ export default async function parseNeelevat(buffer) {
   console.log('📋 Neelevat regels:\n', ls.map((r, i) => `[${i}] ${r}`).join('\n'));
 
   // === Ritnummer (Onze referentie) ===
+  // Formaat A: aparte regel "referentie" gevolgd door het nummer
   const refIdx = ls.findIndex(l => /^referentie$/i.test(l));
   let ritnummer = '';
   if (refIdx >= 0) {
     const m = (ls[refIdx + 1] || '').match(/[:\s]*(\d{7,})/);
     if (m) ritnummer = m[1];
+  }
+  // Formaat B (Neelevat Ocean SEF): "... Onze : 1802192701 ..." op één regel
+  if (!ritnummer) {
+    const onzeLijn = ls.find(l => /\bOnze\s*:\s*\d{7,}/i.test(l));
+    if (onzeLijn) {
+      const m = onzeLijn.match(/\bOnze\s*:\s*(\d{7,})/i);
+      if (m) ritnummer = m[1];
+    }
   }
 
   // === Container nummer ===

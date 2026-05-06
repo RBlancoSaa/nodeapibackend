@@ -81,17 +81,28 @@ const handlers = {
 };
 
 /**
- * Zoek de juiste handler op basis van bestandsnaam, afzender en onderwerp.
- * Volgorde: bestandsnaam → afzender → onderwerp
+ * Zoek de juiste handler op basis van afzender, bestandsnaam en onderwerp.
+ * Volgorde: afzender → bestandsnaam → onderwerp
+ *
+ * Afzender heeft prioriteit boven bestandsnaam: een generieke bestandsnaam
+ * zoals "road_transport_order_xxx.pdf" bevat "transport" + "order" en zou
+ * anders als DFDS worden herkend, terwijl de afzender @neelevat.com is.
  */
 function findHandler(filename, mailFrom, mailSubject) {
   const fn  = (filename    || '').toLowerCase();
   const frm = (mailFrom    || '').toLowerCase();
   const sub = (mailSubject || '');
 
+  // 1. Afzender (meest betrouwbaar)
   for (const [klant, cfg] of Object.entries(handlers)) {
-    if (cfg.matchFile   && cfg.matchFile(fn))   return [klant, cfg];
     if (cfg.matchSender && cfg.matchSender(frm)) return [klant, cfg];
+  }
+  // 2. Bestandsnaam
+  for (const [klant, cfg] of Object.entries(handlers)) {
+    if (cfg.matchFile && cfg.matchFile(fn)) return [klant, cfg];
+  }
+  // 3. Onderwerp
+  for (const [klant, cfg] of Object.entries(handlers)) {
     if (cfg.matchSubject && cfg.matchSubject(sub)) return [klant, cfg];
   }
   return null;
