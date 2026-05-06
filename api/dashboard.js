@@ -193,6 +193,14 @@ export default async function handler(req, res) {
     const opdrachten = opRaw || [];
     const emails     = vlRaw || [];
 
+    // ── Leegmeldingen ophalen ────────────────────────────────────────────────
+    let qLm = supabase.from('leegmeldingen').select('*')
+      .order('created_at', { ascending: false }).limit(500);
+    if (cutoff)   qLm = qLm.gte('created_at', cutoff);
+    if (cutoffTo) qLm = qLm.lt('created_at', cutoffTo);
+    const { data: lmRaw } = await qLm;
+    const leegmeldingen = lmRaw || [];
+
     // ── Filter ───────────────────────────────────────────────────────────────
     const opFiltered = zoek ? opdrachten.filter(r =>
       [r.ritnummer, r.containernummer, r.klant_naam, r.klant_plaats, r.bron, r.easy_bestand, r.laadreferentie]
@@ -213,6 +221,8 @@ export default async function handler(req, res) {
     const skipVl     = vlFiltered.filter(r => r.status === 'overgeslagen').length;
     const foutVl     = vlFiltered.filter(r => r.status === 'fout').length;
     const cancelVl   = vlFiltered.filter(r => r.type === 'cancellatie' || r.type === 'wijziging').length;
+    const updatesVl  = vlFiltered.filter(r => r.type === 'update').length;
+    const totLm      = leegmeldingen.length;
 
     // TO's (easy bestanden)
     const allTOs = opFiltered.filter(r => r.easy_bestand && r.status === 'OK').map(r => r.easy_bestand);
@@ -241,21 +251,23 @@ export default async function handler(req, res) {
     // ── HTML bouwers ─────────────────────────────────────────────────────────
 
     function statsBar() {
+      const bq = `${base}&periode=${periode}`;
       const cards = [
-        { n: totTO,      l: 'TO\'s aangemaakt', icon: '📄', accent: '#8B1A2E' },
-        { n: okOp,       l: 'Verwerkt',         icon: '✅', accent: '#2D7A4F' },
-        { n: foutOp + foutVl, l: 'Fouten',      icon: '⚠️', accent: '#C0392B' },
-        { n: cancelVl,   l: 'Annuleringen',      icon: '❌', accent: '#FF4444' },
-        { n: skipVl,     l: 'Overgeslagen',      icon: '⏭',  accent: '#B5870F' },
-        { n: totVl,      l: 'Emails gelezen',    icon: '📧', accent: '#1B2A4A' },
-        { n: totOp,      l: 'Opdrachten',        icon: '📦', accent: '#6B4E8A' },
+        { n: totTO,           l: "TO's",          accent: '#8B1A2E', tab: 'opdrachten'   },
+        { n: okOp,            l: 'Verwerkt',       accent: '#2D7A4F', tab: 'opdrachten'   },
+        { n: foutOp + foutVl, l: 'Fouten',         accent: '#C0392B', tab: 'fouten'       },
+        { n: cancelVl,        l: 'Annuleringen',   accent: '#FF4444', tab: 'annuleringen' },
+        { n: skipVl,          l: 'Overgeslagen',   accent: '#B5870F', tab: 'overgeslagen' },
+        { n: updatesVl,       l: 'Updates',        accent: '#3b82f6', tab: 'updates'      },
+        { n: totLm,           l: 'Leegmeldingen',  accent: '#f59e0b', tab: 'leegmeldingen'},
+        { n: totVl,           l: 'Emails',         accent: '#1B2A4A', tab: 'runs'         },
+        { n: totOp,           l: 'Opdrachten',     accent: '#6B4E8A', tab: 'opdrachten'   },
       ];
       return cards.map(c => `
-        <div class="stat-card">
-          <div class="stat-icon">${c.icon}</div>
-          <div class="stat-num" style="color:${c.accent}">${c.n}</div>
-          <div class="stat-lbl">${c.l}</div>
-        </div>`).join('');
+        <a href="${bq}&tab=${c.tab}" class="stat-card${tab === c.tab ? ' stat-card-active' : ''}">
+          <span class="stat-num" style="color:${c.accent}">${c.n}</span>
+          <span class="stat-lbl">${c.l}</span>
+        </a>`).join('');
     }
 
     function runsList() {
@@ -488,6 +500,43 @@ export default async function handler(req, res) {
       </table></div>`;
     }
 
+    function leegmeldingenTable() {
+      if (!leegmeldingen.length) return `<div class="empty">Geen leegmeldingen in deze periode ✅</div>`;
+      return `<div class="table-wrap"><table>
+        <thead><tr>
+          <th>Datum</th><th>Bron</th><th>Container / Order</th><th>Locatie</th><th>Laatste vrije dag</th><th>Instructie</th>
+        </tr></thead>
+        <tbody>
+        ${leegmeldingen.map(r => `<tr>
+          <td class="td-time">${fmt(r.created_at)}</td>
+          <td>${bronBadge(r.bron || '?')}</td>
+          <td class="td-sub"><b>${esc(r.containernummer || r.ordernummer || '—')}</b>${r.containertype ? `<br><span style="font-size:10px;color:#9E8A75">${esc(r.containertype)}</span>` : ''}</td>
+          <td>${esc(r.locatie_naam || r.locatie_code || '—')}</td>
+          <td>${esc(r.laatste_vrije_dag || '—')}</td>
+          <td style="font-size:12px;color:#5C4A34">${esc((r.instructie || '').slice(0, 80))}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+    }
+
+    function updatesTable() {
+      const rows = vlFiltered.filter(r => r.type === 'update');
+      if (!rows.length) return `<div class="empty">Geen updates in deze periode ✅</div>`;
+      return `<div class="table-wrap"><table>
+        <thead><tr>
+          <th>Datum</th><th>Afzender</th><th>Onderwerp</th><th>Status</th>
+        </tr></thead>
+        <tbody>
+        ${rows.map(r => `<tr class="row-skip">
+          <td class="td-time">${fmt(r.created_at)}</td>
+          <td class="td-van">${esc((r.email_van||'').replace(/^"([^"]+)".*/, '$1').trim())}</td>
+          <td class="td-sub">${esc((r.email_subject||'').slice(0, 90))}</td>
+          <td>${statusChip(r.status)}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+    }
+
     function bronOverzicht() {
       const entries = Object.entries(bronStats).sort((a,b) => (b[1].ok+b[1].fout)-(a[1].ok+a[1].fout));
       if (!entries.length) return `<div class="empty">Geen data</div>`;
@@ -514,7 +563,9 @@ export default async function handler(req, res) {
     const ALL_TABS = [
       { id: 'opdrachten',      label: 'Opdrachten',    icon: '📦', count: totOp,            perm: 'view_opdrachten' },
       { id: 'runs',            label: 'Runs',          icon: '⚡',                            perm: 'view_runs' },
+      { id: 'leegmeldingen',   label: 'Leegmeldingen', icon: '🟡', count: totLm,            perm: 'view_opdrachten' },
       { id: 'overgeslagen',    label: 'Overgeslagen',  icon: '⏭',  count: skipVl,           perm: 'view_overgeslagen' },
+      { id: 'updates',         label: 'Updates',       icon: '🔄', count: updatesVl,         perm: 'view_runs' },
       { id: 'annuleringen',    label: 'Annuleringen',  icon: '❌', count: cancelVl, alert: cancelVl > 0, perm: 'view_opdrachten' },
       { id: 'fouten',          label: 'Fouten',        icon: '⚠️', count: foutOp + foutVl, alert: true, perm: 'view_fouten' },
       { id: 'prijsafspraken',  label: 'Tarieven',      icon: '💶',                            perm: 'view_tarieven' },
@@ -807,6 +858,8 @@ export default async function handler(req, res) {
       switch (tab) {
         case 'runs':           return `<div class="runs-list">${runsList()}</div>`;
         case 'opdrachten':     return opdrachtenTable();
+        case 'leegmeldingen':  return leegmeldingenTable();
+        case 'updates':        return updatesTable();
         case 'overgeslagen':   return overgeslagenTable();
         case 'annuleringen':   return annuleringenTable();
         case 'fouten':         return foutenTable();
@@ -956,12 +1009,12 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 .logout-btn:hover { background: #2E1A0B; color: #F5F0E8; border-color: #5A4234; }
 
 /* ── Stats ── */
-.stats-grid  { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding: 20px 28px 0; }
-@media(max-width:1200px) { .stats-grid { grid-template-columns: repeat(3,1fr); } }
-.stat-card   { background: var(--card); border-radius: 12px; padding: 16px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(44,26,15,.04); }
-.stat-icon   { font-size: 20px; margin-bottom: 8px; }
-.stat-num    { font-size: 28px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
-.stat-lbl    { font-size: 11px; color: var(--text-med); font-weight: 500; }
+.stats-grid  { display: flex; flex-wrap: nowrap; gap: 6px; padding: 14px 28px 0; overflow-x: auto; }
+.stat-card   { display: flex; align-items: center; gap: 7px; background: var(--card); border-radius: 8px; padding: 6px 12px; border: 1px solid var(--border); text-decoration: none; color: inherit; flex-shrink: 0; transition: border-color .15s, box-shadow .15s; }
+.stat-card:hover { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); }
+.stat-card-active { border-color: var(--accent); background: var(--accent-light); }
+.stat-num    { font-size: 16px; font-weight: 800; line-height: 1; }
+.stat-lbl    { font-size: 11px; color: var(--text-med); font-weight: 500; white-space: nowrap; }
 
 /* ── Filter bar ── */
 .filter-bar  { padding: 16px 28px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -1262,9 +1315,13 @@ td           { padding: 8px 14px; vertical-align: middle; }
       <span class="page-title">${
         tab === 'runs'           ? '⚡ Runs' :
         tab === 'opdrachten'     ? '📦 Opdrachten' :
+        tab === 'leegmeldingen'  ? '🟡 Leegmeldingen' :
+        tab === 'updates'        ? '🔄 Updates' :
         tab === 'overgeslagen'   ? '⏭ Overgeslagen emails' :
+        tab === 'annuleringen'   ? '❌ Annuleringen' :
         tab === 'fouten'         ? '⚠️ Fouten' :
-        tab === 'prijsafspraken' ? '💶 Tarieven per klant' : '📦 Opdrachten'
+        tab === 'prijsafspraken' ? '💶 Tarieven per klant' :
+        tab === 'gebruikers'     ? '👥 Gebruikers' : '📦 Opdrachten'
       }</span>
       <span style="font-size:11px;color:#9E8A75">${periodeLabel(periode)}</span>
     </div>
