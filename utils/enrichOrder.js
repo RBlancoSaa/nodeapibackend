@@ -253,20 +253,31 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
       const euromaxCount = terminalNamen.filter(n => /euromax/i.test(n)).length;
       const rwgCount     = terminalNamen.filter(n => /\brwg\b/i.test(n)).length;
       const botlekCount  = terminalNamen.filter(n => /botlek/i.test(n) && !/ect|delta|euromax|rwg/i.test(n)).length;
+      const hpdCount     = terminalNamen.filter(n => /\bhpd\b/i.test(n) || /hutchison.*delta/i.test(n)).length;
+      const apmCount     = terminalNamen.filter(n => /\bapm\b/i.test(n)).length;
 
       const eenheidDelta   = afspraken ? afspraken.toeslag('delta')   : 0;
       const eenheidEuromax = afspraken ? afspraken.toeslag('euromax') : 0;
       const eenheidRwg     = afspraken ? afspraken.toeslag('rwg')     : 0;
       const eenheidBotlek  = afspraken ? afspraken.toeslag('botlek')  : 0;
+      const eenheidApm     = afspraken ? afspraken.toeslag('apm')     : 0;
+      const eenheidHpd     = afspraken ? afspraken.toeslag('hpd')     : 0;
 
-      order.deltaChart   = deltaCount   > 0 ? eenheidDelta   * deltaCount   : 0;
+      // HPD2 (Hutchison Ports Delta) → zelfde tariefklasse als ECT Delta (beide €28,50)
+      const effectiveDeltaCount = deltaCount + hpdCount;
+      order.deltaChart   = effectiveDeltaCount > 0 ? eenheidDelta   * effectiveDeltaCount : 0;
       order.euromaxChart = euromaxCount > 0 ? eenheidEuromax * euromaxCount : 0;
-      order.rwgChart     = rwgCount     > 0 ? eenheidRwg     * rwgCount     : 0;
+      // APM + RWG zijn beide Maasvlakte 2 → gaan naar MV2_Chart in XML
+      order.rwgChart     = rwgCount > 0 ? eenheidRwg * rwgCount : 0;
+      order.apmChart     = apmCount > 0 ? eenheidApm * apmCount : 0;
+      order.mv2Chart     = order.rwgChart + order.apmChart;
       order.botlekChart  = botlekCount  > 0 ? eenheidBotlek  * botlekCount  : 0;
 
-      if (deltaCount > 0)   console.log(`${tag} ECT Delta toeslag: ${deltaCount}× €${eenheidDelta} = €${order.deltaChart}`);
+      if (effectiveDeltaCount > 0) console.log(`${tag} Delta/HPD toeslag: ${effectiveDeltaCount}× €${eenheidDelta} = €${order.deltaChart} (delta=${deltaCount}, hpd=${hpdCount})`);
       if (euromaxCount > 0) console.log(`${tag} Euromax toeslag: ${euromaxCount}× €${eenheidEuromax} = €${order.euromaxChart}`);
       if (rwgCount > 0)     console.log(`${tag} RWG toeslag: ${rwgCount}× €${eenheidRwg} = €${order.rwgChart}`);
+      if (apmCount > 0)     console.log(`${tag} APM toeslag: ${apmCount}× €${eenheidApm} = €${order.apmChart}`);
+      if (order.mv2Chart > 0) console.log(`${tag} MV2 toeslag (APM+RWG): €${order.mv2Chart}`);
 
       // ADR
       const heeftAdr   = order.adr === 'Waar';
@@ -310,6 +321,8 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
       order.deltaChart         = order.deltaChart         ?? 0;
       order.euromaxChart       = order.euromaxChart       ?? 0;
       order.rwgChart           = order.rwgChart           ?? 0;
+      order.apmChart           = order.apmChart           ?? 0;
+      order.mv2Chart           = order.mv2Chart           ?? 0;
       order.botlekChart        = order.botlekChart        ?? 0;
       order.dieselToeslagChart = order.dieselToeslagChart ?? 0;
     }

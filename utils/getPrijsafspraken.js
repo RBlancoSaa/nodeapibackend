@@ -23,6 +23,8 @@ const DEFAULTS = {
   delta:      { chart: 28.5, label: 'ECT Delta toeslag', actief: true  },
   euromax:    { chart: 28.5, label: 'Euromax toeslag',   actief: true  },
   rwg:        { chart: 31,   label: 'RWG toeslag',       actief: true  },
+  apm:        { chart: 28.5, label: 'APM toeslag',       actief: true  },
+  hpd:        { chart: 28.5, label: 'HPD toeslag',       actief: true  },
   adr:        { chart: 10,   label: 'ADR toeslag',       actief: true, isPercent: true },
   genset:     { chart: 100,  label: 'Genset',            actief: true  },
   gasmeten:   { chart: 55,   label: 'Gasmeten',          actief: true  },
@@ -97,7 +99,7 @@ function buildAfspraken(record) {
     toeslag(sleutel, tarief = 0) {
       const v = velden[sleutel];
       if (!v || !v.actief) return 0;
-      const terminalToeslagen = new Set(['delta', 'euromax', 'rwg', 'botlek']);
+      const terminalToeslagen = new Set(['delta', 'euromax', 'rwg', 'botlek', 'apm', 'hpd']);
       if (all_in && terminalToeslagen.has(sleutel)) return 0;
       const chart = v.chart ?? 0;
       if (v.isPercent) {

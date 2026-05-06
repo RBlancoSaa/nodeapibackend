@@ -332,7 +332,7 @@ ${(() => {
 <LOever_Chart>0</LOever_Chart>
 <Loods_Chart>0</Loods_Chart>
 <Maut_Chart>0</Maut_Chart>
-<MV2_Chart>0</MV2_Chart>
+<MV2_Chart>${formatBedrag(data.mv2Chart ?? 0)}</MV2_Chart>
 <Scannen_Chart>0</Scannen_Chart>
 <Tol_Chart>0</Tol_Chart>
 <Blanco1_Chart>${formatBedrag(data.blanco1Chart)}</Blanco1_Chart>
