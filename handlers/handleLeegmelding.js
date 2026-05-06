@@ -51,23 +51,40 @@ function parseSteinwegLeegmelding(mail) {
 
 /**
  * Parseert een DFDS-leegmelding.
- * Bodypatroon:
- *   "Hereby we confirm we have unloaded the goods and so the container may be transported..."
+ *
+ * Formaat A (NL, meerdere containers):
+ *   "MSNU7774185\t62680902"    ← containernummer TAB ordernummer
+ *   (meerdere regels, één per container)
+ *
+ * Formaat B (EN, één container):
  *   "Container No.   : EGSU6610429"
  *   "Container Type : 40FT-HC"
+ *
+ * Geeft altijd een array terug (één object per container).
  */
 function parseDFDSLeegmelding(mail) {
   const body = mail.bodyText || '';
 
-  // Containernummer: "Container No. : EGSU6610429" (met variabele spaties/punten)
-  const cntrMatch      = body.match(/Container\s+No\.?\s*:+\s*([A-Z]{4}\d{7})/i);
-  const containernummer = cntrMatch ? cntrMatch[1].toUpperCase() : null;
+  // Formaat A: regels met "[A-Z]{4}\d{7}  \d{6,}"
+  const multiMatch = [...body.matchAll(/\b([A-Z]{4}\d{7})\b[\t ]+(\d{6,})/gi)];
+  if (multiMatch.length > 0) {
+    return multiMatch.map(m => ({
+      bron: 'DFDS',
+      containernummer: m[1].toUpperCase(),
+      ordernummer:     m[2],
+      containertype:   null,
+    }));
+  }
 
-  // Containertype: "Container Type : 40FT-HC" — neem alles tot regelboort, trim
-  const typeMatch    = body.match(/Container\s+Type\s*:+\s*([^\r\n]+)/i);
-  const containertype = typeMatch ? typeMatch[1].trim() : null;
-
-  return { bron: 'DFDS', containernummer, containertype };
+  // Formaat B: "Container No. : EGSU6610429"
+  const cntrMatch     = body.match(/Container\s+No\.?\s*:+\s*([A-Z]{4}\d{7})/i);
+  const typeMatch     = body.match(/Container\s+Type\s*:+\s*([^\r\n]+)/i);
+  return [{
+    bron:           'DFDS',
+    containernummer: cntrMatch ? cntrMatch[1].toUpperCase() : null,
+    containertype:   typeMatch ? typeMatch[1].trim() : null,
+    ordernummer:     null,
+  }];
 }
 
 /**
@@ -79,49 +96,49 @@ export default async function handleLeegmelding(mail) {
   const from = (mail.from || '');
   const body = (mail.bodyText || '');
 
-  let leegmelding;
+  let leegmeldingen;
   let klant;
 
   // DFDS herkennen op afzender of body-patroon
   if (
     /@dfds\.com/i.test(from) ||
     /@dfds-logistics\.com/i.test(from) ||
-    /hereby\s+we\s+confirm\s+we\s+have\s+unloaded/i.test(body)
+    /hereby\s+we\s+confirm\s+we\s+have\s+unloaded/i.test(body) ||
+    /(?:containers?\s+)?(?:zijn|is)\s+leeg\s+en\s+kunnen\s+worden\s+ingeleverd/i.test(body)
   ) {
-    leegmelding = parseDFDSLeegmelding(mail);
+    leegmeldingen = parseDFDSLeegmelding(mail); // array
     klant = 'DFDS';
   } else {
-    // Steinweg (standaard als de leegmelding-check niet matcht op DFDS)
-    leegmelding = parseSteinwegLeegmelding(mail);
+    leegmeldingen = [parseSteinwegLeegmelding(mail)]; // array van 1
     klant = 'Steinweg';
   }
 
-  const ref = leegmelding.containernummer || leegmelding.ordernummer || '(geen ref)';
-  console.log(`🟡 Leegmelding [${klant}] — ${ref}:`, JSON.stringify(leegmelding));
+  console.log(`🟡 Leegmelding [${klant}] — ${leegmeldingen.length} container(s)`);
 
   try {
-    const { error } = await supabase.from('leegmeldingen').insert([{
-      bron:               leegmelding.bron,
-      email_van:          mail.from    || '',
-      email_subject:      mail.subject || '',
-      containernummer:    leegmelding.containernummer   || null,
-      containertype:      leegmelding.containertype     || null,
-      ordernummer:        leegmelding.ordernummer       || null,
-      locatie_code:       leegmelding.locatieCode       || null,
-      locatie_naam:       leegmelding.locatieNaam       || null,
-      laatste_vrije_dag:  leegmelding.laatste_vrije_dag || null,
-      instructie:         leegmelding.instructie        || null,
-      raw_body:           body.slice(0, 1000),
-    }]);
+    const rows = leegmeldingen.map(lm => ({
+      bron:              lm.bron,
+      email_van:         mail.from    || '',
+      email_subject:     mail.subject || '',
+      containernummer:   lm.containernummer   || null,
+      containertype:     lm.containertype     || null,
+      ordernummer:       lm.ordernummer       || null,
+      locatie_code:      lm.locatieCode       || null,
+      locatie_naam:      lm.locatieNaam       || null,
+      laatste_vrije_dag: lm.laatste_vrije_dag || null,
+      instructie:        lm.instructie        || null,
+      raw_body:          body.slice(0, 1000),
+    }));
 
+    const { error } = await supabase.from('leegmeldingen').insert(rows);
     if (error) {
       console.error('⚠️ Leegmelding opslaan mislukt:', error.message);
     } else {
-      console.log(`✅ Leegmelding opgeslagen [${klant}]: ${ref}`);
+      console.log(`✅ ${rows.length} leegmelding(en) opgeslagen [${klant}]: ${leegmeldingen.map(l => l.containernummer || l.ordernummer || '?').join(', ')}`);
     }
   } catch (e) {
     console.error('⚠️ handleLeegmelding Supabase fout:', e.message);
   }
 
-  return { klant, leegmelding };
+  return { klant, leegmelding: leegmeldingen[0] };
 }

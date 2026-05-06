@@ -119,7 +119,8 @@ function classifyEmail(mail) {
     /\d{7,}\s*=\s*leeg\b/.test(subject) ||                                   // "61550524 = leeg"
     /containers?\s+order\s+\d+\s+zijn\s+leeg/.test(subject) ||               // "Containers order 62686235 zijn leeg"
     /^=leeg\b/m.test(body) ||                                                  // body begint met "=leeg [code]"
-    /hereby\s+we\s+confirm\s+we\s+have\s+unloaded\s+the\s+goods/.test(body)  // DFDS leegmelding
+    /hereby\s+we\s+confirm\s+we\s+have\s+unloaded\s+the\s+goods/.test(body) ||  // DFDS leegmelding (EN)
+    /(?:containers?\s+)?(?:zijn|is)\s+leeg\s+en\s+kunnen\s+worden\s+ingeleverd/i.test(body)  // DFDS leegmelding (NL)
   ) {
     return 'leegmelding';
   }
