@@ -244,13 +244,11 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
   if (opdrachtgeverOverride) {
     for (const c of containers) {
       Object.assign(c, opdrachtgeverOverride);
-      // Herbereken diesel met het vaste tarief dat de override meebrengt
-      const nieuwTarief = parseFloat(c.tarief) || 0;
-      if (nieuwTarief > 0) {
-        const DIESEL_PERCENT = 10;
-        c.dieselToeslagChart = Math.round(nieuwTarief * DIESEL_PERCENT / 100 * 100) / 100;
-        console.log(`💧 Diesel herberekend na tarief-override: €${c.dieselToeslagChart} (${DIESEL_PERCENT}% van €${nieuwTarief})`);
-      }
+      // Diesel: EasyTrip verwacht een percentage (bijv. 10), geen euro-bedrag.
+      // EasyTrip berekent het bedrag zelf (10% van €285 = €28,50).
+      // Zet het percentage terug op 10 zodat enrichOrder het niet al heeft omgezet.
+      c.dieselToeslagChart = 10;
+      console.log(`💧 Diesel toeslag na tarief-override: 10% (EasyTrip berekent bedrag van tarief €${parseFloat(c.tarief) || 0})`);
     }
     console.log(`🔄 DFDS opdrachtgever overschreven: ${opdrachtgeverOverride.opdrachtgeverNaam}`);
   }

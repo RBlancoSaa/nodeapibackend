@@ -292,10 +292,13 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
         : 0;
 
       // Diesel toeslag
-      // isPercent=true (standaard) → chart is % van tarief; tarief=0 → geef % als getal terug
-      const dieselBedrag = afspraken ? afspraken.toeslag('diesel', tarief) : 0;
-      order.dieselToeslagChart = dieselBedrag;
-      if (dieselBedrag > 0) console.log(`${tag} Diesel toeslag: €${dieselBedrag}${afspraken.isPercent('diesel') ? ` (${afspraken.velden?.diesel?.chart ?? 10}% van tarief ${tarief})` : ''}`);
+      // EasyTrip verwacht een PERCENTAGE in Diesel_toeslag_Chart (bijv. 10).
+      // EasyTrip berekent het euro-bedrag zelf: 10% van basistarief = €28,50.
+      // Als je het bedrag (€28,50) invult, interpreteert EasyTrip dat als 28,50% → te hoog.
+      // Daarom: toeslag('diesel') ZONDER tarief → geeft het percentage terug (chart waarde).
+      const dieselPercent = afspraken ? afspraken.toeslag('diesel') : 0;
+      order.dieselToeslagChart = dieselPercent;
+      if (dieselPercent > 0) console.log(`${tag} Diesel toeslag: ${dieselPercent}% (EasyTrip berekent het bedrag op basis van tarief €${tarief})`);
 
     } catch (e) {
       console.warn(`⚠️ ${tag} Toeslagen berekening mislukt:`, e.message);
