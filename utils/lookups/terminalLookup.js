@@ -112,11 +112,13 @@ function berekenScore(zoek, terminal, zoekAdres = '') {
   let score = 0;
 
   // Exacte naam
-  // Als adres GEGEVEN is maar NIET overeenkomt → verlaag naar 90, zodat een andere terminal
-  // met beter adres (80 naam + 90 adres = 170) of met haakjescode (95) kan winnen.
-  // Bijv. "APM Terminals Rotterdam" + adres "II (0APMA)" → correct terminal is de II-variant.
+  // Als adres GEGEVEN is maar NIET overeenkomt → verlaag sterk zodat een terminal
+  // met het juiste adres kan winnen, ook zonder exacte naam.
+  // Bijv. PDF zegt "APM Terminals Rotterdam" maar adres is "EUROPAWEG 910"
+  //   → APM Terminals Rotterdam (Coloradoweg 50): score 70 (naam goed, adres fout)
+  //   → APM MVII (Europaweg 910):                 score ~80-105 (adres goed)  ← wint
   if (nNaam && nNaam === nZoek) {
-    const exactScore = (zoekAdres && adresBonus === 0) ? 90 : 100;
+    const exactScore = (zoekAdres && adresBonus === 0) ? 70 : 100;
     return exactScore + adresBonus;
   }
 
