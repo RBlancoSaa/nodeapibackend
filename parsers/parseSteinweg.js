@@ -226,7 +226,7 @@ function parseOrdernummer(rows) {
   for (const row of rows.slice(0, 5)) {
     for (const cell of row) {
       const v = String(cell).trim();
-      if (/^\d{6,}[\/\-]\d/.test(v)) return v.replace('/', '-');
+      if (/^\d{6,}[\/\-]\d/.test(v)) return v.replace('-', '/');
     }
   }
   // Also check for order number in same row as "PICKUP NOTICE"
@@ -235,7 +235,7 @@ function parseOrdernummer(rows) {
     if (idx >= 0) {
       for (let j = idx + 1; j < row.length; j++) {
         const v = String(row[j]).trim();
-        if (/\d{6,}/.test(v)) return v.replace('/', '-');
+        if (/\d{6,}/.test(v)) return v.replace('-', '/');
       }
     }
   }
