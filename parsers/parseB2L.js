@@ -244,12 +244,22 @@ export default async function parseB2L(buffer) {
   const rederijRaw = voyageLine?.match(/CARRIER[:\s]+(.+?)(?=MAIN VESSEL)/i)?.[1]?.trim() || '';
   const bootnaam   = voyageLine?.match(/MAIN VESSEL[:\s]+(.+)/i)?.[1]?.trim() || '';
 
-  // === PORT OF DISCHARGE (export) → inleverBestemming ===
-  // Bijv. "PORT OF DISCHARGE:DURBAN, SOUTH AFRICA" → "DURBAN"
-  const portOfDischargeLine = ls.find(l => /^PORT\s+OF\s+DISCHARGE\s*:/i.test(l));
-  const portOfDischarge = portOfDischargeLine
-    ? portOfDischargeLine.replace(/^PORT\s+OF\s+DISCHARGE\s*:\s*/i, '').split(',')[0].trim()
-    : '';
+  // === PORT OF DISCHARGE → bestemming (altijd, import én export) ===
+  // Formaat A (gecombineerd): "PORT OF DISCHARGE:DURBAN, SOUTH AFRICA"
+  // Formaat B (twee regels):  "PORT OF DISCHARGE:" gevolgd door "DURBAN, SOUTH AFRICA"
+  const portOfDischargeIdx  = ls.findIndex(l => /^PORT\s+OF\s+DISCHARGE\s*:?\s*/i.test(l));
+  let portOfDischarge = '';
+  if (portOfDischargeIdx >= 0) {
+    const podLine = ls[portOfDischargeIdx] || '';
+    const inline  = podLine.replace(/^PORT\s+OF\s+DISCHARGE\s*:\s*/i, '').trim();
+    if (inline) {
+      // Formaat A: waarde staat op dezelfde regel
+      portOfDischarge = inline.split(',')[0].trim();
+    } else if (ls[portOfDischargeIdx + 1]) {
+      // Formaat B: waarde staat op de volgende regel
+      portOfDischarge = (ls[portOfDischargeIdx + 1] || '').split(',')[0].trim();
+    }
+  }
   if (portOfDischarge) console.log(`🌍 B2L PORT OF DISCHARGE: "${portOfDischarge}"`);
 
   // === Locaties — export vs import ===
@@ -399,10 +409,9 @@ export default async function parseB2L(buffer) {
       referentie,
       laadreferentie,
       inleverreferentie,
-      // Export: PORT OF DISCHARGE als bestemming (niet de terminal naam)
-      // Import: leeg (enrichOrder sync vanuit Afzetten terminal)
-      inleverBestemming:      !isImport && portOfDischarge ? portOfDischarge : '',
-      _inleverBestemmingFixed: !isImport && !!portOfDischarge,
+      // PORT OF DISCHARGE altijd als bestemming — import én export
+      inleverBestemming:      portOfDischarge || '',
+      _inleverBestemmingFixed: !!portOfDischarge,
 
       rederijRaw,
       rederij:         '',
