@@ -135,7 +135,13 @@ function classifyEmail(mail) {
   }
 
   // ── Datum-wijzigingen (alle klanten) — stuur notificatie, sla NIET stilzwijgend over ─────
+  // Uitzondering: Jordex updates worden als transport verwerkt (nieuwe transportorder met waarschuwing)
+  const isJordexSender = /@jordex\.com/i.test(mail.from || '');
   if (/\b(update|wijziging|aanpassing|gewijzigd|correction|corrected|amendment|reschedule|rescheduled)\b/.test(subject)) {
+    if (isJordexSender) {
+      // Niet als wijziging behandelen — doorsturen naar transport handler met update-vlag in subject
+      return 'transport';
+    }
     return 'wijziging';
   }
   // DFDS release-notificaties: lege PDF, geen nieuwe opdracht

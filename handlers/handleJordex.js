@@ -9,13 +9,20 @@ import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 
-export default async function handleJordex({ buffer, base64, filename, fromEmail = '', getReleaseData = null }) {
+export default async function handleJordex({ buffer, base64, filename, mailSubject = '', fromEmail = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Jordex-bestand: ${filename}`);
 
   // Cancelled orders overslaan — geen .easy aanmaken voor gecancelde opdrachten
   if (/cancelled/i.test(filename || '')) {
     console.log(`⏭️ Jordex cancelled order overgeslagen: ${filename}`);
     return [];
+  }
+
+  // Update-detectie: als onderwerp update-keywords bevat → waarschuwing in emailbody
+  const isUpdate = /\b(update|updated|correction|corrected|amendment|reschedule|rescheduled|revised|wijziging)\b/i.test(mailSubject || '') ||
+                   /\b(update|updated|correction|corrected)\b/i.test(filename || '');
+  if (isUpdate) {
+    console.log(`🔄 Jordex UPDATE gedetecteerd: ${mailSubject || filename}`);
   }
 
   const containers = await parseJordex(buffer);
@@ -41,11 +48,15 @@ export default async function handleJordex({ buffer, base64, filename, fromEmail
       const easyPath = path.join(os.tmpdir(), easyFilename);
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
+      const emailBody = isUpdate
+        ? `LET OP: updated transportation request\n\nJordex transportopdracht verwerkt: ${ref}`
+        : `Jordex transportopdracht verwerkt: ${ref}`;
+
       await transporter.sendMail({
         from,
         to: RECIPIENT_EMAIL,
         subject: `easytrip file - ${ref}`,
-        text: `Jordex transportopdracht verwerkt: ${ref}`,
+        text: emailBody,
         attachments: [
           { filename: easyFilename, path: easyPath },
           { filename, content: Buffer.from(base64, 'base64') }
