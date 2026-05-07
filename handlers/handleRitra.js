@@ -8,6 +8,7 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, hasGmail, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
+import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
 
 export default async function handleRitra({ buffer, base64, filename, fromEmail = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Ritra-bestand: ${filename}`);
@@ -35,16 +36,30 @@ export default async function handleRitra({ buffer, base64, filename, fromEmail 
       const easyPath = path.join(os.tmpdir(), easyFilename);
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
+      // Controleer of dit containernummer al eerder is verwerkt → update-melding
+      const vorigeEntry = await checkDuplicaat(cntr, 'Ritra');
+      const isUpdate    = !!vorigeEntry;
+      const updateTekst = isUpdate ? buildUpdateMelding(vorigeEntry, cntr) : '';
+      if (isUpdate) console.log(`🔁 Ritra update gedetecteerd: ${cntr} (vorige: ${vorigeEntry.datum} ${vorigeEntry.tijd})`);
+
+      const emailBody = isUpdate
+        ? `${updateTekst}\nRitra transportopdracht verwerkt: ${ref}`
+        : `Ritra transportopdracht verwerkt: ${ref}`;
+
+      const emailSubject = isUpdate
+        ? `UPDATE easytrip file - ${ref}`
+        : `easytrip file - ${ref}`;
+
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,
-        subject: `easytrip file - ${ref}`,
-        text: `Ritra transportopdracht verwerkt: ${ref}`,
+        subject: emailSubject,
+        text: emailBody,
         attachments: [
           { filename: easyFilename, path: easyPath },
           { filename, content: Buffer.from(base64, 'base64') }
         ]
       });
-      console.log(`📧 Ritra verstuurd: ${easyFilename}`);
+      console.log(`📧 Ritra verstuurd: ${easyFilename}${isUpdate ? ' (UPDATE)' : ''}`);
       easyBestanden.push(easyFilename);
       await logOpdracht({ bron: 'Ritra', afzenderEmail: fromEmail, bestandsnaam: filename, container, easyBestand: easyFilename });
     } catch (err) {
