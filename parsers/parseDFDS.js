@@ -199,9 +199,18 @@ export default async function parseDFDS(buffer) {
   const lossenLocR  = locSectie.find(r => r.startsWith('Lossen '));
   const dropoffLocR = locSectie.find(r => r.startsWith('Dropoff '));
 
-  const pickupLocNaam  = pickupLocR?.replace('Pickup ', '').trim()  || '';
+  // DFDS is altijd Maasvlakte — normaliseer APM Terminal namen naar APM2 (Europaweg 910, BICS 8713755272258)
+  // "APM Terminals Rotterdam" (zonder "II") is de oude APM1 (Coloradoweg 50) — altijd vervangen.
+  function normDFDSTerminal(naam) {
+    if (/\bAPM\b/i.test(naam) && !/\bII\b|\b2\b|europaweg/i.test(naam)) {
+      return 'APM Terminals Rotterdam II (0APMA)';
+    }
+    return naam;
+  }
+
+  const pickupLocNaam  = normDFDSTerminal(pickupLocR?.replace('Pickup ', '').trim()  || '');
   const lossenLocNaam  = lossenLocR?.replace('Lossen ', '').trim()  || '';
-  const dropoffLocNaam = dropoffLocR?.replace('Dropoff ', '').trim() || '';
+  const dropoffLocNaam = normDFDSTerminal(dropoffLocR?.replace('Dropoff ', '').trim() || '');
 
   // Adresregel staat direct na de locatieregel in dezelfde sectie
   const locOffset = (locR) => {
