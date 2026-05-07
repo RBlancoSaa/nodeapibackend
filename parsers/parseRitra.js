@@ -221,21 +221,43 @@ export default async function parseRitra(buffer) {
   let afzettenNaam = '', afzettenAdres = '', afzettenRef = '';
 
   // Stap 1: Bestand-label → inleverreferentie
-  // Ritra PDFs: waarde staat VOOR het label
+  // Ritra PDFs: waarde staat VOOR het label — maar kan meerdere regels verwijderd zijn
+  // door de 2-koloms PDF-layout (bijv. ":Bestand" op [44], waarde op [49])
   const bestandIdx = ls.findIndex(l => /^:?Bestand$/i.test(l));
   if (bestandIdx > 0) {
-    const kandidaatVoor = (ls[bestandIdx - 1] || '').trim();
-    const kandidaatNa   = (ls[bestandIdx + 1] || '').trim();
-    // FIX: accepteer ook alfanumerieke refs (niet alleen cijfer-startend)
-    // Uitsluitingen: bekende labels die geen ref zijn
+    // Uitsluiting: bekende labels en terminalnamen zijn geen Bestand-ref
     const isRefKandidaat = s => s.length >= 3
-      && !/^(Afleveradres|Afhaaladres|Leeg\s*retour|Reisnr|Releasenummer|Container|Schip|Rederij|Eta|ETA|Sealnummer|MRN)/i.test(s)
-      && /^[A-Z0-9]/.test(s);
+      && !/^(Afleveradres|Afhaaladres|Leeg\s*retour|Reisnr|Releasenummer|Container|Schip|Rederij|Eta|ETA|Sealnummer|MRN|Attentie|Gecombineerde|VIA\s|Op\s)/i.test(s)
+      && /^[A-Z0-9]/i.test(s)
+      && !TERMINAL_RE.test(s)           // geen terminalnamen (bijv. "APM 2 Terminals...")
+      && !/^\d{2}[\/\-]\d{2}[\/\-]/.test(s);  // geen datums
 
-    const rawRef = isRefKandidaat(kandidaatVoor) ? kandidaatVoor
-                 : isRefKandidaat(kandidaatNa)   ? kandidaatNa
-                 : '';
-    // FIX: "TR40HCMSK / APM2" → neem alleen het deel vóór " / "
+    const searchStart = Math.max(0, bestandIdx - 4);
+    const searchEnd   = Math.min(ls.length, bestandIdx + 10);
+
+    // Eerste prioriteit: zoek naar patroon "CODE / TERMINAL" (Ritra Bestand-formaat)
+    let rawRef = '';
+    for (let i = searchStart; i < searchEnd; i++) {
+      if (i === bestandIdx) continue;
+      const s = (ls[i] || '').trim();
+      if (/^[A-Z0-9]+\s*\/\s*[A-Z0-9]+/.test(s)) { rawRef = s; break; }
+    }
+
+    // Fallback: zoek achteruit dan vooruit voor een geldig ref-kandidaat
+    if (!rawRef) {
+      for (let i = bestandIdx - 1; i >= searchStart; i--) {
+        const s = (ls[i] || '').trim();
+        if (isRefKandidaat(s)) { rawRef = s; break; }
+      }
+    }
+    if (!rawRef) {
+      for (let i = bestandIdx + 1; i < searchEnd; i++) {
+        const s = (ls[i] || '').trim();
+        if (isRefKandidaat(s)) { rawRef = s; break; }
+      }
+    }
+
+    // "TR40HCMSK / APM2" → neem alleen het deel vóór " / "
     afzettenRef = rawRef.split(/\s*\/\s*/)[0].trim();
     console.log(`🏷️  Ritra afzettenRef via "Bestand": raw="${rawRef}" → ref="${afzettenRef}"`);
   }
@@ -251,7 +273,8 @@ export default async function parseRitra(buffer) {
 
     // Bij "Leeg retour": terminalnaam staat VÓÓR het label (Ritra reversed-order stijl)
     // Bij "Afleveradres": terminalnaam staat ná het label
-    if (leegRetourIdx >= 0 && afleverIdx < 0) {
+    // FIX: "Leeg retour" heeft altijd prioriteit als het aanwezig is, ook als "Afleveradres" ook bestaat
+    if (leegRetourIdx >= 0) {
       // Zoek ACHTERUIT vanuit het Leeg retour label
       for (let i = leegRetourIdx - 1; i >= Math.max(0, leegRetourIdx - 6); i--) {
         if (TERMINAL_RE.test(ls[i]) && ls[i].length > 3) {
