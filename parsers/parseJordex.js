@@ -19,22 +19,34 @@ function formatDatum(text) {
 }
 
 
-export default async function parseJordex(pdfBuffer, klantAlias = 'jordex') {
-  console.log('📦 Ontvangen pdfBuffer:', pdfBuffer?.length, 'bytes');
+export default async function parseJordex(pdfBufferOrText, klantAlias = 'jordex') {
+  // Accepteert zowel een PDF-buffer als ruwe tekst (bijv. email body van updated orders)
+  let text, regels;
 
-  // ❌ Voorkom lege of ongeldige input
-  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
-    console.warn('❌ Ongeldige of ontbrekende PDF buffer');
-    return {};
+  if (typeof pdfBufferOrText === 'string') {
+    // Ruwe tekst (email body) — direct gebruiken zonder PDF-extractie
+    console.log('📦 Jordex: ruwe tekst als input (email body)');
+    text   = pdfBufferOrText;
+    regels = text.split('\n').map(r => r.trim()).filter(Boolean);
+  } else {
+    const pdfBuffer = pdfBufferOrText;
+    console.log('📦 Ontvangen pdfBuffer:', pdfBuffer?.length, 'bytes');
+
+    // ❌ Voorkom lege of ongeldige input
+    if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
+      console.warn('❌ Ongeldige of ontbrekende PDF buffer');
+      return {};
+    }
+    if (pdfBuffer.length < 100) {
+      console.warn('⚠️ PDF buffer is verdacht klein, waarschijnlijk leeg');
+      return {};
+    }
+
+    // 📖 PDF uitlezen en opsplitsen (met automatische OCR-fallback voor gescande PDFs)
+    const extracted = await extractPdfText(pdfBuffer, 'Jordex transportopdracht');
+    text   = extracted.text;
+    regels = extracted.lines;
   }
-  if (pdfBuffer.length < 100) {
-    console.warn('⚠️ PDF buffer is verdacht klein, waarschijnlijk leeg');
-    return {};
-  }
-
-
-  // 📖 PDF uitlezen en opsplitsen (met automatische OCR-fallback voor gescande PDFs)
-  const { text, lines: regels } = await extractPdfText(pdfBuffer, 'Jordex transportopdracht');
   const ritnummerMatch = text.match(/\b(O[EI]\d{7})\b/i);
 
   // 🔍 Multi-pattern extractor: zoekt de eerste waarde die matcht op een van de patronen

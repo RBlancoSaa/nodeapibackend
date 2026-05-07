@@ -9,7 +9,7 @@ import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 
-export default async function handleJordex({ buffer, base64, filename, mailSubject = '', fromEmail = '', getReleaseData = null }) {
+export default async function handleJordex({ buffer, base64, filename, mailSubject = '', bodyText = '', fromEmail = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Jordex-bestand: ${filename}`);
 
   // Cancelled orders overslaan — geen .easy aanmaken voor gecancelde opdrachten
@@ -19,13 +19,26 @@ export default async function handleJordex({ buffer, base64, filename, mailSubje
   }
 
   // Update-detectie: als onderwerp update-keywords bevat → waarschuwing in emailbody
-  const isUpdate = /\b(update|updated|correction|corrected|amendment|reschedule|rescheduled|revised|wijziging)\b/i.test(mailSubject || '') ||
-                   /\b(update|updated|correction|corrected)\b/i.test(filename || '');
+  const isUpdate = /\b(update[d]?|correction[s]?|corrected|amendment|reschedule[d]?|revised|wijziging)\b/i.test(mailSubject || '') ||
+                   /\b(update[d]?|correction[s]?|corrected)\b/i.test(filename || '');
   if (isUpdate) {
     console.log(`🔄 Jordex UPDATE gedetecteerd: ${mailSubject || filename}`);
   }
 
-  const containers = await parseJordex(buffer);
+  // Bepaal input: PDF buffer heeft voorkeur, anders email body als fallback
+  const heeftPdf = buffer && Buffer.isBuffer(buffer) && buffer.length > 100;
+  const input    = heeftPdf ? buffer : (bodyText || '');
+
+  if (!heeftPdf) {
+    if (bodyText) {
+      console.log('📋 Jordex: geen PDF — verwerk via email body tekst');
+    } else {
+      console.warn('⚠️ Jordex: geen PDF buffer en geen bodyText beschikbaar');
+      return [];
+    }
+  }
+
+  const containers = await parseJordex(input);
 
   if (!containers || containers.length === 0) {
     console.warn('⚠️ Geen Jordex containers geparsed');
@@ -52,15 +65,17 @@ export default async function handleJordex({ buffer, base64, filename, mailSubje
         ? `LET OP: updated transportation request\n\nJordex transportopdracht verwerkt: ${ref}`
         : `Jordex transportopdracht verwerkt: ${ref}`;
 
+      const bijlagen = [{ filename: easyFilename, path: easyPath }];
+      if (heeftPdf && base64 && filename) {
+        bijlagen.push({ filename, content: Buffer.from(base64, 'base64') });
+      }
+
       await transporter.sendMail({
         from,
         to: RECIPIENT_EMAIL,
         subject: `easytrip file - ${ref}`,
         text: emailBody,
-        attachments: [
-          { filename: easyFilename, path: easyPath },
-          { filename, content: Buffer.from(base64, 'base64') }
-        ]
+        attachments: bijlagen
       });
       console.log(`📧 Jordex verstuurd: ${easyFilename}`);
       easyBestanden.push(easyFilename);
