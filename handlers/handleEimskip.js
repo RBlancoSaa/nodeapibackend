@@ -27,8 +27,25 @@ export default async function handleEimskip({
     return [];
   }
 
+  // Validatie: filter containers zonder zinvolle transportdata weg.
+  // Reply-threads (bijv. "RE: Fysieke controle container XXXX") leveren wel een
+  // containernummer op maar hebben geen klantnaam, ritnummer of laad/loslocatie.
+  const geldige = containers.filter(c => {
+    const heeftKlant      = !!(c.klantnaam && c.klantnaam.trim());
+    const heeftRitnr      = !!(c.ritnummer && c.ritnummer.trim());
+    const heeftLosLocatie = (c.locaties || []).some(l =>
+      /lossen|laden/i.test(l.actie || '') && !!(l.naam || l.adres || l.postcode)
+    );
+    return heeftKlant || heeftRitnr || heeftLosLocatie;
+  });
+
+  if (geldige.length === 0) {
+    console.warn('⚠️ Eimskip: geen geldige transportdata gevonden (mogelijk reply-thread of doorstuur-mail) — overgeslagen');
+    return [];
+  }
+
   if (getReleaseData) {
-    for (const c of containers) mergeRelease(c, getReleaseData(c.containernummer));
+    for (const c of geldige) mergeRelease(c, getReleaseData(c.containernummer));
   }
 
   const { transporter, from } = await getGmailTransporter();
@@ -36,7 +53,7 @@ export default async function handleEimskip({
 
   const fouten = [];
 
-  for (const container of containers) {
+  for (const container of geldige) {
     try {
       const xml = await generateXmlFromJson(container);
       console.log('📄 Eimskip XML:\n' + xml);
