@@ -106,6 +106,12 @@ export default async function parseDFDS(buffer) {
     /\bClass\s+\d/i.test(tekstAll)           // Class 9 (Engels)
   ) ? 'Waar' : 'Onwaar';
 
+  // UN-nummers extraheren voor instructies (bijv. "UN 3480" of "UN3480")
+  const unNummers = [...new Set(
+    [...tekstAll.matchAll(/\bUN\s*(\d{4})\b/gi)].map(m => `UN ${m[1]}`)
+  )];
+  const adrInstructie = unNummers.length > 0 ? unNummers.join(', ') : '';
+
   // === Goederen informatie: container# → {zegel, colli, lading, gewicht, cbm} ===
   // Lijn: "MEDU2842649 20ft - 33,2 m ³ / Zegel: 236199"
   // Volgende lijn: "10 BAG CON SIERRITA LS HB 4000 LB NT BB (UL) EU 18.338,73 kg 0 m3"
@@ -250,7 +256,7 @@ export default async function parseDFDS(buffer) {
     klantnaam, klantadres, klantpostcode, klantplaats,
     adr,
     ladenOfLossen:    'Lossen',
-    instructies:      '',
+    instructies:      adrInstructie,
     tar:              '',
     documentatie:     '',
     inleverBestemming:'',

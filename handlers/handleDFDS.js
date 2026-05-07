@@ -55,6 +55,12 @@ function parseDFDSBodyOrder(bodyText = '', mailSubject = '') {
     /\bADR\b/i.test(bodyText)
   ) ? 'Waar' : 'Onwaar';
 
+  // UN-nummers extraheren voor instructies
+  const unNummers = [...new Set(
+    [...bodyText.matchAll(/\bUN\s*(\d{4})\b/gi)].map(m => `UN ${m[1]}`)
+  )];
+  const adrInstructie = unNummers.length > 0 ? unNummers.join(', ') : '';
+
   // Datum: "Drop-off date ... : DD-MM-YYYY" of "Unloading date ... : DD-MM-YYYY"
   const datumMatch = bodyText.match(/(?:Drop-off|Unloading)\s+date[^:]*:\s*(\d{2}-\d{2}-\d{4})/i);
   const datum = datumMatch ? datumMatch[1] : '';
@@ -87,6 +93,7 @@ function parseDFDSBodyOrder(bodyText = '', mailSubject = '') {
   };
 
   const instructiesDelen = [
+    adrInstructie,
     locCode ? `Locatie: ${locCode}` : '',
     datumBereikTekst ? `Datum: ${datumBereikTekst}` : '',
     letOpTekst,
