@@ -177,11 +177,14 @@ export async function enrichOrder(order, { bron = '', klantKey = '' } = {}) {
   }
   delete order._ladenOfLossenFixed;
 
-  // Synchroniseer InleverBestemming vanuit de Afzetten locatie (ná terminal lookup)
-  // zodat InleverBestemming en Afzetten locatienaam altijd overeenkomen.
-  // _inleverBestemmingFixed: parser heeft bewust een bestemming ingevuld (bijv. PORT OF DISCHARGE "DURBAN")
-  // die NIET overschreven mag worden door de terminalnaam.
-  if (order.inleverBestemming !== undefined && !order._inleverBestemmingFixed) {
+  // Synchroniseer InleverBestemming:
+  // - Lossen (import): bestemming is altijd 'ROTTERDAM' (container wordt hier gelost, geen verdere bestemming)
+  // - Laden (export): bestemming = PORT OF DISCHARGE uit parser (bijv. "DURBAN") — NIET de terminalnaam
+  //   Als parser niets ingevuld heeft: synchroniseer vanuit de Afzetten locatienaam (terminal)
+  // _inleverBestemmingFixed: parser heeft bewust een bestemming ingevuld die NIET overschreven mag worden.
+  if ((order.ladenOfLossen || '').toLowerCase() === 'lossen') {
+    order.inleverBestemming = 'ROTTERDAM';
+  } else if (order.inleverBestemming !== undefined && !order._inleverBestemmingFixed) {
     const afzettenLoc = (order.locaties || []).find(l => (l.actie || '').toLowerCase() === 'afzetten');
     if (afzettenLoc?.naam) order.inleverBestemming = afzettenLoc.naam;
   }
