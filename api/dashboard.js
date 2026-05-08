@@ -1508,12 +1508,15 @@ async function btSave(token) {
   if (!btCurrentKlant) return;
   const rows = [...document.querySelectorAll('#bt-body .bt-row')];
   const tarieven = rows
-    .map(row => ({
-      naam:   row.querySelector('.bt-inp-naam').value.trim(),
-      plaats: row.querySelector('.bt-inp-plaats').value.trim(),
-      tarief: parseFloat(row.querySelector('.bt-inp-tarief').value) || 0
-    }))
-    .filter(t => (t.naam || t.plaats) && t.tarief > 0);
+    .map(row => {
+      const rawTarief = row.querySelector('.bt-inp-tarief').value.trim();
+      return {
+        naam:   row.querySelector('.bt-inp-naam').value.trim(),
+        plaats: row.querySelector('.bt-inp-plaats').value.trim(),
+        tarief: rawTarief === '' ? '' : (parseFloat(rawTarief) || 0)
+      };
+    })
+    .filter(t => t.naam || t.plaats); // bewaar ook rijen zonder tarief (nog in te vullen)
 
   const saveBtn = document.getElementById('bt-save-btn');
   const okEl    = document.getElementById('bt-ok');
