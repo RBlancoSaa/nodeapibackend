@@ -8,6 +8,7 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
+import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
 
 export default async function handleJordex({ buffer, base64, filename, mailSubject = '', bodyText = '', fromEmail = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Jordex-bestand: ${filename}`);
@@ -18,11 +19,11 @@ export default async function handleJordex({ buffer, base64, filename, mailSubje
     return [];
   }
 
-  // Update-detectie: als onderwerp update-keywords bevat → waarschuwing in emailbody
-  const isUpdate = /\b(update[d]?|correction[s]?|corrected|amendment|reschedule[d]?|revised|wijziging)\b/i.test(mailSubject || '') ||
-                   /\b(update[d]?|correction[s]?|corrected)\b/i.test(filename || '');
-  if (isUpdate) {
-    console.log(`🔄 Jordex UPDATE gedetecteerd: ${mailSubject || filename}`);
+  // Update-detectie via email-onderwerp keywords (vroeg signaal, nog vóór parse)
+  const subjectIsUpdate = /\b(update[d]?|correction[s]?|corrected|amendment|reschedule[d]?|revised|wijziging)\b/i.test(mailSubject || '') ||
+                          /\b(update[d]?|correction[s]?|corrected)\b/i.test(filename || '');
+  if (subjectIsUpdate) {
+    console.log(`🔄 Jordex UPDATE via onderwerp: ${mailSubject || filename}`);
   }
 
   // Bepaal input: PDF buffer heeft voorkeur, anders email body als fallback
@@ -61,8 +62,13 @@ export default async function handleJordex({ buffer, base64, filename, mailSubje
       const easyPath = path.join(os.tmpdir(), easyFilename);
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
+      // Update-detectie: DB-check op containernummer (betrouwbaarder dan keyword)
+      const vorigeEntry = await checkDuplicaat(cntr, 'Jordex');
+      const isUpdate    = !!vorigeEntry || subjectIsUpdate;
+      if (isUpdate) console.log(`🔁 Jordex update gedetecteerd: ${cntr}`);
+
       const emailBody = isUpdate
-        ? `LET OP: updated transportation request\n\nJordex transportopdracht verwerkt: ${ref}`
+        ? `${vorigeEntry ? buildUpdateMelding(vorigeEntry, cntr) : 'LET OP: updated transportation request\n\n'}Jordex transportopdracht verwerkt: ${ref}`
         : `Jordex transportopdracht verwerkt: ${ref}`;
 
       const bijlagen = [{ filename: easyFilename, path: easyPath }];
@@ -73,11 +79,11 @@ export default async function handleJordex({ buffer, base64, filename, mailSubje
       await transporter.sendMail({
         from,
         to: RECIPIENT_EMAIL,
-        subject: `easytrip file - ${ref}`,
+        subject: isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`,
         text: emailBody,
         attachments: bijlagen
       });
-      console.log(`📧 Jordex verstuurd: ${easyFilename}`);
+      console.log(`📧 Jordex verstuurd: ${easyFilename}${isUpdate ? ' (UPDATE)' : ''}`);
       easyBestanden.push(easyFilename);
       await logOpdracht({ bron: 'Jordex', afzenderEmail: fromEmail, bestandsnaam: filename, container, easyBestand: easyFilename });
     } catch (err) {

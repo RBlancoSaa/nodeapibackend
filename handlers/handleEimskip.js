@@ -8,6 +8,7 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
+import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
 
 export default async function handleEimskip({
   bodyText,
@@ -72,14 +73,20 @@ export default async function handleEimskip({
         }
       }
 
+      const vorigeEntry = await checkDuplicaat(cntr, 'Eimskip');
+      const isUpdate    = !!vorigeEntry;
+      if (isUpdate) console.log(`🔁 Eimskip update gedetecteerd: ${cntr}`);
+
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,
-        subject: `easytrip file - ${ref}`,
-        text:    `Eimskip levering: ${cntr} — ${container.datum} ${container.tijd}`,
+        subject: isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`,
+        text:    isUpdate
+          ? `${buildUpdateMelding(vorigeEntry, cntr)}\nEimskip levering: ${cntr} — ${container.datum} ${container.tijd}`
+          : `Eimskip levering: ${cntr} — ${container.datum} ${container.tijd}`,
         attachments
       });
 
-      console.log(`📧 Eimskip verstuurd: ${easyFilename}`);
+      console.log(`📧 Eimskip verstuurd: ${easyFilename}${isUpdate ? ' (UPDATE)' : ''}`);
       easyBestanden.push(easyFilename);
 
       await logOpdracht({

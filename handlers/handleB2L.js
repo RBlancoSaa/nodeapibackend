@@ -10,6 +10,7 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
+import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
 
 // Controleert of een parse-resultaat een echte transportopdracht is
 // (niet een release of wegvervoer die per ongeluk iets parsete)
@@ -125,13 +126,19 @@ export default async function handleB2L({
           }))
       ];
 
+      const vorigeEntry = await checkDuplicaat(cntr, 'B2L');
+      const isUpdate    = !!vorigeEntry;
+      if (isUpdate) console.log(`🔁 B2L update gedetecteerd: ${cntr}`);
+
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,
-        subject: `easytrip file - ${ref}`,
-        text: `B2L transportopdracht verwerkt: ${ref}`,
+        subject: isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`,
+        text: isUpdate
+          ? `${buildUpdateMelding(vorigeEntry, cntr)}\nB2L transportopdracht verwerkt: ${ref}`
+          : `B2L transportopdracht verwerkt: ${ref}`,
         attachments
       });
-      console.log(`📧 B2L verstuurd: ${easyFilename}`);
+      console.log(`📧 B2L verstuurd: ${easyFilename}${isUpdate ? ' (UPDATE)' : ''}`);
       easyBestanden.push(easyFilename);
       await logOpdracht({ bron: 'B2L', afzenderEmail: fromEmail, bestandsnaam: toFilename, container, easyBestand: easyFilename });
     } catch (err) {

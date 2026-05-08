@@ -9,6 +9,7 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
+import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
 
 // ── Laad/los-adres overrides op basis van lading/body-tekst ─────────────────
 // Overschrijft het laad/losadres (klantnaam/adres) — NIET de opdrachtgever.
@@ -307,13 +308,20 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
       if (origBase64) {
         bijlagen.push({ filename: origFilename, content: Buffer.from(origBase64, 'base64') });
       }
+
+      const vorigeEntry = await checkDuplicaat(cntr, 'DFDS');
+      const isUpdate    = !!vorigeEntry;
+      if (isUpdate) console.log(`🔁 DFDS update gedetecteerd: ${cntr}`);
+
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,
-        subject: `easytrip file - ${ref}`,
-        text: `DFDS transportopdracht verwerkt: ${ref}`,
+        subject: isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`,
+        text: isUpdate
+          ? `${buildUpdateMelding(vorigeEntry, cntr)}\nDFDS transportopdracht verwerkt: ${ref}`
+          : `DFDS transportopdracht verwerkt: ${ref}`,
         attachments: bijlagen
       });
-      console.log(`📧 DFDS verstuurd: ${easyFilename}`);
+      console.log(`📧 DFDS verstuurd: ${easyFilename}${isUpdate ? ' (UPDATE)' : ''}`);
       easyBestanden.push(easyFilename);
       await logOpdracht({ bron: 'DFDS', afzenderEmail: fromEmail, bestandsnaam: origFilename, container, easyBestand: easyFilename });
     } catch (err) {

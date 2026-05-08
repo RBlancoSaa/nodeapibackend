@@ -8,6 +8,7 @@ import parseSteinweg from '../parsers/parseSteinweg.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, hasGmail, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
+import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
 
 // ── Helpers: groeperen op afzetdepot ────────────────────────────────────────
 
@@ -55,7 +56,7 @@ function bouwDuplicatieNota(groep) {
 
 // ── Gmail ────────────────────────────────────────────────────────────────────
 
-async function sendSteinwegEmail({ ritnummer, emailTekst, attachments }) {
+async function sendSteinwegEmail({ ritnummer, subject, emailTekst, attachments }) {
   const { transporter, from } = await getGmailTransporter();
   const formatted = attachments.map(att => ({
     filename: att.filename,
@@ -64,7 +65,7 @@ async function sendSteinwegEmail({ ritnummer, emailTekst, attachments }) {
   await transporter.sendMail({
     from,
     to: RECIPIENT_EMAIL,
-    subject: `easytrip file - ${ritnummer}`,
+    subject: subject || `easytrip file - ${ritnummer}`,
     text: emailTekst,
     attachments: formatted
   });
@@ -176,6 +177,11 @@ export default async function handleSteinweg({
 
       easyBestanden.push(easyFilename);
 
+      // ── Update-detectie op basis van eerste container in de groep ─────────
+      const vorigeEntry = await checkDuplicaat(base.containernummer, 'Steinweg');
+      const isUpdate    = !!vorigeEntry;
+      if (isUpdate) console.log(`🔁 Steinweg update gedetecteerd: ${base.containernummer}`);
+
       // ── Stuur aparte email per .easy ──────────────────────────────────────
       if (useGmail) {
         // Bijlagen: het .easy bestand + originele Excel(s) + eml
@@ -205,9 +211,11 @@ export default async function handleSteinweg({
         } else {
           emailTekst = `Steinweg transportopdracht: ${cntr} → ${depotNaam}`;
         }
+        if (isUpdate) emailTekst = `${buildUpdateMelding(vorigeEntry, base.containernummer)}\n${emailTekst}`;
 
-        await sendSteinwegEmail({ ritnummer: ref, emailTekst, attachments });
-        console.log(`📧 Email verstuurd: ${easyFilename} (${groep.length}x container)`);
+        const emailSubject = isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`;
+        await sendSteinwegEmail({ ritnummer: ref, subject: emailSubject, emailTekst, attachments });
+        console.log(`📧 Email verstuurd: ${easyFilename} (${groep.length}x container)${isUpdate ? ' (UPDATE)' : ''}`);
       }
 
       // logOpdracht voor elke container in de groep

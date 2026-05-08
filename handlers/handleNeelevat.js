@@ -8,6 +8,7 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
+import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
 
 export default async function handleNeelevat({ buffer, base64, filename, mailSubject, fromEmail = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Neelevat-bestand: ${filename}`);
@@ -42,16 +43,22 @@ export default async function handleNeelevat({ buffer, base64, filename, mailSub
       const easyPath = path.join(os.tmpdir(), easyFilename);
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
+      const vorigeEntry = await checkDuplicaat(cntr, 'Neelevat');
+      const isUpdate    = !!vorigeEntry;
+      if (isUpdate) console.log(`🔁 Neelevat update gedetecteerd: ${cntr}`);
+
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,
-        subject: `easytrip file - ${ref}`,
-        text: `Neelevat transportopdracht verwerkt: ${ref}`,
+        subject: isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`,
+        text: isUpdate
+          ? `${buildUpdateMelding(vorigeEntry, cntr)}\nNeelevat transportopdracht verwerkt: ${ref}`
+          : `Neelevat transportopdracht verwerkt: ${ref}`,
         attachments: [
           { filename: easyFilename, path: easyPath },
           { filename, content: Buffer.from(base64, 'base64') }
         ]
       });
-      console.log(`📧 Neelevat verstuurd: ${easyFilename}`);
+      console.log(`📧 Neelevat verstuurd: ${easyFilename}${isUpdate ? ' (UPDATE)' : ''}`);
       easyBestanden.push(easyFilename);
       await logOpdracht({ bron: 'Neelevat', afzenderEmail: fromEmail, bestandsnaam: filename, container, easyBestand: easyFilename });
     } catch (err) {
