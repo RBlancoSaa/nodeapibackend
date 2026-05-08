@@ -12,6 +12,9 @@ import dashboardHandler from './api/dashboard.js';
 import prijsafsprakenHandler from './api/prijsafspraken.js';
 import tariefImportHandler from './api/tarief-import.js';
 import tariefAnalyseHandler from './api/tarief-analyse.js';
+import importAutoDetectHandler from './api/import-auto-detect.js';
+import genereerVoorstellenHandler from './api/genereer-voorstellen.js';
+import voorstellenHandler from './api/voorstellen.js';
 import loginHandler from './api/login.js';
 import logoutHandler from './api/logout.js';
 import usersHandler from './api/users.js';
@@ -20,8 +23,9 @@ import { listMembershipsForUser } from './services/userService.js';
 import { listTenants } from './services/tenantService.js';
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Imports kunnen groot zijn (XPS-archief ~10MB = base64 ~13MB; oudedata.xlsx 3.4MB)
+app.use(express.json({ limit: '32mb' }));
+app.use(express.urlencoded({ extended: false, limit: '32mb' }));
 const PORT = process.env.PORT || 3000;
 
 // ─── Root: kies waar de gebruiker heen moet ─────────────────────────────────
@@ -104,6 +108,12 @@ app.post('/api/prijsafspraken', prijsafsprakenHandler);
 app.post('/api/tarief-import', tariefImportHandler);
 app.get('/api/tarief-analyse', tariefAnalyseHandler);
 app.post('/api/tarief-analyse', tariefAnalyseHandler);
+app.post('/api/import/auto-detect', importAutoDetectHandler);
+app.post('/api/import-auto-detect', importAutoDetectHandler);
+app.post('/api/genereer-voorstellen', genereerVoorstellenHandler);
+app.get('/api/voorstellen', voorstellenHandler);
+app.post('/api/voorstellen', voorstellenHandler);
+app.patch('/api/voorstellen', voorstellenHandler);
 app.get('/api/login', loginHandler);
 app.post('/api/login', loginHandler);
 app.get('/api/logout', logoutHandler);

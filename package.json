@@ -24,6 +24,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
     "@supabase/supabase-js": "^2.50.0",
+    "adm-zip": "^0.5.17",
     "buffer": "^6.0.3",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
