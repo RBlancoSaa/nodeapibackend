@@ -108,9 +108,10 @@ export default async function parseDFDS(buffer) {
 
   // UN-nummers extraheren voor instructies (bijv. "UN 3480" of "UN3480")
   const unNummers = [...new Set(
-    [...tekstAll.matchAll(/\bUN\s*(\d{4})\b/gi)].map(m => `UN ${m[1]}`)
+    [...tekstAll.matchAll(/\bUN\s*(\d{4})\b/gi)].map(m => m[1])
   )];
-  const adrInstructie = unNummers.length > 0 ? unNummers.join(', ') : '';
+  const unnr           = unNummers.length > 0 ? unNummers.join(', ') : '0';
+  const adrInstructie  = unNummers.length > 0 ? unNummers.map(n => `UN ${n}`).join(', ') : '';
 
   // === Goederen informatie: container# → {zegel, colli, lading, gewicht, cbm} ===
   // Lijn: "MEDU2842649 20ft - 33,2 m ³ / Zegel: 236199"
@@ -255,6 +256,8 @@ export default async function parseDFDS(buffer) {
     inleverRederij:  '',
     klantnaam, klantadres, klantpostcode, klantplaats,
     adr,
+    unnr,
+    imo:              '0',
     ladenOfLossen:    'Lossen',
     instructies:      adrInstructie,
     tar:              '',
