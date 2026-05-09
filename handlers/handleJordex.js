@@ -10,6 +10,11 @@ import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
 
+function metOrigineel(tekst, bodyText) {
+  if (!bodyText?.trim()) return tekst;
+  return `${tekst}\n\n${'─'.repeat(50)}\nOriginele email:\n\n${bodyText.trim()}`;
+}
+
 export default async function handleJordex({ buffer, base64, filename, mailSubject = '', bodyText = '', fromEmail = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Jordex-bestand: ${filename}`);
 
@@ -67,9 +72,11 @@ export default async function handleJordex({ buffer, base64, filename, mailSubje
       const isUpdate    = !!vorigeEntry || subjectIsUpdate;
       if (isUpdate) console.log(`🔁 Jordex update gedetecteerd: ${cntr}`);
 
-      const emailBody = isUpdate
-        ? `${vorigeEntry ? buildUpdateMelding(vorigeEntry, cntr) : 'LET OP: updated transportation request\n\n'}Jordex transportopdracht verwerkt: ${ref}`
-        : `Jordex transportopdracht verwerkt: ${ref}`;
+      const emailBody = metOrigineel(
+        isUpdate
+          ? `${vorigeEntry ? buildUpdateMelding(vorigeEntry, cntr) : 'LET OP: updated transportation request\n\n'}Jordex transportopdracht verwerkt: ${ref}`
+          : `Jordex transportopdracht verwerkt: ${ref}`,
+        bodyText);
 
       const bijlagen = [{ filename: easyFilename, path: easyPath }];
       if (heeftPdf && base64 && filename) {

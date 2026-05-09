@@ -28,6 +28,11 @@ const DFDS_OPDRACHTGEVER_OVERRIDES = [
   }
 ];
 
+function metOrigineel(tekst, bodyText) {
+  if (!bodyText?.trim()) return tekst;
+  return `${tekst}\n\n${'─'.repeat(50)}\nOriginele email:\n\n${bodyText.trim()}`;
+}
+
 /** Geeft de opdrachtgever-override als de tekst een bekend patroon bevat, anders null. */
 function getDFDSOpdrachtgeverOverride(text) {
   for (const entry of DFDS_OPDRACHTGEVER_OVERRIDES) {
@@ -316,9 +321,11 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,
         subject: isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`,
-        text: isUpdate
-          ? `${buildUpdateMelding(vorigeEntry, cntr)}\nDFDS transportopdracht verwerkt: ${ref}`
-          : `DFDS transportopdracht verwerkt: ${ref}`,
+        text: metOrigineel(
+          isUpdate
+            ? `${buildUpdateMelding(vorigeEntry, cntr)}\nDFDS transportopdracht verwerkt: ${ref}`
+            : `DFDS transportopdracht verwerkt: ${ref}`,
+          bodyText),
         attachments: bijlagen
       });
       console.log(`📧 DFDS verstuurd: ${easyFilename}${isUpdate ? ' (UPDATE)' : ''}`);

@@ -23,8 +23,14 @@ function isGeldigeTO(containers) {
   );
 }
 
+function metOrigineel(tekst, bodyText) {
+  if (!bodyText?.trim()) return tekst;
+  return `${tekst}\n\n${'─'.repeat(50)}\nOriginele email:\n\n${bodyText.trim()}`;
+}
+
 export default async function handleB2L({
   buffer, base64, filename, fromEmail = '',
+  bodyText = '',
   allPdfs = null,       // alle PDFs uit dezelfde email
   getReleaseData = null
 }) {
@@ -133,9 +139,11 @@ export default async function handleB2L({
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,
         subject: isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`,
-        text: isUpdate
-          ? `${buildUpdateMelding(vorigeEntry, cntr)}\nB2L transportopdracht verwerkt: ${ref}`
-          : `B2L transportopdracht verwerkt: ${ref}`,
+        text: metOrigineel(
+          isUpdate
+            ? `${buildUpdateMelding(vorigeEntry, cntr)}\nB2L transportopdracht verwerkt: ${ref}`
+            : `B2L transportopdracht verwerkt: ${ref}`,
+          bodyText),
         attachments
       });
       console.log(`📧 B2L verstuurd: ${easyFilename}${isUpdate ? ' (UPDATE)' : ''}`);

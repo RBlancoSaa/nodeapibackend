@@ -10,6 +10,11 @@ import { getGmailTransporter, hasGmail, RECIPIENT_EMAIL } from '../utils/gmailTr
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
 
+function metOrigineel(tekst, bodyText) {
+  if (!bodyText?.trim()) return tekst;
+  return `${tekst}\n\n${'─'.repeat(50)}\nOriginele email:\n\n${bodyText.trim()}`;
+}
+
 // ── Helpers: groeperen op afzetdepot ────────────────────────────────────────
 
 /**
@@ -212,6 +217,7 @@ export default async function handleSteinweg({
           emailTekst = `Steinweg transportopdracht: ${cntr} → ${depotNaam}`;
         }
         if (isUpdate) emailTekst = `${buildUpdateMelding(vorigeEntry, base.containernummer)}\n${emailTekst}`;
+        emailTekst = metOrigineel(emailTekst, emailBody);
 
         const emailSubject = isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`;
         await sendSteinwegEmail({ ritnummer: ref, subject: emailSubject, emailTekst, attachments });

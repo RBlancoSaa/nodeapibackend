@@ -546,7 +546,9 @@ export default async function parseEimskip({ bodyText, mailSubject, pdfAttachmen
 
     adr:           'Onwaar',
     ladenOfLossen: 'Lossen',
-    instructies:   '',
+    // Email body bevat vaak kritieke instructies (gasmeting, douanecontrole, tijdslots etc.)
+    // → altijd meenemen in instructies zodat de dispatcher ze ziet in EasyTrip
+    instructies:   bodyText ? bodyText.trim().replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n') : '',
     tar: '', documentatie: '', tarra: '0', brix: '0',
 
     locaties

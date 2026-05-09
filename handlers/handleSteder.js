@@ -10,7 +10,12 @@ import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
 
-export default async function handleSteder({ buffer, base64, filename, mailSubject, fromEmail = '', getReleaseData = null }) {
+function metOrigineel(tekst, bodyText) {
+  if (!bodyText?.trim()) return tekst;
+  return `${tekst}\n\n${'─'.repeat(50)}\nOriginele email:\n\n${bodyText.trim()}`;
+}
+
+export default async function handleSteder({ buffer, base64, filename, mailSubject, fromEmail = '', bodyText = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Steder-bestand: ${filename}`);
 
   const containers = await parseSteder(buffer);
@@ -49,9 +54,11 @@ export default async function handleSteder({ buffer, base64, filename, mailSubje
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,
         subject: isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`,
-        text: isUpdate
-          ? `${buildUpdateMelding(vorigeEntry, cntr)}\nSteder transportopdracht verwerkt: ${ref}`
-          : `Steder transportopdracht verwerkt: ${ref}`,
+        text: metOrigineel(
+          isUpdate
+            ? `${buildUpdateMelding(vorigeEntry, cntr)}\nSteder transportopdracht verwerkt: ${ref}`
+            : `Steder transportopdracht verwerkt: ${ref}`,
+          bodyText),
         attachments: [
           { filename: easyFilename, path: easyPath },
           { filename, content: Buffer.from(base64, 'base64') }

@@ -10,6 +10,11 @@ import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
 
+function metOrigineel(tekst, bodyText) {
+  if (!bodyText?.trim()) return tekst;
+  return `${tekst}\n\n${'─'.repeat(50)}\nOriginele email:\n\n${bodyText.trim()}`;
+}
+
 export default async function handleEimskip({
   bodyText,
   mailSubject,
@@ -80,9 +85,11 @@ export default async function handleEimskip({
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,
         subject: isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`,
-        text:    isUpdate
-          ? `${buildUpdateMelding(vorigeEntry, cntr)}\nEimskip levering: ${cntr} — ${container.datum} ${container.tijd}`
-          : `Eimskip levering: ${cntr} — ${container.datum} ${container.tijd}`,
+        text: metOrigineel(
+          isUpdate
+            ? `${buildUpdateMelding(vorigeEntry, cntr)}\nEimskip levering: ${cntr} — ${container.datum} ${container.tijd}`
+            : `Eimskip levering: ${cntr} — ${container.datum} ${container.tijd}`,
+          bodyText),
         attachments
       });
 

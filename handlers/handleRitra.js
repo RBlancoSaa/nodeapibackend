@@ -10,7 +10,12 @@ import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
 
-export default async function handleRitra({ buffer, base64, filename, fromEmail = '', getReleaseData = null }) {
+function metOrigineel(tekst, bodyText) {
+  if (!bodyText?.trim()) return tekst;
+  return `${tekst}\n\n${'─'.repeat(50)}\nOriginele email:\n\n${bodyText.trim()}`;
+}
+
+export default async function handleRitra({ buffer, base64, filename, fromEmail = '', bodyText = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Ritra-bestand: ${filename}`);
 
   const containers = await parseRitra(buffer);
@@ -42,9 +47,11 @@ export default async function handleRitra({ buffer, base64, filename, fromEmail 
       const updateTekst = isUpdate ? buildUpdateMelding(vorigeEntry, cntr) : '';
       if (isUpdate) console.log(`🔁 Ritra update gedetecteerd: ${cntr} (vorige: ${vorigeEntry.datum} ${vorigeEntry.tijd})`);
 
-      const emailBody = isUpdate
-        ? `${updateTekst}\nRitra transportopdracht verwerkt: ${ref}`
-        : `Ritra transportopdracht verwerkt: ${ref}`;
+      const emailBody = metOrigineel(
+        isUpdate
+          ? `${updateTekst}\nRitra transportopdracht verwerkt: ${ref}`
+          : `Ritra transportopdracht verwerkt: ${ref}`,
+        bodyText);
 
       const emailSubject = isUpdate
         ? `UPDATE easytrip file - ${ref}`
