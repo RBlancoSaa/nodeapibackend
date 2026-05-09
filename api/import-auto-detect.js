@@ -31,6 +31,7 @@ import { parseRptFacturenXps, toeslagNaarKolom, normaliseerToeslag } from '../pa
 import { parseTiaroRittenarchief } from '../parsers/parseTiaroRittenarchief.js';
 import { parseAdresboek } from '../parsers/parseAdresboek.js';
 import { parseEasytripStamdata } from '../parsers/parseEasytripStamdata.js';
+import { parsePdfFactuur } from '../parsers/parsePdfFactuur.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -62,10 +63,7 @@ export default async function handler(req, res) {
       case 'easytrip_stamdata':
         return await verwerkStamdata(req, res, ctx, buffer, bestandsnaam, detect, !!dryRun);
       case 'losse_factuur_pdf':
-        return res.status(501).json({
-          ok: false, type: detect.type, vertrouwen: detect.vertrouwen,
-          melding: 'Losse factuur-PDF parser is nog niet geïmplementeerd.',
-        });
+        return await verwerkPdfFactuur(req, res, ctx, buffer, bestandsnaam, detect, !!dryRun);
       default:
         return res.status(400).json({
           ok: false, type: detect.type, vertrouwen: detect.vertrouwen,
@@ -264,6 +262,100 @@ async function verwerkAdresboek(req, res, ctx, buffer, bestandsnaam, detect, dry
   return res.json({
     ok: true, type: detect.type, vertrouwen: detect.vertrouwen,
     storagePath: path, samenvatting,
+  });
+}
+
+// ─── Losse factuur-PDF ──────────────────────────────────────────────────
+async function verwerkPdfFactuur(req, res, ctx, buffer, bestandsnaam, detect, dryRun) {
+  const { factuur } = await parsePdfFactuur(buffer);
+  if (!factuur.factuurnummer) {
+    return res.status(400).json({
+      ok: false, type: detect.type, vertrouwen: detect.vertrouwen,
+      error: 'Factuurnummer niet gevonden — is dit een Tiaro-factuur?',
+    });
+  }
+
+  // Kijk per regel of er een actieve prijsafspraak is en flag afwijkingen
+  const alerts = [];
+  if (factuur.klant) {
+    const { data: afspraak } = await supabase
+      .from('prijsafspraken')
+      .select('velden, all_in')
+      .ilike('klant', factuur.klant.toLowerCase())
+      .maybeSingle();
+    if (afspraak?.velden?.basis_tarief) {
+      const verwacht = Number(afspraak.velden.basis_tarief);
+      for (const r of factuur.regels) {
+        if (r.basisTarief && Math.abs(r.basisTarief - verwacht) > Math.max(5, verwacht * 0.05)) {
+          alerts.push({
+            ritnr: r.onsRitnr, container: r.container, route: r.routeRuw,
+            verwacht, gefactureerd: r.basisTarief, verschil: r.basisTarief - verwacht,
+          });
+        }
+      }
+    }
+  }
+
+  const samenvatting = {
+    factuurnummer: factuur.factuurnummer,
+    klant: factuur.klant,
+    factuurdatum: factuur.factuurdatum,
+    aantalRegels: factuur.regels.length,
+    aantalToeslagen: factuur.regels.reduce((n, r) => n + r.toeslagen.length, 0),
+    totaal: factuur.totaal,
+    alerts,
+  };
+
+  if (dryRun) return res.json({ ok: true, type: detect.type, vertrouwen: detect.vertrouwen, samenvatting });
+
+  // Schrijf factuur (gebruik factuur_imports met bron='losse_pdf')
+  const { data: importRow, error: impErr } = await supabase
+    .from('factuur_imports')
+    .insert({
+      tenant_id: ctx.tenant.id, bestandsnaam, bron: 'losse_pdf',
+      aantal_facturen: 1, aantal_regels: factuur.regels.length,
+      aantal_toeslagen: samenvatting.aantalToeslagen, status: 'verwerkt',
+      meta: { alerts },
+    }).select().single();
+  if (impErr) return res.status(500).json({ ok: false, error: 'Import-record fout: ' + impErr.message });
+
+  const { data: hdr, error: hErr } = await supabase
+    .from('factuur_header')
+    .upsert({
+      import_id: importRow.id, tenant_id: ctx.tenant.id,
+      factuurnummer: factuur.factuurnummer, klant: factuur.klant,
+      factuurdatum: factuur.factuurdatum, btw_nummer_klant: factuur.btwNummerKlant,
+      dossiernummer: factuur.dossiernummer, totaal_bedrag: factuur.totaal,
+    }, { onConflict: 'tenant_id,factuurnummer' })
+    .select('id').single();
+  if (hErr) return res.status(500).json({ ok: false, error: 'Factuur-header fout: ' + hErr.message });
+
+  const regelRows = factuur.regels.map(r => {
+    const row = {
+      factuur_id: hdr.id, tenant_id: ctx.tenant.id, klant: factuur.klant,
+      datum: r.datum, ons_ritnr: r.onsRitnr, uw_ritnr: r.uwRitnr,
+      container: r.container, containertype: r.containertype,
+      route_ruw: r.routeRuw, btw_perc: r.btwPerc,
+      basis_tarief: r.basisTarief, totaal_rit: r.totaalRit,
+      overige_toeslagen: {},
+    };
+    for (const t of r.toeslagen) {
+      const norm = normaliseerToeslag(t.omschrijving);
+      const kolom = toeslagNaarKolom(norm);
+      if (kolom) row[kolom] = (row[kolom] || 0) + (t.bedrag || 0);
+      else       row.overige_toeslagen[norm] = (row.overige_toeslagen[norm] || 0) + (t.bedrag || 0);
+    }
+    return row;
+  });
+  if (regelRows.length) {
+    const { error: rErr } = await supabase.from('factuur_regels').insert(regelRows);
+    if (rErr) return res.status(500).json({ ok: false, error: 'Factuur-regels fout: ' + rErr.message });
+  }
+
+  return res.json({
+    ok: true, type: detect.type, vertrouwen: detect.vertrouwen,
+    importId: importRow.id, samenvatting,
+    alerts: alerts.length ? `⚠️ ${alerts.length} afwijking(en) ten opzichte van prijsafspraak` : null,
   });
 }
 
