@@ -20,6 +20,18 @@ import {
   listTenants, createTenant, getTenantBySlug,
 } from '../services/tenantService.js';
 
+function safeEqual(a, b) {
+  const ab = Buffer.from(String(a || '')); const bb = Buffer.from(String(b || ''));
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
+function isServiceToken(req) {
+  const cron = process.env.CRON_SECRET || '';
+  const tok  = req.query?.token || req.headers?.['x-service-token'] || req.headers?.['x-token'] || '';
+  return cron && tok && safeEqual(String(tok), cron);
+}
+
 function genereerWachtwoord(lengte = 14) {
   // 14 chars uit a-z, A-Z, 0-9 met goede entropie (~83 bits)
   const chars = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -37,12 +49,16 @@ function slugify(name) {
 }
 
 export default async function handler(req, res) {
-  const user = await requireLogin(req, res, { json: true });
-  if (!user) return;
+  // Service-token (CRON_SECRET) mag óók — voor Romy-HQ tenant-picker
+  const viaService = isServiceToken(req);
 
-  // Alleen superuser mag tenants beheren
-  if (!user.is_superuser) {
-    return res.status(403).json({ error: 'Alleen superusers mogen tenants beheren' });
+  let user = null;
+  if (!viaService) {
+    user = await requireLogin(req, res, { json: true });
+    if (!user) return;
+    if (!user.is_superuser) {
+      return res.status(403).json({ error: 'Alleen superusers mogen tenants beheren' });
+    }
   }
 
   if (req.method === 'GET') {
