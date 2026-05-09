@@ -7,7 +7,7 @@ import parseB2L from '../parsers/parseB2L.js';
 import { isReleasePdf, parseRelease } from '../parsers/parseRelease.js';
 import pdfParse from 'pdf-parse';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
+import { getGmailTransporter, RECIPIENT_EMAIL, metOrigineel } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
@@ -21,11 +21,6 @@ function isGeldigeTO(containers) {
     (c.klantplaats && c.klantplaats.length > 1) ||
     (c.locaties?.some(l => l.naam))
   );
-}
-
-function metOrigineel(tekst, bodyText) {
-  if (!bodyText?.trim()) return tekst;
-  return `${tekst}\n\n${'─'.repeat(50)}\nOriginele email:\n\n${bodyText.trim()}`;
 }
 
 export default async function handleB2L({

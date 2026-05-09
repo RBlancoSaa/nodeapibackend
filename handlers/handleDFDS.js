@@ -6,7 +6,7 @@ import path from 'path';
 import parseDFDS from '../parsers/parseDFDS.js';
 import { enrichOrder } from '../utils/enrichOrder.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
+import { getGmailTransporter, RECIPIENT_EMAIL, metOrigineel } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
@@ -27,11 +27,6 @@ const DFDS_OPDRACHTGEVER_OVERRIDES = [
     }
   }
 ];
-
-function metOrigineel(tekst, bodyText) {
-  if (!bodyText?.trim()) return tekst;
-  return `${tekst}\n\n${'─'.repeat(50)}\nOriginele email:\n\n${bodyText.trim()}`;
-}
 
 /** Geeft de opdrachtgever-override als de tekst een bekend patroon bevat, anders null. */
 function getDFDSOpdrachtgeverOverride(text) {

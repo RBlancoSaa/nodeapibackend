@@ -13,6 +13,15 @@ export function hasGmail() {
   );
 }
 
+/**
+ * Voegt de originele email-tekst toe aan een uitgaand bericht.
+ * Wordt geïmporteerd door alle handlers zodat er geen dubbele code is.
+ */
+export function metOrigineel(tekst, bodyText) {
+  if (!bodyText?.trim()) return tekst;
+  return `${tekst}\n\n${'─'.repeat(50)}\nOriginele email:\n\n${bodyText.trim()}`;
+}
+
 // Backwards-compat: returns an object with sendMail that matches nodemailer API
 export async function getGmailTransporter() {
   const { sendViaGmailApi } = await import('../services/gmailApiService.js');

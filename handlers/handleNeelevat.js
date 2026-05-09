@@ -5,15 +5,10 @@ import os from 'os';
 import path from 'path';
 import parseNeelevat from '../parsers/parseNeelevat.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { getGmailTransporter, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
+import { getGmailTransporter, RECIPIENT_EMAIL, metOrigineel } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
 import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
-
-function metOrigineel(tekst, bodyText) {
-  if (!bodyText?.trim()) return tekst;
-  return `${tekst}\n\n${'─'.repeat(50)}\nOriginele email:\n\n${bodyText.trim()}`;
-}
 
 export default async function handleNeelevat({ buffer, base64, filename, mailSubject, fromEmail = '', bodyText = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Neelevat-bestand: ${filename}`);

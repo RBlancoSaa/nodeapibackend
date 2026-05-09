@@ -6,14 +6,9 @@ import path from 'path';
 import { createClient } from '@supabase/supabase-js';
 import parseSteinweg from '../parsers/parseSteinweg.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
-import { getGmailTransporter, hasGmail, RECIPIENT_EMAIL } from '../utils/gmailTransport.js';
+import { getGmailTransporter, hasGmail, RECIPIENT_EMAIL, metOrigineel } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
-
-function metOrigineel(tekst, bodyText) {
-  if (!bodyText?.trim()) return tekst;
-  return `${tekst}\n\n${'─'.repeat(50)}\nOriginele email:\n\n${bodyText.trim()}`;
-}
 
 // ── Helpers: groeperen op afzetdepot ────────────────────────────────────────
 
