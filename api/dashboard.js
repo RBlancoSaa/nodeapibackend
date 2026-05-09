@@ -133,74 +133,76 @@ export default async function handler(req, res) {
       .from('prijsafspraken').select('*').order('klant');
     const prijsafspraken = paRaw || [];
 
-    // ── Unieke bronnen ophalen (opdrachtgevers — lookup-sleutel in enrichOrder) ──
-    const { data: allBronnenRaw } = await supabase
-      .from('opdrachten_log').select('bron').not('bron', 'is', null).neq('bron', '');
-    const bronSet = new Set();
+    // ── Unieke bronnen + klanten ophalen (alleen voor live tenants) ─────────
     const allBronnen = [];
-    for (const r of (allBronnenRaw || [])) {
-      const b = (r.bron || '').trim();
-      if (b && !bronSet.has(b.toLowerCase())) { bronSet.add(b.toLowerCase()); allBronnen.push({ naam: b, plaats: '', bron: b, isBron: true }); }
-    }
-    allBronnen.sort((a, b) => a.naam.localeCompare(b.naam));
-
-    // ── Alle unieke klant_naam waarden ophalen (over alle tijden) ────────────
-    const { data: allKlantenRaw } = await supabase
-      .from('opdrachten_log')
-      .select('klant_naam, klant_plaats, bron')
-      .not('klant_naam', 'is', null)
-      .neq('klant_naam', '')
-      .neq('klant_naam', 'OMRIJDER')
-      .order('klant_naam');
-    // Deduplicate op klant_naam
-    const klantNaamMap = new Map();
-    for (const r of (allKlantenRaw || [])) {
-      const naam = (r.klant_naam || '').trim();
-      if (!naam || naam.toUpperCase() === 'OMRIJDER') continue;
-      if (!klantNaamMap.has(naam)) klantNaamMap.set(naam, { naam, plaats: r.klant_plaats || '', bron: r.bron || '' });
-    }
-    const allKlanten = [...allBronnen, ...klantNaamMap.values()];
-
-    // ── Per-bron bestemmingen (klant_naam + klant_plaats per opdrachtgever) ───
+    const allKlanten = [];
     const bronDestsMap = {};
-    for (const r of (allKlantenRaw || [])) {
-      const bron  = (r.bron      || '').trim();
-      const naam  = (r.klant_naam  || '').trim();
-      const plaats = (r.klant_plaats || '').trim();
-      if (!bron || !naam) continue;
-      if (!bronDestsMap[bron]) bronDestsMap[bron] = new Map();
-      const key = `${naam.toLowerCase()}|${plaats.toLowerCase()}`;
-      if (!bronDestsMap[bron].has(key)) bronDestsMap[bron].set(key, { naam, plaats });
+    if (isLive) {
+      const { data: allBronnenRaw } = await supabase
+        .from('opdrachten_log').select('bron').not('bron', 'is', null).neq('bron', '');
+      const bronSet = new Set();
+      for (const r of (allBronnenRaw || [])) {
+        const b = (r.bron || '').trim();
+        if (b && !bronSet.has(b.toLowerCase())) { bronSet.add(b.toLowerCase()); allBronnen.push({ naam: b, plaats: '', bron: b, isBron: true }); }
+      }
+      allBronnen.sort((a, b) => a.naam.localeCompare(b.naam));
+
+      const { data: allKlantenRaw } = await supabase
+        .from('opdrachten_log')
+        .select('klant_naam, klant_plaats, bron')
+        .not('klant_naam', 'is', null)
+        .neq('klant_naam', '')
+        .neq('klant_naam', 'OMRIJDER')
+        .order('klant_naam');
+      const klantNaamMap = new Map();
+      for (const r of (allKlantenRaw || [])) {
+        const naam = (r.klant_naam || '').trim();
+        if (!naam || naam.toUpperCase() === 'OMRIJDER') continue;
+        if (!klantNaamMap.has(naam)) klantNaamMap.set(naam, { naam, plaats: r.klant_plaats || '', bron: r.bron || '' });
+      }
+      allKlanten.push(...allBronnen, ...klantNaamMap.values());
+
+      for (const r of (allKlantenRaw || [])) {
+        const bron  = (r.bron      || '').trim();
+        const naam  = (r.klant_naam  || '').trim();
+        const plaats = (r.klant_plaats || '').trim();
+        if (!bron || !naam) continue;
+        if (!bronDestsMap[bron]) bronDestsMap[bron] = new Map();
+        const key = `${naam.toLowerCase()}|${plaats.toLowerCase()}`;
+        if (!bronDestsMap[bron].has(key)) bronDestsMap[bron].set(key, { naam, plaats });
+      }
+      for (const bron of Object.keys(bronDestsMap)) {
+        bronDestsMap[bron] = [...bronDestsMap[bron].values()]
+          .sort((a, b) => a.naam.localeCompare(b.naam));
+      }
     }
-    // Convert Maps → sorted arrays
-    for (const bron of Object.keys(bronDestsMap)) {
-      bronDestsMap[bron] = [...bronDestsMap[bron].values()]
-        .sort((a, b) => a.naam.localeCompare(b.naam));
+
+    // ── Data ophalen (alleen voor live tenants) ──────────────────────────────
+    let opdrachten = [], emails = [], leegmeldingen = [];
+    if (isLive) {
+      let qOp = supabase.from('opdrachten_log').select('*')
+        .order('verwerkt_op', { ascending: false }).limit(1000);
+      if (cutoff)   qOp = qOp.gte('verwerkt_op', cutoff);
+      if (cutoffTo) qOp = qOp.lt('verwerkt_op', cutoffTo);
+      const { data: opRaw } = await qOp;
+
+      let qVl = supabase.from('verwerkingslog').select('*')
+        .order('created_at', { ascending: false }).limit(1000);
+      if (cutoff)   qVl = qVl.gte('created_at', cutoff);
+      if (cutoffTo) qVl = qVl.lt('created_at', cutoffTo);
+      const { data: vlRaw } = await qVl;
+
+      opdrachten = opRaw || [];
+      emails     = vlRaw || [];
+
+      // ── Leegmeldingen ophalen ──────────────────────────────────────────────
+      let qLm = supabase.from('leegmeldingen').select('*')
+        .order('created_at', { ascending: false }).limit(500);
+      if (cutoff)   qLm = qLm.gte('created_at', cutoff);
+      if (cutoffTo) qLm = qLm.lt('created_at', cutoffTo);
+      const { data: lmRaw } = await qLm;
+      leegmeldingen = lmRaw || [];
     }
-
-    // ── Data ophalen ─────────────────────────────────────────────────────────
-    let qOp = supabase.from('opdrachten_log').select('*')
-      .order('verwerkt_op', { ascending: false }).limit(1000);
-    if (cutoff)   qOp = qOp.gte('verwerkt_op', cutoff);
-    if (cutoffTo) qOp = qOp.lt('verwerkt_op', cutoffTo);
-    const { data: opRaw } = await qOp;
-
-    let qVl = supabase.from('verwerkingslog').select('*')
-      .order('created_at', { ascending: false }).limit(1000);
-    if (cutoff)   qVl = qVl.gte('created_at', cutoff);
-    if (cutoffTo) qVl = qVl.lt('created_at', cutoffTo);
-    const { data: vlRaw } = await qVl;
-
-    const opdrachten = opRaw || [];
-    const emails     = vlRaw || [];
-
-    // ── Leegmeldingen ophalen ────────────────────────────────────────────────
-    let qLm = supabase.from('leegmeldingen').select('*')
-      .order('created_at', { ascending: false }).limit(500);
-    if (cutoff)   qLm = qLm.gte('created_at', cutoff);
-    if (cutoffTo) qLm = qLm.lt('created_at', cutoffTo);
-    const { data: lmRaw } = await qLm;
-    const leegmeldingen = lmRaw || [];
 
     // ── Filter ───────────────────────────────────────────────────────────────
     const opFiltered = zoek ? opdrachten.filter(r =>
