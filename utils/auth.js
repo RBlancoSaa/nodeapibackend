@@ -155,6 +155,37 @@ export function acceptCronToken(req, res, opts = {}) {
 }
 
 /**
+ * Server-to-server: accepteert ofwel een user-sessie ofwel een service-token
+ * gelijk aan CRON_SECRET (via ?token=, X-Service-Token of X-Token header).
+ *
+ * Bij service-token mode wordt de sessie-check overgeslagen en krijg je een
+ * synthetische ctx met is_superuser:true, ideaal voor proxy-calls vanuit
+ * Romy-HQ → nodeapibackend.
+ */
+export async function requirePermissionOrServiceToken(req, res, permKey, tenantSlug, opts = {}) {
+  const cron  = process.env.CRON_SECRET || '';
+  const token = req.query?.token
+            || req.headers?.['x-service-token']
+            || req.headers?.['x-token']
+            || '';
+  if (cron && token && safeEqual(String(token), cron)) {
+    const tenant = await getTenantBySlug(tenantSlug);
+    if (!tenant) {
+      if (opts.json) res.status(404).json({ error: 'Onbekende tenant' });
+      else res.status(404).send(notFoundPage(tenantSlug));
+      return null;
+    }
+    return {
+      user: { id: 0, username: 'service', is_superuser: true },
+      tenant,
+      membership: null,
+      isService: true,
+    };
+  }
+  return requirePermission(req, res, permKey, tenantSlug, opts);
+}
+
+/**
  * Permissie-check op een tenant. Gebruik:
  *   const ctx = await requirePermission(req, res, 'view_opdrachten', tenantSlug);
  *   if (!ctx) return;

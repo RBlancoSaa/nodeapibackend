@@ -10,6 +10,13 @@ import testSendEmailHandler from './api/test-send-email.js';
 import inspectPdfHandler from './api/inspect-pdf.js';
 import dashboardHandler from './api/dashboard.js';
 import prijsafsprakenHandler from './api/prijsafspraken.js';
+import tariefImportHandler from './api/tarief-import.js';
+import tariefAnalyseHandler from './api/tarief-analyse.js';
+import importAutoDetectHandler from './api/import-auto-detect.js';
+import genereerVoorstellenHandler from './api/genereer-voorstellen.js';
+import voorstellenHandler from './api/voorstellen.js';
+import adminTenantsApiHandler from './api/admin-tenants.js';
+import adminTenantsPageHandler from './api/admin-tenants-page.js';
 import loginHandler from './api/login.js';
 import logoutHandler from './api/logout.js';
 import usersHandler from './api/users.js';
@@ -18,8 +25,9 @@ import { listMembershipsForUser } from './services/userService.js';
 import { listTenants } from './services/tenantService.js';
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Imports kunnen groot zijn (XPS-archief ~10MB = base64 ~13MB; oudedata.xlsx 3.4MB)
+app.use(express.json({ limit: '32mb' }));
+app.use(express.urlencoded({ extended: false, limit: '32mb' }));
 const PORT = process.env.PORT || 3000;
 
 // ─── Root: kies waar de gebruiker heen moet ─────────────────────────────────
@@ -77,7 +85,10 @@ h1{font-size:22px;margin-bottom:24px;font-weight:600}
   <div class="brand">Automating <span>Logistics</span></div>
   <div class="who">${escapeHtml(user.username)}${user.is_superuser ? ' (superuser)' : ''}<a href="/api/logout">Uitloggen</a></div>
 </div>
-<h1>Kies een tenant</h1>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+  <h1 style="margin:0">Kies een tenant</h1>
+  ${user.is_superuser ? `<a href="/admin/tenants" style="padding:8px 16px;background:#8B1A2E;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600">+ Nieuwe tenant</a>` : ''}
+</div>
 ${items.length ? `<div class="grid">${cards}</div>` : `<div class="empty">Geen tenants toegewezen.</div>`}
 </div></body></html>`);
 }
@@ -99,6 +110,18 @@ app.get('/api/test-send-email', testSendEmailHandler);
 app.get('/api/inspect-pdf', inspectPdfHandler);
 app.get('/api/prijsafspraken', prijsafsprakenHandler);
 app.post('/api/prijsafspraken', prijsafsprakenHandler);
+app.post('/api/tarief-import', tariefImportHandler);
+app.get('/api/tarief-analyse', tariefAnalyseHandler);
+app.post('/api/tarief-analyse', tariefAnalyseHandler);
+app.post('/api/import/auto-detect', importAutoDetectHandler);
+app.post('/api/import-auto-detect', importAutoDetectHandler);
+app.post('/api/genereer-voorstellen', genereerVoorstellenHandler);
+app.get('/api/voorstellen', voorstellenHandler);
+app.post('/api/voorstellen', voorstellenHandler);
+app.patch('/api/voorstellen', voorstellenHandler);
+app.get('/api/admin/tenants', adminTenantsApiHandler);
+app.post('/api/admin/tenants', adminTenantsApiHandler);
+app.get('/admin/tenants', adminTenantsPageHandler);
 app.get('/api/login', loginHandler);
 app.post('/api/login', loginHandler);
 app.get('/api/logout', logoutHandler);
@@ -115,7 +138,7 @@ app.get('/api/dashboard', (req, res) => {
 });
 
 // ─── Tenant slug routing — komt LAATST zodat /api/... voorrang heeft ────────
-const RESERVED_SLUGS = new Set(['api', 'favicon.ico', 'robots.txt', 'admin', 'static', 'public']);
+const RESERVED_SLUGS = new Set(['api', 'favicon.ico', 'robots.txt', 'admin', 'static', 'public', 'tenants']);
 app.get('/:slug', (req, res, next) => {
   const slug = req.params.slug;
   if (RESERVED_SLUGS.has(slug)) return next();
