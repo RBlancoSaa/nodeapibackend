@@ -15,7 +15,9 @@ const COOKIE_NAME    = 'et_session';
 const SESSION_MAX_MS = 30 * 24 * 60 * 60 * 1000; // 30 dagen
 
 function getSecret() {
-  return process.env.SESSION_SECRET || process.env.CRON_SECRET || '';
+  // SESSION_SECRET MOET los staan van CRON_SECRET. Anders kan een cron-token
+  // worden gebruikt om sessiecookies te vervalsen (zelfde HMAC key).
+  return process.env.SESSION_SECRET || '';
 }
 
 function b64u(buf) {
@@ -34,7 +36,7 @@ function hmac(payload) {
 // Session-payload: { id (user_id), exp }
 export function signSession(userId) {
   const secret = getSecret();
-  if (!secret) throw new Error('SESSION_SECRET / CRON_SECRET niet geconfigureerd');
+  if (!secret) throw new Error('SESSION_SECRET niet geconfigureerd');
   const payload = b64u(JSON.stringify({ id: userId, exp: Date.now() + SESSION_MAX_MS }));
   return `${payload}.${hmac(payload)}`;
 }

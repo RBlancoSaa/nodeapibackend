@@ -13,6 +13,7 @@ import {
   ensureBootstrapUser,
   listMembershipsForUser,
 } from '../services/userService.js';
+import { getCsrfToken, verifyCsrf, CSRF } from '../utils/csrf.js';
 
 function esc(s) {
   return String(s ?? '')
@@ -34,7 +35,7 @@ async function defaultLandingFor(user) {
   return '/';
 }
 
-function renderLogin({ next, error, username }) {
+function renderLogin({ next, error, username, csrfToken }) {
   const errBlok = error ? `<div class="err">${esc(error)}</div>` : '';
   return `<!DOCTYPE html>
 <html lang="nl">
@@ -77,6 +78,7 @@ function renderLogin({ next, error, username }) {
     <label for="p">Wachtwoord</label>
     <input id="p" name="password" type="password" required autocomplete="current-password">
     <input type="hidden" name="next" value="${esc(next)}">
+    <input type="hidden" name="${CSRF.field}" value="${esc(csrfToken)}">
     <button type="submit">Inloggen</button>
     <div class="foot">Automating Logistics · Romy</div>
   </form>
@@ -98,8 +100,9 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     const next = safeNext(req.query?.next);
+    const csrfToken = getCsrfToken(req, res);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.status(200).send(renderLogin({ next, error: '', username: '' }));
+    return res.status(200).send(renderLogin({ next, error: '', username: '', csrfToken }));
   }
 
   if (req.method === 'POST') {
@@ -109,10 +112,12 @@ export default async function handler(req, res) {
     const next     = safeNext(body.next);
 
     const fail = (msg) => {
+      const csrfToken = getCsrfToken(req, res);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.status(401).send(renderLogin({ next, error: msg, username }));
+      return res.status(401).send(renderLogin({ next, error: msg, username, csrfToken }));
     };
 
+    if (!verifyCsrf(req)) return fail('Ongeldige sessie. Vernieuw de pagina en probeer opnieuw.');
     if (!username || !password) return fail('Gebruikersnaam en wachtwoord vereist.');
 
     const user = await getUserByUsername(username);

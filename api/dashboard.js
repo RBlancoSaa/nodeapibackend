@@ -79,10 +79,18 @@ export default async function handler(req, res) {
     // blijft hij leeg; de sessiecookie wordt automatisch meegestuurd.
     const token = '';
 
-    const periode = req.query?.periode || 'deze-maand';
-    let   tab     = req.query?.tab    || 'opdrachten';
-    const etype   = req.query?.etype  || '';   // email-type filter binnen Emails-tab
-    const zoek    = (req.query?.zoek  || '').toLowerCase().trim();
+    // Whitelist query params om injection / onverwacht gedrag te voorkomen.
+    const ALLOWED_PERIODES = new Set(['vandaag','gisteren','deze-week','vorige-week','deze-maand','vorige-maand','alles']);
+    const ALLOWED_TABS     = new Set(['opdrachten','emails','klanten','prijsafspraken','gebruikers','instellingen']);
+    const ALLOWED_ETYPES   = new Set(['', 'transport','reservering','update','onbekend']);
+
+    const rawPeriode = String(req.query?.periode || 'deze-maand');
+    const periode = ALLOWED_PERIODES.has(rawPeriode) ? rawPeriode : 'deze-maand';
+    const rawTab  = String(req.query?.tab || 'opdrachten');
+    let   tab     = ALLOWED_TABS.has(rawTab) ? rawTab : 'opdrachten';
+    const rawEtype = String(req.query?.etype || '');
+    const etype   = ALLOWED_ETYPES.has(rawEtype) ? rawEtype : '';
+    const zoek    = String(req.query?.zoek || '').toLowerCase().trim().slice(0, 200);
     // base = relative query-prefix; URLs blijven relatief t.o.v. /<tenant-slug>.
     const base    = `?token=${encodeURIComponent(token)}`;
 
@@ -1858,6 +1866,6 @@ async function userRemove(id, username) {
 
   } catch (err) {
     console.error('❌ Dashboard crash:', err);
-    res.status(500).send(`<pre style="padding:20px;font-family:monospace">Dashboard fout:\n${err?.stack || err?.message || String(err)}</pre>`);
+    res.status(500).send(`<pre style="padding:20px;font-family:monospace">Er is een interne fout opgetreden. Probeer het later opnieuw of neem contact op met support.</pre>`);
   }
 }

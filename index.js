@@ -13,13 +13,68 @@ import prijsafsprakenHandler from './api/prijsafspraken.js';
 import loginHandler from './api/login.js';
 import logoutHandler from './api/logout.js';
 import usersHandler from './api/users.js';
-import { getCurrentUser } from './utils/auth.js';
+import { getCurrentUser, acceptCronToken } from './utils/auth.js';
 import { listMembershipsForUser } from './services/userService.js';
 import { listTenants } from './services/tenantService.js';
+import helmet from 'helmet';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// ─── Security middleware ────────────────────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// CORS: alleen toegestane origins. Pas aan via ALLOWED_ORIGINS env (komma-gescheiden).
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true); // server-to-server / curl
+    if (allowedOrigins.length === 0) return cb(null, true); // dev: alles toestaan
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error('CORS niet toegestaan'));
+  },
+  credentials: true,
+}));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+// Rate limiters
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Te veel loginpogingen. Probeer over 15 minuten opnieuw.' },
+});
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Te veel verzoeken. Probeer later opnieuw.' },
+});
+
+// Wrapper: vereist een geldige cron-token (CRON_SECRET) op interne endpoints.
+function requireCronAuth(req, res, next) {
+  if (acceptCronToken(req, res, { json: true })) return next();
+  // acceptCronToken heeft al een 401 gestuurd
+}
+
 const PORT = process.env.PORT || 3000;
 
 // ─── Root: kies waar de gebruiker heen moet ─────────────────────────────────
@@ -88,25 +143,28 @@ function escapeHtml(s) {
 }
 
 // ─── API routes ──────────────────────────────────────────────────────────────
-app.post('/api/parse-uploaded-pdf', parsePdfHandler);
-app.post('/api/generate-easy-files', generateEasyHandler);
-app.get('/api/upload-from-inbox', uploadFromInboxHandler);
-app.get('/api/process-steinweg-queue', processSteinwegQueueHandler);
-app.get('/api/test-steinweg', testSteinwegHandler);
-app.post('/api/test-steinweg', testSteinwegHandler);
-app.get('/api/test-gmail-auth', testGmailAuthHandler);
-app.get('/api/test-send-email', testSendEmailHandler);
+app.post('/api/parse-uploaded-pdf', apiLimiter, parsePdfHandler);
+app.post('/api/generate-easy-files', apiLimiter, generateEasyHandler);
+
+// Cron / interne endpoints — vereisen CRON_SECRET token
+app.get('/api/upload-from-inbox', requireCronAuth, uploadFromInboxHandler);
+app.get('/api/process-steinweg-queue', requireCronAuth, processSteinwegQueueHandler);
+app.get('/api/test-steinweg', requireCronAuth, testSteinwegHandler);
+app.post('/api/test-steinweg', requireCronAuth, testSteinwegHandler);
+app.get('/api/test-gmail-auth', requireCronAuth, testGmailAuthHandler);
+app.get('/api/test-send-email', requireCronAuth, testSendEmailHandler);
 app.get('/api/inspect-pdf', inspectPdfHandler);
-app.get('/api/prijsafspraken', prijsafsprakenHandler);
-app.post('/api/prijsafspraken', prijsafsprakenHandler);
+
+app.get('/api/prijsafspraken', apiLimiter, prijsafsprakenHandler);
+app.post('/api/prijsafspraken', apiLimiter, prijsafsprakenHandler);
 app.get('/api/login', loginHandler);
-app.post('/api/login', loginHandler);
+app.post('/api/login', loginLimiter, loginHandler);
 app.get('/api/logout', logoutHandler);
 app.post('/api/logout', logoutHandler);
-app.get('/api/users', usersHandler);
-app.post('/api/users', usersHandler);
-app.patch('/api/users', usersHandler);
-app.delete('/api/users', usersHandler);
+app.get('/api/users', apiLimiter, usersHandler);
+app.post('/api/users', apiLimiter, usersHandler);
+app.patch('/api/users', apiLimiter, usersHandler);
+app.delete('/api/users', apiLimiter, usersHandler);
 
 // Legacy: oude bookmark op /api/dashboard?token=... → vertaal naar tiaro slug
 app.get('/api/dashboard', (req, res) => {

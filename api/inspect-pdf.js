@@ -2,6 +2,8 @@
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
 import { createClient } from '@supabase/supabase-js';
+import { acceptCronToken, getCurrentUser } from '../utils/auth.js';
+import { validateFilename } from '../utils/validateFilename.js';
 
 let _supabase;
 function getSupabase() {
@@ -9,19 +11,24 @@ function getSupabase() {
 }
 
 export default async function handler(req, res) {
-  const bestand = req.query.file;
-  if (!bestand) {
+  // Auth: of een ingelogde gebruiker, of een geldige cron-token. Anders 401.
+  const user = await getCurrentUser(req);
+  if (!user) {
+    if (!acceptCronToken(req, res, { json: true })) return;
+  }
+
+  let bestand;
+  try {
+    bestand = validateFilename(req.query.file || '');
+  } catch (e) {
     return res.status(400).json({
-      error: 'Geef een bestandsnaam mee via ?file=bestandsnaam.pdf',
-      voorbeeld: '/api/inspect-pdf?file=transport_285404.pdf',
-      supabaseUrl: process.env.SUPABASE_URL || '(niet ingesteld)',
-      keySet: !!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY.includes('VERVANG')
+      error: 'Geef een geldige bestandsnaam mee via ?file=bestandsnaam.pdf'
     });
   }
 
   try {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY.includes('VERVANG')) {
-      return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE_KEY is niet ingesteld in de omgevingsvariabelen.' });
+      return res.status(500).json({ error: 'Server niet correct geconfigureerd' });
     }
 
     const { data, error } = await getSupabase()
@@ -30,7 +37,7 @@ export default async function handler(req, res) {
       .download(bestand);
 
     if (error) {
-      return res.status(404).json({ error: `Download mislukt: ${error.message}` });
+      return res.status(404).json({ error: 'Bestand niet gevonden' });
     }
 
     const buffer = Buffer.from(await data.arrayBuffer());
@@ -43,6 +50,7 @@ export default async function handler(req, res) {
       regels
     });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    console.error('inspect-pdf error:', err);
+    return res.status(500).json({ error: 'Interne fout bij verwerken PDF' });
   }
 }

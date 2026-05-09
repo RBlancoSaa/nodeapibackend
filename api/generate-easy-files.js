@@ -6,6 +6,7 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 import { createClient } from '@supabase/supabase-js';
+import { validateFilename } from '../utils/validateFilename.js';
 
 let _supabase;
 function getSupabase() {
@@ -41,9 +42,9 @@ export default async function handler(req, res) {
     const localPath = path.join('/tmp', bestandsnaam);
     fs.writeFileSync(localPath, xml, 'utf8');
 
-    const originelePdfNaam = data.pdfBestandsnaam || 'backup.pdf';
+    const originelePdfNaam = validateFilename(data.pdfBestandsnaam || 'backup.pdf');
     // 📥 PDF ophalen uit Supabase
-    const { data: downloadData, error: downloadError } = await supabase
+    const { data: downloadData, error: downloadError } = await getSupabase()
      .storage
      .from('inboxpdf') // ✅ correcte bucket
      .download(originelePdfNaam);
@@ -120,6 +121,6 @@ await sendEmailWithAttachments({
 
   } catch (error) {
     console.error('💥 Fout bij genereren .easy-bestand:', error);
-    return res.status(500).json({ success: false, message: error.message || 'Onbekende fout' });
+    return res.status(500).json({ success: false, message: 'Interne fout bij genereren .easy-bestand' });
   }
 }

@@ -8,6 +8,8 @@ import parsePdfToJson from '../services/parsePdfToJson.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { uploadPdfAttachmentsToSupabase } from '../services/uploadPdfAttachmentsToSupabase.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
+import { acceptCronToken, getCurrentUser } from '../utils/auth.js';
+import { validateFilename } from '../utils/validateFilename.js';
 
 let _supabase;
 function getSupabase() {
@@ -19,9 +21,17 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
-  const { filename } = req.body;
-  if (!filename) {
-    return res.status(400).json({ success: false, message: 'Geen bestandsnaam opgegeven' });
+  // Auth: ingelogde user of cron-token vereist.
+  const user = await getCurrentUser(req);
+  if (!user) {
+    if (!acceptCronToken(req, res, { json: true })) return;
+  }
+
+  let filename;
+  try {
+    filename = validateFilename(req.body?.filename || '');
+  } catch (e) {
+    return res.status(400).json({ success: false, message: 'Ongeldige bestandsnaam' });
   }
 
   // 1. Download PDF uit Supabase

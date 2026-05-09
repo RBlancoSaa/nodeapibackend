@@ -19,7 +19,10 @@ export default async function handler(req, res) {
       .from('prijsafspraken')
       .select('*')
       .order('klant');
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      console.error('prijsafspraken GET error:', error);
+      return res.status(500).json({ error: 'Kon prijsafspraken niet ophalen' });
+    }
     return res.status(200).json(data || []);
   }
 
@@ -30,11 +33,15 @@ export default async function handler(req, res) {
     const velden = body.velden;
     const all_in = body.all_in;
     if (!klant) return res.status(400).json({ error: 'klant is verplicht' });
+    if (klant.length > 200) return res.status(400).json({ error: 'klant te lang' });
 
     const { error } = await supabase
       .from('prijsafspraken')
       .upsert({ klant, velden, all_in: !!all_in, updated_at: new Date().toISOString() }, { onConflict: 'klant' });
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      console.error('prijsafspraken POST error:', error);
+      return res.status(500).json({ error: 'Opslaan mislukt' });
+    }
     return res.status(200).json({ ok: true });
   }
 
