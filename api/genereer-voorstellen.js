@@ -18,7 +18,7 @@
 
 import '../utils/fsPatch.js';
 import { supabase } from '../services/supabaseClient.js';
-import { requirePermission } from '../utils/auth.js';
+import { requirePermissionOrServiceToken } from '../utils/auth.js';
 
 function median(arr) {
   if (!arr.length) return null;
@@ -41,7 +41,7 @@ function round(n, dec = 2) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const slug = (req.query?.tenant || req.body?.tenant || 'tiarotransport').toString();
-  const ctx = await requirePermission(req, res, 'edit_tarieven', slug, { json: true });
+  const ctx = await requirePermissionOrServiceToken(req, res, 'edit_tarieven', slug, { json: true });
   if (!ctx) return;
 
   const { minRitten = 3, klant: klantFilter = null } = req.body || {};

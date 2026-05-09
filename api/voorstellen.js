@@ -14,11 +14,11 @@
 
 import '../utils/fsPatch.js';
 import { supabase } from '../services/supabaseClient.js';
-import { requirePermission } from '../utils/auth.js';
+import { requirePermissionOrServiceToken } from '../utils/auth.js';
 
 export default async function handler(req, res) {
   const slug = (req.query?.tenant || req.body?.tenant || 'tiarotransport').toString();
-  const ctx = await requirePermission(req, res, 'edit_tarieven', slug, { json: true });
+  const ctx = await requirePermissionOrServiceToken(req, res, 'edit_tarieven', slug, { json: true });
   if (!ctx) return;
 
   if (req.method === 'GET')   return lijst(req, res, ctx);

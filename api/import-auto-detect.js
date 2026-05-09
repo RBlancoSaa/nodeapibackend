@@ -25,7 +25,7 @@
 
 import '../utils/fsPatch.js';
 import { supabase } from '../services/supabaseClient.js';
-import { requirePermission } from '../utils/auth.js';
+import { requirePermissionOrServiceToken } from '../utils/auth.js';
 import { detectFileType } from '../parsers/detectFileType.js';
 import { parseRptFacturenXps, toeslagNaarKolom, normaliseerToeslag } from '../parsers/parseRptFacturenXps.js';
 import { parseTiaroRittenarchief } from '../parsers/parseTiaroRittenarchief.js';
@@ -37,7 +37,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const slug = (req.query?.tenant || req.body?.tenant || 'tiarotransport').toString();
-  const ctx = await requirePermission(req, res, 'edit_tarieven', slug, { json: true });
+  const ctx = await requirePermissionOrServiceToken(req, res, 'edit_tarieven', slug, { json: true });
   if (!ctx) return;
 
   const { bestandsnaam, data_base64, dryRun } = req.body || {};
