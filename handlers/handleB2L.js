@@ -10,7 +10,7 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, RECIPIENT_EMAIL, metOrigineel } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
-import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
+import { checkDuplicaat, buildUpdateMelding, voegUpdateInstructieToe } from '../utils/checkDuplicaat.js';
 
 // Controleert of een parse-resultaat een echte transportopdracht is
 // (niet een release of wegvervoer die per ongeluk iets parsete)
@@ -26,6 +26,7 @@ function isGeldigeTO(containers) {
 export default async function handleB2L({
   buffer, base64, filename, fromEmail = '',
   bodyText = '',
+  mailSubject = '',
   allPdfs = null,       // alle PDFs uit dezelfde email
   getReleaseData = null
 }) {
@@ -130,6 +131,7 @@ export default async function handleB2L({
       const vorigeEntry = await checkDuplicaat(cntr, 'B2L');
       const isUpdate    = !!vorigeEntry;
       if (isUpdate) console.log(`🔁 B2L update gedetecteerd: ${cntr}`);
+      voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
 
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,

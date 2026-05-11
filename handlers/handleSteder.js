@@ -8,7 +8,7 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, RECIPIENT_EMAIL, metOrigineel } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
-import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
+import { checkDuplicaat, buildUpdateMelding, voegUpdateInstructieToe } from '../utils/checkDuplicaat.js';
 
 export default async function handleSteder({ buffer, base64, filename, mailSubject, fromEmail = '', bodyText = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Steder-bestand: ${filename}`);
@@ -45,6 +45,7 @@ export default async function handleSteder({ buffer, base64, filename, mailSubje
       const vorigeEntry = await checkDuplicaat(cntr, 'Steder');
       const isUpdate    = !!vorigeEntry;
       if (isUpdate) console.log(`🔁 Steder update gedetecteerd: ${cntr}`);
+      voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
 
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,

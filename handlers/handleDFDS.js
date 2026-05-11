@@ -9,7 +9,7 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, RECIPIENT_EMAIL, metOrigineel } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
-import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
+import { checkDuplicaat, buildUpdateMelding, voegUpdateInstructieToe } from '../utils/checkDuplicaat.js';
 
 // ── Laad/los-adres overrides op basis van lading/body-tekst ─────────────────
 // Overschrijft het laad/losadres (klantnaam/adres) — NIET de opdrachtgever.
@@ -312,6 +312,7 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
       const vorigeEntry = await checkDuplicaat(cntr, 'DFDS');
       const isUpdate    = !!vorigeEntry;
       if (isUpdate) console.log(`🔁 DFDS update gedetecteerd: ${cntr}`);
+      voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
 
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,

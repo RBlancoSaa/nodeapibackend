@@ -37,6 +37,31 @@ export async function checkDuplicaat(containernummer, bron = null) {
 }
 
 /**
+ * Voegt een update-waarschuwing toe aan container.instructies (het .easy bestand).
+ * Roep aan VOOR generateXmlFromJson, na checkDuplicaat.
+ * @param {object} container   - de container die naar XML gaat
+ * @param {object|null} vorigeEntry - resultaat van checkDuplicaat(), of null
+ * @param {string} mailSubject - email-onderwerp (voor keyword-detectie)
+ */
+export function voegUpdateInstructieToe(container, vorigeEntry, mailSubject = '') {
+  const subjectIsUpdate = !!mailSubject &&
+    /\b(update[d]?|correction[s]?|corrected|amendment|reschedule[d]?|revised|wijziging|gewijzigd|aanpassing)\b/i.test(mailSubject);
+
+  if (!vorigeEntry && !subjectIsUpdate) return;
+
+  let melding = '⚠️ UPDATE';
+  if (vorigeEntry) {
+    const datumStr = vorigeEntry.datum || '?';
+    const tijdStr  = vorigeEntry.tijd ? vorigeEntry.tijd.replace(/:00$/, '') : '';
+    melding += ` — eerder verwerkt op ${datumStr}${tijdStr ? ` om ${tijdStr}` : ''}`;
+  }
+
+  container.instructies = container.instructies
+    ? `${melding} | ${container.instructies}`
+    : melding;
+}
+
+/**
  * Bouw de update-melding tekst op voor in de e-mail body.
  * @param {object} vorigeEntry - resultaat van checkDuplicaat()
  * @param {string} containernummer

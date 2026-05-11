@@ -8,9 +8,9 @@ import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, hasGmail, RECIPIENT_EMAIL, metOrigineel } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
 import { mergeRelease } from '../utils/mergeRelease.js';
-import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
+import { checkDuplicaat, buildUpdateMelding, voegUpdateInstructieToe } from '../utils/checkDuplicaat.js';
 
-export default async function handleRitra({ buffer, base64, filename, fromEmail = '', bodyText = '', getReleaseData = null }) {
+export default async function handleRitra({ buffer, base64, filename, mailSubject = '', fromEmail = '', bodyText = '', getReleaseData = null }) {
   console.log(`📦 Verwerken van Ritra-bestand: ${filename}`);
 
   const containers = await parseRitra(buffer);
@@ -41,6 +41,7 @@ export default async function handleRitra({ buffer, base64, filename, fromEmail 
       const isUpdate    = !!vorigeEntry;
       const updateTekst = isUpdate ? buildUpdateMelding(vorigeEntry, cntr) : '';
       if (isUpdate) console.log(`🔁 Ritra update gedetecteerd: ${cntr} (vorige: ${vorigeEntry.datum} ${vorigeEntry.tijd})`);
+      voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
 
       const emailBody = metOrigineel(
         isUpdate

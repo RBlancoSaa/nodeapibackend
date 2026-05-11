@@ -8,7 +8,7 @@ import parseSteinweg from '../parsers/parseSteinweg.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { getGmailTransporter, hasGmail, RECIPIENT_EMAIL, metOrigineel } from '../utils/gmailTransport.js';
 import { logOpdracht } from '../utils/logOpdracht.js';
-import { checkDuplicaat, buildUpdateMelding } from '../utils/checkDuplicaat.js';
+import { checkDuplicaat, buildUpdateMelding, voegUpdateInstructieToe } from '../utils/checkDuplicaat.js';
 
 // ── Helpers: groeperen op afzetdepot ────────────────────────────────────────
 
@@ -181,6 +181,7 @@ export default async function handleSteinweg({
       const vorigeEntry = await checkDuplicaat(base.containernummer, 'Steinweg');
       const isUpdate    = !!vorigeEntry;
       if (isUpdate) console.log(`🔁 Steinweg update gedetecteerd: ${base.containernummer}`);
+      voegUpdateInstructieToe(base, vorigeEntry, emailSubject);
 
       // ── Stuur aparte email per .easy ──────────────────────────────────────
       if (useGmail) {
