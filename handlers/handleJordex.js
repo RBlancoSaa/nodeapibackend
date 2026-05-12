@@ -20,8 +20,9 @@ export default async function handleJordex({ buffer, base64, filename, mailSubje
   }
 
   // Update-detectie via email-onderwerp keywords (vroeg signaal, nog vóór parse)
-  const subjectIsUpdate = /\b(update[d]?|correction[s]?|corrected|amendment|reschedule[d]?|revised|wijziging)\b/i.test(mailSubject || '') ||
-                          /\b(update[d]?|correction[s]?|corrected)\b/i.test(filename || '');
+  // Zelfde keywords als classifyEmail in upload-from-inbox.js — altijd synchroon houden
+  const UPDATE_RE = /\b(update[d]?|correction[s]?|corrected|amend(ed|ment)?|reschedule[d]?|revis(ed|ion)?|wijziging|gewijzigd|aanpassing)\b/i;
+  const subjectIsUpdate = UPDATE_RE.test(mailSubject || '') || UPDATE_RE.test(filename || '');
   if (subjectIsUpdate) {
     console.log(`🔄 Jordex UPDATE via onderwerp: ${mailSubject || filename}`);
   }
@@ -55,18 +56,19 @@ export default async function handleJordex({ buffer, base64, filename, mailSubje
 
   for (const container of containers) {
     try {
-      const xml = await generateXmlFromJson(container);
       const cntr = container.containernummer || container.laadreferentie || 'onbekend';
       const ref  = container.ritnummer || cntr;
-      const easyFilename = `Order_${ref}_${cntr}_Jordex.easy`;
-      const easyPath = path.join(os.tmpdir(), easyFilename);
-      fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
-      // Update-detectie: DB-check op containernummer (betrouwbaarder dan keyword)
+      // Update-detectie vóór XML-generatie zodat waarschuwing in .easy terecht komt
       const vorigeEntry = await checkDuplicaat(cntr, 'Jordex');
       const isUpdate    = !!vorigeEntry || subjectIsUpdate;
       if (isUpdate) console.log(`🔁 Jordex update gedetecteerd: ${cntr}`);
       voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
+
+      const xml = await generateXmlFromJson(container);
+      const easyFilename = `Order_${ref}_${cntr}_Jordex.easy`;
+      const easyPath = path.join(os.tmpdir(), easyFilename);
+      fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
       const emailBody = metOrigineel(
         isUpdate

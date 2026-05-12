@@ -29,19 +29,20 @@ export default async function handleRitra({ buffer, base64, filename, mailSubjec
 
   for (const container of containers) {
     try {
-      const xml = await generateXmlFromJson(container);
       const cntr = container.containernummer || 'onbekend';
       const ref  = container.ritnummer || cntr;
-      const easyFilename = `Order_${ref}_${cntr}_Ritra.easy`;
-      const easyPath = path.join(os.tmpdir(), easyFilename);
-      fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
-      // Controleer of dit containernummer al eerder is verwerkt → update-melding
+      // Update-detectie vóór XML-generatie zodat waarschuwing in .easy terecht komt
       const vorigeEntry = await checkDuplicaat(cntr, 'Ritra');
       const isUpdate    = !!vorigeEntry;
       const updateTekst = isUpdate ? buildUpdateMelding(vorigeEntry, cntr) : '';
       if (isUpdate) console.log(`🔁 Ritra update gedetecteerd: ${cntr} (vorige: ${vorigeEntry.datum} ${vorigeEntry.tijd})`);
       voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
+
+      const xml = await generateXmlFromJson(container);
+      const easyFilename = `Order_${ref}_${cntr}_Ritra.easy`;
+      const easyPath = path.join(os.tmpdir(), easyFilename);
+      fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
       const emailBody = metOrigineel(
         isUpdate

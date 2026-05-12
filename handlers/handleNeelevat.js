@@ -35,18 +35,19 @@ export default async function handleNeelevat({ buffer, base64, filename, mailSub
         if (m) container.ritnummer = m[1];
       }
 
-      const xml = await generateXmlFromJson(container);
-      console.log('📄 Neelevat XML volledig:\n' + xml);
       const cntr = container.containernummer || 'onbekend';
       const ref  = container.ritnummer || cntr;
-      const easyFilename = `Order_${ref}_${cntr}_Neelevat.easy`;
-      const easyPath = path.join(os.tmpdir(), easyFilename);
-      fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
       const vorigeEntry = await checkDuplicaat(cntr, 'Neelevat');
       const isUpdate    = !!vorigeEntry;
       if (isUpdate) console.log(`🔁 Neelevat update gedetecteerd: ${cntr}`);
       voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
+
+      const xml = await generateXmlFromJson(container);
+      console.log('📄 Neelevat XML volledig:\n' + xml);
+      const easyFilename = `Order_${ref}_${cntr}_Neelevat.easy`;
+      const easyPath = path.join(os.tmpdir(), easyFilename);
+      fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,

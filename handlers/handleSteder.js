@@ -35,17 +35,18 @@ export default async function handleSteder({ buffer, base64, filename, mailSubje
         if (m) container.ritnummer = m[1];
       }
 
-      const xml = await generateXmlFromJson(container);
       const cntr = container.containernummer || container.laadreferentie || 'onbekend';
       const ref  = container.ritnummer || cntr;
-      const easyFilename = `Order_${ref}_${cntr}_Steder.easy`;
-      const easyPath = path.join(os.tmpdir(), easyFilename);
-      fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
       const vorigeEntry = await checkDuplicaat(cntr, 'Steder');
       const isUpdate    = !!vorigeEntry;
       if (isUpdate) console.log(`🔁 Steder update gedetecteerd: ${cntr}`);
       voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
+
+      const xml = await generateXmlFromJson(container);
+      const easyFilename = `Order_${ref}_${cntr}_Steder.easy`;
+      const easyPath = path.join(os.tmpdir(), easyFilename);
+      fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
 
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,

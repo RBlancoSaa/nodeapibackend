@@ -56,11 +56,17 @@ export default async function handleEimskip({
 
   for (const container of geldige) {
     try {
+      const cntr          = container.containernummer || 'onbekend';
+      const ref           = container.ritnummer || cntr;
+
+      const vorigeEntry = await checkDuplicaat(cntr, 'Eimskip');
+      const isUpdate    = !!vorigeEntry;
+      if (isUpdate) console.log(`🔁 Eimskip update gedetecteerd: ${cntr}`);
+      voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
+
       const xml = await generateXmlFromJson(container);
       console.log('📄 Eimskip XML:\n' + xml);
 
-      const cntr          = container.containernummer || 'onbekend';
-      const ref           = container.ritnummer || cntr;
       const easyFilename  = `Order_${ref}_${cntr}_Eimskip.easy`;
       const easyPath      = path.join(os.tmpdir(), easyFilename);
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
@@ -72,11 +78,6 @@ export default async function handleEimskip({
           attachments.push({ filename: att.filename, content: att.buffer });
         }
       }
-
-      const vorigeEntry = await checkDuplicaat(cntr, 'Eimskip');
-      const isUpdate    = !!vorigeEntry;
-      if (isUpdate) console.log(`🔁 Eimskip update gedetecteerd: ${cntr}`);
-      voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
 
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,

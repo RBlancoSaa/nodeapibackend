@@ -148,11 +148,18 @@ export default async function handleSteinweg({
     }
 
     try {
-      const xml = await generateXmlFromJson(base);
       const cntr = base.containernummer || 'onbekend';
       const ref  = base.ritnummer || cntr;
       const isRetour = !base.brutogewicht || base.brutogewicht === '0';
       const suffix   = isRetour ? 'Retour' : 'Lossen';
+
+      // ── Update-detectie vóór XML-generatie zodat waarschuwing in .easy komt ─
+      const vorigeEntry = await checkDuplicaat(cntr, 'Steinweg');
+      const isUpdate    = !!vorigeEntry;
+      if (isUpdate) console.log(`🔁 Steinweg update gedetecteerd: ${cntr}`);
+      voegUpdateInstructieToe(base, vorigeEntry, emailSubject);
+
+      const xml = await generateXmlFromJson(base);
 
       // Bestandsnaam: groepen tonen aantal, enkelen tonen containernummer
       const easyFilename = groep.length > 1
@@ -176,12 +183,6 @@ export default async function handleSteinweg({
       }
 
       easyBestanden.push(easyFilename);
-
-      // ── Update-detectie op basis van eerste container in de groep ─────────
-      const vorigeEntry = await checkDuplicaat(base.containernummer, 'Steinweg');
-      const isUpdate    = !!vorigeEntry;
-      if (isUpdate) console.log(`🔁 Steinweg update gedetecteerd: ${base.containernummer}`);
-      voegUpdateInstructieToe(base, vorigeEntry, emailSubject);
 
       // ── Stuur aparte email per .easy ──────────────────────────────────────
       if (useGmail) {

@@ -297,9 +297,15 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
 
   for (const container of containers) {
     try {
-      const xml = await generateXmlFromJson(container);
       const cntr = container.containernummer || 'onbekend';
       const ref  = container.ritnummer || cntr;
+
+      const vorigeEntry = await checkDuplicaat(cntr, 'DFDS');
+      const isUpdate    = !!vorigeEntry;
+      if (isUpdate) console.log(`🔁 DFDS update gedetecteerd: ${cntr}`);
+      voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
+
+      const xml = await generateXmlFromJson(container);
       const easyFilename = `Order_${ref}_${cntr}_DFDS.easy`;
       const easyPath = path.join(os.tmpdir(), easyFilename);
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
@@ -308,11 +314,6 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
       if (origBase64) {
         bijlagen.push({ filename: origFilename, content: Buffer.from(origBase64, 'base64') });
       }
-
-      const vorigeEntry = await checkDuplicaat(cntr, 'DFDS');
-      const isUpdate    = !!vorigeEntry;
-      if (isUpdate) console.log(`🔁 DFDS update gedetecteerd: ${cntr}`);
-      voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
 
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,

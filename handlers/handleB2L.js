@@ -109,9 +109,15 @@ export default async function handleB2L({
 
   for (const container of containers) {
     try {
-      const xml = await generateXmlFromJson(container);
       const cntr = container.containernummer || 'onbekend';
       const ref  = container.ritnummer || cntr;
+
+      const vorigeEntry = await checkDuplicaat(cntr, 'B2L');
+      const isUpdate    = !!vorigeEntry;
+      if (isUpdate) console.log(`🔁 B2L update gedetecteerd: ${cntr}`);
+      voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
+
+      const xml = await generateXmlFromJson(container);
       const easyFilename = `Order_${ref}_${cntr}_B2L.easy`;
       const easyPath = path.join(os.tmpdir(), easyFilename);
       fs.writeFileSync(easyPath, Buffer.from(xml, 'utf-8'));
@@ -127,11 +133,6 @@ export default async function handleB2L({
             content: p.buffer
           }))
       ];
-
-      const vorigeEntry = await checkDuplicaat(cntr, 'B2L');
-      const isUpdate    = !!vorigeEntry;
-      if (isUpdate) console.log(`🔁 B2L update gedetecteerd: ${cntr}`);
-      voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
 
       await transporter.sendMail({
         from, to: RECIPIENT_EMAIL,
