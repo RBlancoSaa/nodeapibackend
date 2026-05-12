@@ -178,9 +178,12 @@ export default async function parseRitra(buffer) {
         const d = parseDatum(line);
         if (d) {
           leverdatumNaAfhaal = d;
-          // Zoek tijd op aangrenzende regels
+          // Zoek tijd in een venster van ±4 regels rond de datumlijn
           // FIX: ook punt-separator ondersteunen (08.00 naast 08:00)
-          const kandidaten = [line, ls[i + 1] || '', ls[i - 1] || ''];
+          const kandidaten = [];
+          for (let k = Math.max(0, i - 4); k <= Math.min(ls.length - 1, i + 4); k++) {
+            kandidaten.push(ls[k] || '');
+          }
           for (const cl of kandidaten) {
             // "om 0700 uur" of "om 07:00 uur"
             const omM = cl.match(/\bom\s+(\d{2})(\d{2})\s*uur\b/i)
@@ -205,13 +208,33 @@ export default async function parseRitra(buffer) {
 
   // === Los opmerking / instructies / gasmeten ===
   const GASMETEN_RE = /gasme[ae]ti?n?g?|\bweeg\b|\bwegen\b/i;
+  // Labels die we NIET als losOpm-inhoud willen oppikken
+  const IS_LABEL_RE = /^(Losopm|Afleveradres|Afhaaladres|Leverdatum|Container|Sealnummer|ETA|Rederij|Schip|Releasenummer|Reisnr|Bestand|MRN|Opdracht|KindColli|Attentie|Leeg\s*retour)/i;
   let gasmeten = 'Onwaar';
   let losOpm   = '';
-  const losOpmLine = ls.find(l => /Losopm/i.test(l));
-  if (losOpmLine) {
-    const content = losOpmLine.replace(/:?Losopm.*$/i, '').trim();
-    if (GASMETEN_RE.test(content)) gasmeten = 'Waar';
-    losOpm = content.split('/').filter(p => !GASMETEN_RE.test(p)).join(' ').trim();
+  const losOpmIdx = ls.findIndex(l => /Losopm/i.test(l));
+  if (losOpmIdx >= 0) {
+    const losOpmLine = ls[losOpmIdx];
+    // In Ritra-PDFs staat de waarde VOOR het label op dezelfde regel ("GASMETEN Losopm")
+    const opZelfdeRegel = losOpmLine.replace(/:?Losopm.*$/i, '').trim();
+    // Vorige regel kan ook instructie-inhoud bevatten (bijv. "TAV STEINMEIJER" op eigen regel)
+    const vorigeRegel = losOpmIdx > 0 ? (ls[losOpmIdx - 1] || '').trim() : '';
+    const vorigeIsLabel = !vorigeRegel || IS_LABEL_RE.test(vorigeRegel);
+
+    // Verzamel alle relevante inhoud
+    const parts = [];
+    if (opZelfdeRegel) parts.push(opZelfdeRegel);
+    if (!vorigeIsLabel && vorigeRegel !== opZelfdeRegel) parts.push(vorigeRegel);
+
+    // Zoek ook naar "t.a.v." of "tav" in nabije regels (separate aanschrijfregels)
+    for (let k = Math.max(0, losOpmIdx - 5); k <= Math.min(ls.length - 1, losOpmIdx + 3); k++) {
+      const l = (ls[k] || '').trim();
+      if (/\bt\.?a\.?v\.?\b/i.test(l) && !parts.includes(l)) parts.push(l);
+    }
+
+    const alleInhoud = parts.join(' / ');
+    if (GASMETEN_RE.test(alleInhoud)) gasmeten = 'Waar';
+    losOpm = alleInhoud.split('/').map(p => p.trim()).filter(p => p && !GASMETEN_RE.test(p)).join(' ').trim();
   }
   if (gasmeten === 'Onwaar' && ls.some(l => GASMETEN_RE.test(l))) gasmeten = 'Waar';
 

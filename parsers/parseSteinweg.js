@@ -178,10 +178,16 @@ function normSteinwegLocatieNaam(naam) {
 
 function sizetypeToDescription(sizetype) {
   const s = String(sizetype || '').replace(/\s/g, '');
-  if (/^22/.test(s)) return '20ft';
-  if (/^42/.test(s)) return '40ft';
+  // Open top: ISO derde karakter = 'U' (bijv. 22U1, 42U1, 45U1)
+  if (/^22U/i.test(s)) return '20ft open top';
+  if (/^42U/i.test(s)) return '40ft open top';
+  if (/^45U/i.test(s)) return '45ft open top';
+  // High cube
   if (/^L[25]/.test(s) || /^45/.test(s)) return '45ft HC';
   if (/^L[04]/.test(s)) return '40ft HC';
+  // Standaard
+  if (/^22/.test(s)) return '20ft';
+  if (/^42/.test(s)) return '40ft';
   return s;
 }
 

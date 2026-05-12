@@ -500,6 +500,15 @@ export async function getContainerTypeCode(input) {
   if (mappingKey === '40fthc') return '45G1';
   if (mappingKey === '45fthc' || mappingKey === '45fthighcube' || mappingKey === 'l5g1') return '45G1';
 
+  // Open top: 40ft open top → 42U1, 20ft open top → 22U1
+  // Herkenning: "open top", "open-top", "opentop", "OT" direct na maat
+  if (/open.?top|opentop/i.test(input) || /\bOT\b/.test(input)) {
+    if (/45\s*ft|45ft/i.test(input)) return '45U1';
+    if (/40\s*ft|40ft/i.test(input)) return '42U1';
+    if (/20\s*ft|20ft/i.test(input)) return '22U1';
+    return '42U1'; // fallback naar 40ft open top
+  }
+
   let normalizedInput = mappingKey;
   if (/^20\s*ft|20ft/.test(input.toLowerCase())) normalizedInput = '20ft';
   if (/^40\s*ft|40ft/.test(input.toLowerCase())) normalizedInput = '40ft';

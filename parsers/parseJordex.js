@@ -334,8 +334,12 @@ export default async function parseJordex(pdfBufferOrText, klantAlias = 'jordex'
     bijzonderheid = 'DATUM STAAT VERKEERD';
   }
 
-  // Remark(s) uit pickupRegels → toevoegen aan instructies
-  const remarkPickupLine = pickupRegels.find(r => /^Remark/i.test(r));
+  // Remark(s) → toevoegen aan instructies
+  // Zoek eerst in pickupRegels, dan in de volledige documentregels (zodat opmerkingen
+  // buiten de Pick-up sectie — bijv. "direct laden" in een afzonderlijke sectie — ook meegenomen worden).
+  // Geen start-van-regel-anker zodat ingesprongen opmerkingen ook herkend worden.
+  const remarkPickupLine = pickupRegels.find(r => /Remark/i.test(r))
+    || regels.find(r => /Remark/i.test(r) && !/^(Pick[-\s]?up|Drop[-\s]?off|Extra\s+Info)/i.test(r));
   const remarkPickup = remarkPickupLine?.match(/Remark(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || '';
   if (remarkPickup) {
     bijzonderheid = [bijzonderheid, remarkPickup].filter(Boolean).join(' | ');
@@ -726,7 +730,7 @@ if (extraStopBlokken.length > 0) {
       }
       const blokRefs = refStr.split(/\s*\/\s*/).map(r => r.trim()).filter(Boolean);
 
-      const remark = blok.find(r => /^Remark/i.test(r))
+      const remark = blok.find(r => /Remark/i.test(r))
         ?.match(/Remark(?:\(s\))?[:\t ]+(.+)/i)?.[1]?.trim() || '';
 
       // Eén resultaat per container (qty keer), met bijbehorende referentie

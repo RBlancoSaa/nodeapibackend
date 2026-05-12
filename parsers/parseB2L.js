@@ -26,7 +26,8 @@ function valAfterLabel(line, label) {
 }
 
 // Herkent sectie-headers die we moeten overslaan als naam/adres
-const SECTION_LABEL_RE = /^(?:EMPTY|FULL)\s+PICK-?UP\s+TERMINAL|^FULL\s+DELIVERY\s+TERMINAL|^EMPTY\s+(?:RETURN|DELIVERY)\s+TERMINAL|^EMPTY\s+DEPOT|^PLACE\s+OF\s+(?:LOADING|DELIVERY|UNLOADING|DISCHARGE|EXTRA)|^DELIVERY\s+ADDRESS|^DATE\/?TIME|^PORT\s+(?:OF|NUMBER)|^VOYAGE|^CARRIER|^MAIN\s+VESSEL|^ROUTINGS|^FROM\s+/i;
+// Inclusief "SEE RELEASE" instructie-zinnen en email-adressen die soms als terminalregel verschijnen
+const SECTION_LABEL_RE = /^(?:SEE\s+RELEASE\b)|^[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\s*$|^(?:EMPTY|FULL)\s+PICK-?UP\s+TERMINAL|^FULL\s+DELIVERY\s+TERMINAL|^EMPTY\s+(?:RETURN|DELIVERY)\s+TERMINAL|^EMPTY\s+DEPOT|^PLACE\s+OF\s+(?:LOADING|DELIVERY|UNLOADING|DISCHARGE|EXTRA)|^DELIVERY\s+ADDRESS|^DATE\/?TIME|^PORT\s+(?:OF|NUMBER)|^VOYAGE|^CARRIER|^MAIN\s+VESSEL|^ROUTINGS|^FROM\s+/i;
 
 // Geeft de eerste 'echte' bedrijfs/terminalnaam terug na een sectie-index.
 // Strips REFERENCE:... van de regel en slaat sectie-headers over.
@@ -121,9 +122,11 @@ export default async function parseB2L(buffer) {
   const countMatch = containerSetLine?.match(/(\d+)\s*[Xx]\s+(.+)/i);
   const containerCount   = parseInt(countMatch?.[1] || '1');
   const containertypeRaw = countMatch?.[2]?.trim() || '40FT HIGH CUBE';
-  const containertype    = /high.?cube|HC/i.test(containertypeRaw)
-    ? (/40/i.test(containertypeRaw) ? '40ft HC' : '45ft HC')
-    : (/40/i.test(containertypeRaw) ? '40ft' : '20ft');
+  const containertype    = /open.?top/i.test(containertypeRaw)
+    ? (/40/i.test(containertypeRaw) ? '40ft open top' : '20ft open top')
+    : /high.?cube|HC/i.test(containertypeRaw)
+      ? (/40/i.test(containertypeRaw) ? '40ft HC' : '45ft HC')
+      : (/40/i.test(containertypeRaw) ? '40ft' : '20ft');
 
   // === Cargo ===
   const cargoLine  = ls.find(l => /CARGO DESCRIPTION/i.test(l));
@@ -342,14 +345,19 @@ export default async function parseB2L(buffer) {
     : '';
 
   // === Bouw resultaat per container — enrichOrder doet alle lookups ===
-  // Gebruik RIDER-containers als die gevonden zijn, anders generieke telling
+  // Prioriteit: 1) RIDER-containers (meeste info), 2) deliveryMap-nummers (datum per container),
+  // 3) PDF container-nummer met telling uit CONTAINER SET
+  const deliveryKeys = Object.keys(deliveryMap);
   const containerLijst = riderContainers.length > 0
     ? riderContainers
-    : Array.from({ length: containerCount }, () => ({
-        containernummer: containerNummerPDF || '',
-        gewicht,
-        colli: '0'
-      }));
+    : deliveryKeys.length > 1
+      // Meerdere containers in delivery schedule → gebruik hun nummers
+      ? deliveryKeys.map(cntr => ({ containernummer: cntr, gewicht, colli: '0' }))
+      : Array.from({ length: containerCount }, () => ({
+          containernummer: containerNummerPDF || '',
+          gewicht,
+          colli: '0'
+        }));
 
   const results = [];
   for (let i = 0; i < containerLijst.length; i++) {

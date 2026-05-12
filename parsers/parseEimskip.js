@@ -19,6 +19,10 @@ const ISO_TYPE = {
   '22R0': '20 ft reefer',    '22R1': '20 ft reefer',
   '42R0': '40 ft reefer',    '42R1': '40 ft reefer',
   '45R0': '40 ft reefer hc', '45R1': '40 ft reefer hc',
+  // Open top
+  '22U0': '20ft open top',   '22U1': '20ft open top',
+  '42U0': '40ft open top',   '42U1': '40ft open top',
+  '45U0': '45ft open top',   '45U1': '45ft open top',
 };
 
 function normLand(val) {
