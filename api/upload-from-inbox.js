@@ -135,11 +135,14 @@ function classifyEmail(mail) {
   }
 
   // ── Datum-wijzigingen (alle klanten) — stuur notificatie, sla NIET stilzwijgend over ─────
-  // Uitzondering: Jordex updates worden als transport verwerkt (nieuwe transportorder met waarschuwing)
-  const isJordexSender = /@jordex\.com/i.test(mail.from || '');
+  // Uitzondering: emails van BEKENDE transportklanten worden altijd als transport verwerkt,
+  // ook als het onderwerp "update", "aanpassing" etc. bevat — de handlers detecteren dit zelf
+  // via checkDuplicaat/voegUpdateInstructieToe en zetten ⚠️ UPDATE in het .easy bestand.
+  // Alleen ONBEKENDE afzenders krijgen een wijziging-notificatie (geen handler beschikbaar).
   if (/\b(update[d]?|wijziging|aanpassing|gewijzigd|correction[s]?|corrected|amend(ed|ment)?|reschedule[d]?|revis(ed|ion)?)\b/.test(subject)) {
-    if (isJordexSender) {
-      // Niet als wijziging behandelen — doorsturen naar transport handler met update-vlag in subject
+    const isKnownTransportSender = !!findHandlerForMail(mail);
+    if (isKnownTransportSender) {
+      // Bekende klant → doorsturen naar transport handler met update-vlag in subject
       return 'transport';
     }
     return 'wijziging';
