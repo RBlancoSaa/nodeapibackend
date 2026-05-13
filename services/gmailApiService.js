@@ -15,11 +15,21 @@ function getGmailClient() {
 export async function fetchUnreadMails() {
   const gmail = getGmailClient();
 
-  const { data } = await gmail.users.messages.list({
-    userId: 'me',
-    q: 'is:unread in:inbox',
-    maxResults: 50
-  });
+  let listResponse;
+  try {
+    listResponse = await gmail.users.messages.list({
+      userId: 'me',
+      q: 'is:unread in:inbox',
+      maxResults: 50
+    });
+  } catch (err) {
+    const isTokenError = /invalid_grant|token.*expired|revoked|unauthorized/i.test(err.message || '');
+    if (isTokenError) {
+      throw new Error(`❌ Gmail OAuth token verlopen of ingetrokken. Genereer een nieuwe GMAIL_REFRESH_TOKEN via https://developers.google.com/oauthplayground en update de Vercel env var. Originele fout: ${err.message}`);
+    }
+    throw err;
+  }
+  const { data } = listResponse;
 
   const messages = data.messages || [];
   if (messages.length === 0) return { mails: [], allAttachments: [], ids: [] };
