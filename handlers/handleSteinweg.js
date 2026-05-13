@@ -154,7 +154,9 @@ export default async function handleSteinweg({
       const suffix   = isRetour ? 'Retour' : 'Lossen';
 
       // ── Update-detectie vóór XML-generatie zodat waarschuwing in .easy komt ─
-      const vorigeEntry = await checkDuplicaat(cntr, 'Steinweg');
+      // Route 2 (lege container retour) heeft dezelfde containernummers als Route 1
+      // maar is een APARTE opdracht — nooit als update van Route 1 beschouwen.
+      const vorigeEntry = isRetour ? null : await checkDuplicaat(cntr, 'Steinweg');
       const isUpdate    = !!vorigeEntry;
       if (isUpdate) console.log(`🔁 Steinweg update gedetecteerd: ${cntr}`);
       voegUpdateInstructieToe(base, vorigeEntry, emailSubject);
