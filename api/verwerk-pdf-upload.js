@@ -27,6 +27,7 @@ import { requirePermissionOrServiceToken } from '../utils/auth.js';
 import parsePdfToJson from '../services/parsePdfToJson.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
+import { sendViaAhqEdge } from '../services/sendViaAhqEdge.js';
 
 function veiligeNaam(s) {
   return String(s || '').replace(/[^\w\s.-]/gi, '').replace(/\s+/g, '_').trim() || 'Onbekend';
@@ -103,32 +104,56 @@ export default async function handler(req, res) {
 
   let verzonden = false;
   let naar = null;
+  let viaKanaal = null;
   if (easyAttachments.length > 0) {
     naar = to || process.env.RECIPIENT_EMAIL || 'easybestanden@tiarotransport.nl';
+    const alleBijlagen = [...easyAttachments, ...pdfAttachments];
+    const verwerkt = resultaten.filter(r => r.ok).map(r => `✅ ${r.easy}`);
+    const mislukt = resultaten.filter(r => !r.ok).map(r => `⚠️ ${r.naam}: ${r.reden}`);
+    const bodyTekst = [
+      `Handmatig verwerkte transportopdracht(en) — ${easyAttachments.length} .easy-bestand(en)`,
+      '',
+      verwerkt.length ? verwerkt.join('\n') : '',
+      mislukt.length ? '\n' + mislukt.join('\n') : '',
+    ].filter(Boolean).join('\n');
+
+    // Primair: AHQ Gmail-SMTP edge function (werkt betrouwbaar).
+    // Fallback: oude OAuth Gmail-flow van nodeapibackend.
     try {
-      await sendEmailWithAttachments({
-        ritnummer: eersteRit || 'handmatige upload',
+      await sendViaAhqEdge({
         to: naar,
-        attachments: [...easyAttachments, ...pdfAttachments],
-        verwerkingsresultaten: resultaten.map(r => ({
-          filename: r.easy || r.naam,
-          parsed: r.ok,
-          reden: r.reden,
-        })),
+        subject: `easytrip file - ${eersteRit || 'handmatige upload'}`,
+        text: bodyTekst,
+        attachments: alleBijlagen,
       });
       verzonden = true;
-    } catch (e) {
-      return res.status(500).json({
-        ok: false,
-        error: 'Verwerken lukte maar email versturen mislukte: ' + e.message,
-        resultaten,
-      });
+      viaKanaal = 'ahq-smtp';
+    } catch (edgeErr) {
+      try {
+        await sendEmailWithAttachments({
+          ritnummer: eersteRit || 'handmatige upload',
+          to: naar,
+          attachments: alleBijlagen,
+          verwerkingsresultaten: resultaten.map(r => ({
+            filename: r.easy || r.naam, parsed: r.ok, reden: r.reden,
+          })),
+        });
+        verzonden = true;
+        viaKanaal = 'nodeapi-oauth';
+      } catch (oauthErr) {
+        return res.status(500).json({
+          ok: false,
+          error: `Verwerken lukte maar email versturen mislukte. AHQ: ${edgeErr.message} | OAuth-fallback: ${oauthErr.message}`,
+          resultaten,
+        });
+      }
     }
   }
 
   return res.json({
     ok: true,
     verzonden,
+    via: viaKanaal,
     aantalEasy: easyAttachments.length,
     naar,
     resultaten,
