@@ -3,7 +3,7 @@ import '../utils/fsPatch.js';
 import fs from 'fs';
 import { getGmailTransporter } from '../utils/gmailTransport.js';
 
-export async function sendEmailWithAttachments({ ritnummer, attachments, verwerkingsresultaten = [] }) {
+export async function sendEmailWithAttachments({ ritnummer, attachments, verwerkingsresultaten = [], to: toOverride } = {}) {
   const formattedAttachments = attachments.map(att => ({
     filename: att.filename,
     content: att.content || (att.path && fs.existsSync(att.path) ? fs.readFileSync(att.path) : Buffer.from('Bestand niet gevonden'))
@@ -25,7 +25,7 @@ export async function sendEmailWithAttachments({ ritnummer, attachments, verwerk
   ];
 
   const { transporter, from } = await getGmailTransporter();
-  const to = process.env.RECIPIENT_EMAIL || from;
+  const to = toOverride || process.env.RECIPIENT_EMAIL || from;
 
   await transporter.sendMail({
     from,

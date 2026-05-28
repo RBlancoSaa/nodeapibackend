@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import parsePdfHandler from './api/parse-uploaded-pdf.js';
+import verwerkPdfUploadHandler from './api/verwerk-pdf-upload.js';
 import generateEasyHandler from './api/generate-easy-files.js';
 import uploadFromInboxHandler from './api/upload-from-inbox.js';
 import processSteinwegQueueHandler from './api/process-steinweg-queue.js';
@@ -100,6 +101,7 @@ function escapeHtml(s) {
 
 // ─── API routes ──────────────────────────────────────────────────────────────
 app.post('/api/parse-uploaded-pdf', parsePdfHandler);
+app.post('/api/verwerk-pdf-upload', verwerkPdfUploadHandler);
 app.post('/api/generate-easy-files', generateEasyHandler);
 app.get('/api/upload-from-inbox', uploadFromInboxHandler);
 app.get('/api/process-steinweg-queue', processSteinwegQueueHandler);
