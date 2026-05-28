@@ -107,6 +107,19 @@ export default async function handler(req, res) {
   const ctx = await requirePermissionOrServiceToken(req, res, 'edit_tarieven', slug, { json: true });
   if (!ctx) return;
 
+  try {
+    return await verwerk(req, res, ctx);
+  } catch (e) {
+    console.error('[verwerk-pdf-upload] onverwachte fout:', e);
+    return res.status(500).json({
+      ok: false,
+      error: 'Onverwachte fout: ' + (e?.message || String(e)),
+      stack: (e?.stack || '').split('\n').slice(0, 4).join(' | '),
+    });
+  }
+}
+
+async function verwerk(req, res, ctx) {
   const { bestanden, to, mailen = true } = req.body || {};
   if (!Array.isArray(bestanden) || bestanden.length === 0) {
     return res.status(400).json({ error: 'bestanden[] is verplicht (elk met naam + data_base64)' });
@@ -224,14 +237,14 @@ export default async function handler(req, res) {
     aantalEasy: easyItems.length,
     aantalPdfsVerwerkt: pdfQueue.length,
     easyBestanden: easyItems.map(item => ({
-      filename: a.filename,
-      content_base64: a.content.toString('base64'),
+      filename: item.filename,
+      content_base64: item.content.toString('base64'),
     })),
     resultaten,
-    melding: easyAttachments.length === 0
+    melding: easyItems.length === 0
       ? 'Geen enkele PDF kon verwerkt worden'
       : verzonden
-        ? `${easyAttachments.length} .easy verstuurd naar ${naar} (+ te downloaden)`
-        : `${easyAttachments.length} .easy klaar om te downloaden (mailen ${mailen ? 'mislukt' : 'overgeslagen'})`,
+        ? `${easyItems.length} .easy verstuurd naar ${naar} (+ te downloaden)`
+        : `${easyItems.length} .easy klaar om te downloaden (mailen ${mailen ? 'mislukt' : 'overgeslagen'})`,
   });
 }
