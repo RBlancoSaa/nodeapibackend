@@ -28,9 +28,6 @@
 
 import '../utils/fsPatch.js';
 import { simpleParser } from 'mailparser';
-import MsgReaderPkg from '@kenjiuno/msgreader';
-// CJS/ESM interop: de constructor kan op .default zitten.
-const MsgReader = MsgReaderPkg?.default ?? MsgReaderPkg;
 import { requirePermissionOrServiceToken } from '../utils/auth.js';
 import parsePdfToJson from '../services/parsePdfToJson.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
@@ -42,8 +39,13 @@ function veiligeNaam(s) {
 }
 
 // Haalt PDF-bijlagen uit een Outlook .msg (binair OLE-formaat).
-function pdfsUitMsg(naam, buffer) {
-  const reader = new MsgReader(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
+// Lazy import zodat een eventueel laadprobleem alleen het .msg-pad raakt
+// en niet de hele Express-app bij startup laat crashen.
+async function pdfsUitMsg(naam, buffer) {
+  const mod = await import('@kenjiuno/msgreader');
+  const MsgReader = mod?.default?.default ?? mod?.default ?? mod;
+  const ab = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+  const reader = new MsgReader(ab);
   const data = reader.getFileData();
   const atts = data?.attachments || [];
   const pdfs = [];
@@ -68,7 +70,7 @@ async function naarPdfs(naam, buffer) {
     (buffer.length > 8 && buffer[0] === 0xD0 && buffer[1] === 0xCF && buffer[2] === 0x11 && buffer[3] === 0xE0);
   if (isMsg) {
     try {
-      const pdfs = pdfsUitMsg(naam, buffer);
+      const pdfs = await pdfsUitMsg(naam, buffer);
       if (pdfs.length === 0) return { pdfs: [], fout: `geen PDF-bijlagen in mail "${naam}"` };
       return { pdfs };
     } catch (e) {
