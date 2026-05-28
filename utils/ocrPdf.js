@@ -18,7 +18,8 @@
  */
 
 import pdfParse from 'pdf-parse';
-import Anthropic from '@anthropic-ai/sdk';
+
+import { callClaude } from './anthropicClient.js';
 
 const OCR_THRESHOLD = 80; // tekens — onder deze waarde geldt de PDF als gescand
 
@@ -58,7 +59,6 @@ export async function extractPdfText(buffer, hint = '') {
     throw new Error('Gescande PDF maar ANTHROPIC_API_KEY ontbreekt — tekst kan niet worden gelezen.');
   }
 
-  const client = new Anthropic({ apiKey });
   const b64    = buffer.toString('base64');
 
   const hintTekst = hint ? `Dit is een ${hint}.\n` : '';
@@ -66,7 +66,7 @@ export async function extractPdfText(buffer, hint = '') {
 Geef ALLEEN de ruwe tekst terug, exact zoals hij op de pagina staat, regel voor regel.
 Geen samenvatting, geen uitleg, geen markdown-opmaak — alleen de tekst zelf.`;
 
-  const message = await client.messages.create({
+  const message = await callClaude('ocr-pdf', {
     model:      'claude-opus-4-5',
     max_tokens: 2048,
     messages: [{
