@@ -4,8 +4,8 @@
 // Gescande PDF  → Claude Vision → directe JSON-extractie (één API call, geen regex)
 import '../utils/fsPatch.js';
 import pdfParse from 'pdf-parse';
-import Anthropic from '@anthropic-ai/sdk';
 import { enrichOrder } from '../utils/enrichOrder.js';
+import { callClaude } from '../utils/anthropicClient.js';
 
 // ISO container type → EasyTrip omschrijving
 const ISO_TYPE = {
@@ -199,7 +199,6 @@ async function extractEimskipJsonFromPdf(pdfBuffer) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY ontbreekt');
 
-  const client = new Anthropic({ apiKey });
   const b64    = pdfBuffer.toString('base64');
 
   const prompt = `Dit is een gescande Eimskip transportopdracht (Nederlands/Engels).
@@ -260,7 +259,7 @@ Strikte regels:
 - brutogewicht: ALLEEN het getal zonder decimalen (5410 niet 5410.00)
 - Geef ALLEEN geldige JSON terug, geen uitleg, geen markdown-backticks`;
 
-  const message = await client.messages.create({
+  const message = await callClaude('eimskip-ocr', {
     model:      process.env.ANTHROPIC_MODEL || 'claude-opus-4-5',
     max_tokens: 1500,
     messages: [{
