@@ -30,6 +30,7 @@ import '../utils/fsPatch.js';
 import { simpleParser } from 'mailparser';
 import { requirePermissionOrServiceToken } from '../utils/auth.js';
 import parsePdfToJson from '../services/parsePdfToJson.js';
+import parseSteinweg from '../parsers/parseSteinweg.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 import { sendViaAhqEdge } from '../services/sendViaAhqEdge.js';
@@ -41,28 +42,56 @@ function veiligeNaam(s) {
 // Haalt PDF-bijlagen uit een Outlook .msg (binair OLE-formaat).
 // Lazy import zodat een eventueel laadprobleem alleen het .msg-pad raakt
 // en niet de hele Express-app bij startup laat crashen.
-async function pdfsUitMsg(naam, buffer) {
+async function bijlagenUitMsg(naam, buffer, exts) {
   const mod = await import('@kenjiuno/msgreader');
   const MsgReader = mod?.default?.default ?? mod?.default ?? mod;
   const ab = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   const reader = new MsgReader(ab);
   const data = reader.getFileData();
   const atts = data?.attachments || [];
-  const pdfs = [];
+  const out = [];
+  const re = new RegExp(`\\.(${exts.join('|')})$`, 'i');
   for (const att of atts) {
     const fn = att.fileName || att.fileNameShort || '';
-    if (!fn.toLowerCase().endsWith('.pdf')) continue;
-    const content = reader.getAttachment(att); // { fileName, content: Uint8Array }
+    if (!re.test(fn)) continue;
+    const content = reader.getAttachment(att);
     if (content?.content?.length) {
-      pdfs.push({ naam: fn, buffer: Buffer.from(content.content), bron: naam });
+      out.push({ naam: fn, buffer: Buffer.from(content.content) });
     }
   }
-  return pdfs;
+  return out;
 }
 
-// Zet één geüpload bestand om naar een lijst PDF's. Een mail (.eml/.msg) wordt
-// uitgepakt naar al zijn PDF-bijlagen; een .pdf gaat er als losse PDF doorheen.
-async function naarPdfs(naam, buffer) {
+async function bijlagenUitEml(naam, buffer, exts) {
+  const parsed = await simpleParser(buffer);
+  const re = new RegExp(`\\.(${exts.join('|')})$`, 'i');
+  return (parsed.attachments || [])
+    .filter(a => re.test(a.filename || ''))
+    .filter(a => a.filename !== '05-versions-space.pdf')
+    .map(a => ({ naam: a.filename, buffer: a.content }));
+}
+
+// Bouw items uit losse Excel-bijlagen: groepeer alle .xlsx van één bron
+// als één Steinweg-batch (route1 + optioneel route2). Resterende excels
+// worden als losse Steinweg-items toegevoegd.
+function steinwegItemsUitExcels(bron, excels) {
+  if (excels.length === 0) return [];
+  if (excels.length === 1) {
+    return [{ type: 'steinweg', naam: excels[0].naam, bron, buffer: excels[0].buffer }];
+  }
+  const items = [{
+    type: 'steinweg', naam: excels[0].naam, bron,
+    buffer: excels[0].buffer, buffer2: excels[1].buffer, naam2: excels[1].naam,
+  }];
+  for (let i = 2; i < excels.length; i++) {
+    items.push({ type: 'steinweg', naam: excels[i].naam, bron, buffer: excels[i].buffer });
+  }
+  return items;
+}
+
+// Zet één geüpload bestand om naar een lijst items (pdf of steinweg-batch).
+// Een mail (.eml/.msg) wordt uitgepakt naar al zijn PDF- én Excel-bijlagen.
+async function naarItems(naam, buffer) {
   const lower = (naam || '').toLowerCase();
 
   // Outlook .msg (binair) — herkenbaar aan OLE-magic D0 CF 11 E0
@@ -70,11 +99,16 @@ async function naarPdfs(naam, buffer) {
     (buffer.length > 8 && buffer[0] === 0xD0 && buffer[1] === 0xCF && buffer[2] === 0x11 && buffer[3] === 0xE0);
   if (isMsg) {
     try {
-      const pdfs = await pdfsUitMsg(naam, buffer);
-      if (pdfs.length === 0) return { pdfs: [], fout: `geen PDF-bijlagen in mail "${naam}"` };
-      return { pdfs };
+      const pdfs   = await bijlagenUitMsg(naam, buffer, ['pdf']);
+      const excels = await bijlagenUitMsg(naam, buffer, ['xlsx', 'xlsm', 'xls']);
+      const items = [
+        ...pdfs.map(p => ({ type: 'pdf', naam: p.naam, bron: naam, buffer: p.buffer })),
+        ...steinwegItemsUitExcels(naam, excels),
+      ];
+      if (items.length === 0) return { items: [], fout: `geen PDF- of Excel-bijlagen in mail "${naam}"` };
+      return { items };
     } catch (e) {
-      return { pdfs: [], fout: `kon Outlook-mail "${naam}" niet lezen: ${e.message}` };
+      return { items: [], fout: `kon Outlook-mail "${naam}" niet lezen: ${e.message}` };
     }
   }
 
@@ -83,21 +117,26 @@ async function naarPdfs(naam, buffer) {
     buffer.slice(0, 200).toString('utf-8').match(/^(from|received|return-path|delivered-to|mime-version):/im);
   if (isEml) {
     try {
-      const parsed = await simpleParser(buffer);
-      const pdfs = (parsed.attachments || [])
-        .filter(a => (a.filename || '').toLowerCase().endsWith('.pdf') ||
-                     (a.contentType || '').includes('pdf'))
-        .filter(a => a.filename !== '05-versions-space.pdf')
-        .map(a => ({ naam: a.filename || `${veiligeNaam(naam)}_bijlage.pdf`, buffer: a.content, bron: naam }));
-      if (pdfs.length === 0) return { pdfs: [], fout: `geen PDF-bijlagen in mail "${naam}"` };
-      return { pdfs };
+      const pdfs   = await bijlagenUitEml(naam, buffer, ['pdf']);
+      const excels = await bijlagenUitEml(naam, buffer, ['xlsx', 'xlsm', 'xls']);
+      const items = [
+        ...pdfs.map(p => ({ type: 'pdf', naam: p.naam || `${veiligeNaam(naam)}_bijlage.pdf`, bron: naam, buffer: p.buffer })),
+        ...steinwegItemsUitExcels(naam, excels),
+      ];
+      if (items.length === 0) return { items: [], fout: `geen PDF- of Excel-bijlagen in mail "${naam}"` };
+      return { items };
     } catch (e) {
-      return { pdfs: [], fout: `kon mail "${naam}" niet lezen: ${e.message}` };
+      return { items: [], fout: `kon mail "${naam}" niet lezen: ${e.message}` };
     }
   }
 
-  // Gewone PDF
-  return { pdfs: [{ naam, buffer, bron: naam }] };
+  // Direct Excel-upload → Steinweg
+  if (/\.(xlsx|xlsm|xls)$/i.test(lower)) {
+    return { items: [{ type: 'steinweg', naam, bron: naam, buffer }] };
+  }
+
+  // Default: PDF
+  return { items: [{ type: 'pdf', naam, bron: naam, buffer }] };
 }
 
 export default async function handler(req, res) {
@@ -125,8 +164,8 @@ async function verwerk(req, res, ctx) {
     return res.status(400).json({ error: 'bestanden[] is verplicht (elk met naam + data_base64)' });
   }
 
-  // 1. Expandeer alle uploads naar een platte lijst PDF's
-  const pdfQueue = [];   // { naam, buffer, bron }
+  // 1. Expandeer alle uploads naar een platte lijst items (pdf of steinweg)
+  const itemQueue = [];  // { type, naam, bron, buffer, buffer2?, naam2? }
   const resultaten = []; // { bron, naam, ok, easy?, reden? }
   for (const b of bestanden) {
     const naam = b?.naam || 'onbekend';
@@ -136,25 +175,37 @@ async function verwerk(req, res, ctx) {
     catch { resultaten.push({ bron: naam, naam, ok: false, reden: 'ongeldige base64' }); continue; }
     if (!buffer.length) { resultaten.push({ bron: naam, naam, ok: false, reden: 'leeg bestand' }); continue; }
 
-    const { pdfs, fout } = await naarPdfs(naam, buffer);
+    const { items, fout } = await naarItems(naam, buffer);
     if (fout) { resultaten.push({ bron: naam, naam, ok: false, reden: fout }); continue; }
-    pdfQueue.push(...pdfs);
+    itemQueue.push(...items);
   }
 
-  // 2. Verwerk elke PDF afzonderlijk → .easy (elk met zijn bron-PDF)
-  const easyItems = [];   // { filename, content: Buffer, pdfNaam, pdfBuffer, rit }
+  // 2. Verwerk elk item → containers → .easy
+  const easyItems = [];   // { filename, content, brontype, bronNaam, bronBuffer, rit }
   const gebruikteNamen = new Set();
 
-  for (const pdf of pdfQueue) {
+  for (const item of itemQueue) {
     let containers;
     try {
-      containers = await parsePdfToJson(pdf.buffer);
+      if (item.type === 'pdf') {
+        containers = await parsePdfToJson(item.buffer);
+      } else if (item.type === 'steinweg') {
+        containers = await parseSteinweg({
+          route1Buffer: item.buffer,
+          route2Buffer: item.buffer2,
+          emailBody: '',
+          emailSubject: item.bron || item.naam,
+        });
+      }
     } catch (e) {
-      resultaten.push({ bron: pdf.bron, naam: pdf.naam, ok: false, reden: 'parse-fout: ' + e.message });
+      resultaten.push({ bron: item.bron, naam: item.naam, ok: false, reden: 'parse-fout: ' + e.message });
       continue;
     }
     if (!Array.isArray(containers) || containers.length === 0) {
-      resultaten.push({ bron: pdf.bron, naam: pdf.naam, ok: false, reden: 'parser herkende geen transportopdracht (onbekende klant of leeg)' });
+      const hint = item.type === 'steinweg'
+        ? 'Steinweg-parser gaf geen containers (verkeerde sheet of niet-Steinweg Excel?)'
+        : 'parser herkende geen transportopdracht (onbekende klant of leeg)';
+      resultaten.push({ bron: item.bron, naam: item.naam, ok: false, reden: hint });
       continue;
     }
 
@@ -175,13 +226,14 @@ async function verwerk(req, res, ctx) {
         easyItems.push({
           filename: easyFilename,
           content: Buffer.from(xml, 'utf-8'),
-          pdfNaam: pdf.naam,
-          pdfBuffer: pdf.buffer,
+          brontype: item.type,
+          bronNaam: item.naam,
+          bronBuffer: item.buffer,
           rit: container.ritnummer || reference,
         });
-        resultaten.push({ bron: pdf.bron, naam: pdf.naam, ok: true, easy: easyFilename });
+        resultaten.push({ bron: item.bron, naam: item.naam, ok: true, easy: easyFilename });
       } catch (e) {
-        resultaten.push({ bron: pdf.bron, naam: pdf.naam, ok: false, reden: 'XML-fout: ' + e.message });
+        resultaten.push({ bron: item.bron, naam: item.naam, ok: false, reden: 'XML-fout: ' + e.message });
       }
     }
   }
@@ -197,7 +249,7 @@ async function verwerk(req, res, ctx) {
     for (const item of easyItems) {
       const bijlagen = [
         { filename: item.filename, content: item.content },
-        { filename: item.pdfNaam, content: item.pdfBuffer },
+        { filename: item.bronNaam, content: item.bronBuffer },
       ];
       try {
         await sendViaAhqEdge({
@@ -235,7 +287,7 @@ async function verwerk(req, res, ctx) {
     via: viaKanaal,
     naar,
     aantalEasy: easyItems.length,
-    aantalPdfsVerwerkt: pdfQueue.length,
+    aantalBronnenVerwerkt: itemQueue.length,
     easyBestanden: easyItems.map(item => ({
       filename: item.filename,
       content_base64: item.content.toString('base64'),
