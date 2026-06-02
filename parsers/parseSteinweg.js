@@ -139,48 +139,49 @@ function canonicalTerminalNaam(naam) {
 }
 
 /**
- * Bekende Steinweg-eigen vestigingen met volledig adres.
- * Key = lowercase zoekpatroon (zonder "steinweg" prefix).
- * Gebruikt door resolveSteinwegLocatie() om naam + adres terug te geven.
+ * Bekende Steinweg-vestiging patronen → canonieke naam.
+ * BELANGRIJK: GEEN adres/postcode/plaats hier — die komen uit op_afzetten.json
+ * via de terminal-lookup in enrichOrder. Eén bron van waarheid.
+ * De canonieke naam moet matchen met (of fuzzy lijken op) wat in
+ * op_afzetten.json staat zodat de lookup hem vindt.
  */
-const STEINWEG_LOCATIES = [
-  // Patroon: [regex,  { naam, adres, postcode, plaats, land }]
-  [/\bpier\s*2\b/,          { naam: 'STEINWEG PIER 2',             adres: 'Nijmegenstraat 44',          postcode: '3087 CD', plaats: 'Rotterdam',  land: 'NL' }],
-  [/\bpier\s*6\b/,          { naam: 'STEINWEG PIER 6',             adres: 'Zaltbommelstraat 10',        postcode: '3089 KE', plaats: 'Rotterdam',  land: 'NL' }],
-  [/beatrix/,               { naam: 'STEINWEG BEATRIX TERMINAL',   adres: 'Den Hamweg Port 2732',       postcode: '3089 KK', plaats: 'Rotterdam',  land: 'NL' }],
-  [/benelux/,               { naam: 'STEINWEG BENELUXHAVEN',       adres: 'Elbeweg 101',                postcode: '3198 LC', plaats: 'Europoort',  land: 'NL' }],
-  [/parmentier/,            { naam: 'STEINWEG PARMENTIERPLEIN',    adres: 'Parmentierplein 1',          postcode: '3088 GN', plaats: 'Rotterdam',  land: 'NL' }],
-  [/botlek/,                { naam: 'STEINWEG BOTLEK TERMINAL BV', adres: 'Professor Gerbrandyweg 17',  postcode: '3197 KK', plaats: 'Rotterdam',  land: 'NL' }],
-  [/\bseine(haven)?\b|\btheemsweg\b|\bhandelsveem\b/, { naam: 'STEINWEG SEINEHAVEN', adres: 'Theemsweg 26',            postcode: '3197 KM', plaats: 'Rotterdam',  land: 'NL' }],
-  [/spakenburg/,            { naam: 'STEINWEG',                    adres: 'Spakenburgweg 45',           postcode: '3089 KN', plaats: 'Rotterdam',  land: 'NL' }],
+const STEINWEG_NAAM_PATRONEN = [
+  [/\bpier\s*2\b/,                                       'STEINWEG PIER 2'],
+  [/\bpier\s*6\b/,                                       'STEINWEG PIER 6'],
+  [/beatrix/,                                            'STEINWEG BEATRIX TERMINAL'],
+  [/benelux/,                                            'STEINWEG BENELUXHAVEN'],
+  [/parmentier/,                                         'STEINWEG PARMENTIERPLEIN'],
+  [/botlek/,                                             'STEINWEG BOTLEK TERMINAL BV'],
+  [/\bseine(haven)?\b|\btheemsweg\b|\bhandelsveem\b/,    'STEINWEG SEINEHAVEN'],
+  [/spakenburg/,                                         'STEINWEG'],
 ];
 
 /**
- * Resolveert een Steinweg-eigen locatienaam naar naam + volledig adres.
- * Doorzoekt STEINWEG_LOCATIES op patroon-match; bij geen match → normaliseer naam + leeg adres.
+ * Bepaalt de canonieke Steinweg-vestiging-naam (zonder adres-data).
+ * enrichOrder doet daarna de op_afzetten.json lookup voor adres/postcode/portbase.
  */
-function resolveSteinwegLocatie(naam) {
-  if (!naam) return { naam: '', adres: '', postcode: '', plaats: '', land: 'NL' };
+function resolveSteinwegNaam(naam) {
+  if (!naam) return '';
   const s = naam.toLowerCase();
-  for (const [re, loc] of STEINWEG_LOCATIES) {
+  for (const [re, can] of STEINWEG_NAAM_PATRONEN) {
     if (re.test(s)) {
-      console.log(`🏭 Steinweg locatie: "${naam}" → ${loc.naam} (${loc.adres})`);
-      return { ...loc };
+      console.log(`🏭 Steinweg locatie: "${naam}" → ${can} (adres via op_afzetten.json)`);
+      return can;
     }
   }
-  // Geen match: normaliseer naam, adres onbekend
+  // Geen patroon: normaliseer prefix-prefix; verder onveranderd
   const normNaam = naam
     .replace(/^C[.\s]+/i, '')
     .replace(/^steinweg\b/i, 'STEINWEG')
     .replace(/^STEINWEG\s+handelsveem\b/i, 'STEINWEG Handelsveem')
     .trim() || naam;
-  console.warn(`⚠️ Steinweg locatie onbekend: "${naam}" → naam="${normNaam}" (geen adres)`);
-  return { naam: normNaam, adres: '', postcode: '', plaats: '', land: 'NL' };
+  console.warn(`⚠️ Steinweg locatie onbekend patroon: "${naam}" → naam="${normNaam}" (lookup probeert te matchen)`);
+  return normNaam;
 }
 
-/** @deprecated — gebruik resolveSteinwegLocatie */
+/** @deprecated — gebruik resolveSteinwegNaam */
 function normSteinwegLocatieNaam(naam) {
-  return resolveSteinwegLocatie(naam).naam;
+  return resolveSteinwegNaam(naam);
 }
 
 function sizetypeToDescription(sizetype) {
@@ -428,14 +429,11 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
           volgorde: '0', actie: 'Lossen',
           naam: 'OMRIJDER', adres: '', postcode: '', plaats: '', land: 'NL'
         },
-        (() => {
-          const sw = resolveSteinwegLocatie(r1.to);
-          return {
-            volgorde: '0', actie: 'Afzetten',
-            naam: sw.naam, adres: sw.adres, postcode: sw.postcode, plaats: sw.plaats, land: sw.land,
-            _noTerminalLookup: true  // Steinweg eigen vestiging — geen haventerminal lookup
-          };
-        })()
+        {
+          volgorde: '0', actie: 'Afzetten',
+          // Alleen canonieke naam — adres/postcode/portbase komen uit op_afzetten.json
+          naam: resolveSteinwegNaam(r1.to), adres: '', postcode: '', plaats: '', land: 'NL',
+        }
       ];
 
       results.push(await enrichOrder({
@@ -539,14 +537,11 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
 
       // Omrijder: Opzetten (Steinweg) → Lossen (OMRIJDER) → Afzetten (return depot)
       const locaties = [
-        (() => {
-          const sw = resolveSteinwegLocatie(r2.from);
-          return {
-            volgorde: '0', actie: 'Opzetten',
-            naam: sw.naam, adres: sw.adres, postcode: sw.postcode, plaats: sw.plaats, land: sw.land,
-            _noTerminalLookup: true  // Steinweg eigen vestiging — geen haventerminal lookup
-          };
-        })(),
+        {
+          volgorde: '0', actie: 'Opzetten',
+          // Alleen canonieke naam — adres/postcode/portbase komen uit op_afzetten.json
+          naam: resolveSteinwegNaam(r2.from), adres: '', postcode: '', plaats: '', land: 'NL',
+        },
         {
           volgorde: '0', actie: 'Lossen',
           naam: 'OMRIJDER', adres: '', postcode: '', plaats: '', land: 'NL'
