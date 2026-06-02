@@ -71,20 +71,50 @@ async function bijlagenUitEml(naam, buffer, exts) {
     .map(a => ({ naam: a.filename, buffer: a.content }));
 }
 
-// Bouw items uit losse Excel-bijlagen: groepeer alle .xlsx van één bron
-// als één Steinweg-batch (route1 + optioneel route2). Resterende excels
-// worden als losse Steinweg-items toegevoegd.
+// Detecteer of een Steinweg-bestandsnaam Route 1 of Route 2 is.
+// Voorbeelden: "PickupNotice_Route2_02-06-2026.xlsx" → route2
+//              "Route 1 - Order 12345.xlsx" → route1
+//              "ORDER LEEG RETOUR...xlsx" → route2 (leeg retour = return)
+function classifyRoute(filename) {
+  const f = (filename || '').toLowerCase();
+  if (/route[\s_\-]?2|leeg[\s_\-]?retour|\breturn\b|\bleeg\b/.test(f)) return 'route2';
+  if (/route[\s_\-]?1|pickup[\s_\-]?notice/.test(f) && !/route[\s_\-]?2/.test(f)) return 'route1';
+  return 'unknown';
+}
+
+// Bouw items uit losse Excel-bijlagen. Classificeert op bestandsnaam zodat
+// Route 1 / Route 2 bestanden in de juiste buffer komen. Bij beide aanwezig
+// → één gecombineerde Steinweg-batch. Bij alleen Route 2 → buffer2.
+// Bij unknown → buffer (route1) met fallback later in verwerk().
 function steinwegItemsUitExcels(bron, excels) {
   if (excels.length === 0) return [];
-  if (excels.length === 1) {
-    return [{ type: 'steinweg', naam: excels[0].naam, bron, buffer: excels[0].buffer }];
+  const tagged = excels.map(e => ({ ...e, route: classifyRoute(e.naam) }));
+  const r1s = tagged.filter(t => t.route === 'route1');
+  const r2s = tagged.filter(t => t.route === 'route2');
+  const unks = tagged.filter(t => t.route === 'unknown');
+
+  const items = [];
+
+  // 1. Combineer expliciete Route 1 + Route 2 paren
+  const paren = Math.min(r1s.length, r2s.length);
+  for (let i = 0; i < paren; i++) {
+    items.push({
+      type: 'steinweg', naam: r1s[i].naam, bron,
+      buffer: r1s[i].buffer, buffer2: r2s[i].buffer, naam2: r2s[i].naam,
+    });
   }
-  const items = [{
-    type: 'steinweg', naam: excels[0].naam, bron,
-    buffer: excels[0].buffer, buffer2: excels[1].buffer, naam2: excels[1].naam,
-  }];
-  for (let i = 2; i < excels.length; i++) {
-    items.push({ type: 'steinweg', naam: excels[i].naam, bron, buffer: excels[i].buffer });
+  // 2. Overgebleven Route 1's → losse route1 items
+  for (let i = paren; i < r1s.length; i++) {
+    items.push({ type: 'steinweg', naam: r1s[i].naam, bron, buffer: r1s[i].buffer });
+  }
+  // 3. Overgebleven Route 2's → losse route2 items (buffer2 only)
+  for (let i = paren; i < r2s.length; i++) {
+    items.push({ type: 'steinweg', naam: r2s[i].naam, bron, buffer2: r2s[i].buffer });
+  }
+  // 4. Onbekenden: 1 of meer xlsx zonder route-marker — fallback naar route1
+  //    (parseSteinweg probeert daarna route2 als route1 leeg is)
+  for (const u of unks) {
+    items.push({ type: 'steinweg', naam: u.naam, bron, buffer: u.buffer });
   }
   return items;
 }
@@ -130,8 +160,10 @@ async function naarItems(naam, buffer) {
     }
   }
 
-  // Direct Excel-upload → Steinweg
+  // Direct Excel-upload → Steinweg (classificeer op naam: Route 1 vs Route 2)
   if (/\.(xlsx|xlsm|xls)$/i.test(lower)) {
+    const route = classifyRoute(naam);
+    if (route === 'route2') return { items: [{ type: 'steinweg', naam, bron: naam, buffer2: buffer }] };
     return { items: [{ type: 'steinweg', naam, bron: naam, buffer }] };
   }
 
@@ -190,15 +222,14 @@ async function verwerk(req, res, ctx) {
       if (item.type === 'pdf') {
         containers = await parsePdfToJson(item.buffer);
       } else if (item.type === 'steinweg') {
-        // Probeer eerst de doorgegeven configuratie (default: buffer = route1)
+        // Gebruik buffers zoals geclassificeerd (route1 in buffer, route2 in buffer2)
         containers = await parseSteinweg({
-          route1Buffer: item.buffer,
-          route2Buffer: item.buffer2,
+          route1Buffer: item.buffer  || null,
+          route2Buffer: item.buffer2 || null,
           emailBody: '',
           emailSubject: item.bron || item.naam,
         });
-        // Single-bestand fallback: als route1 niets oplevert, probeer als route2
-        // (bv. een "LEEG RETOUR"-Excel zonder route1/route2 in de naam)
+        // Single-bestand zonder route-marker: als route1 niets oplevert, probeer als route2
         if ((!containers || containers.length === 0) && item.buffer && !item.buffer2) {
           containers = await parseSteinweg({
             route1Buffer: null,
