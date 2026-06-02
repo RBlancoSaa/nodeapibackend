@@ -102,6 +102,13 @@ function parseDateFromSubject(subject) {
  * ALLEEN voor haventerminals (Opzetten bij Route 1, Afzetten bij Route 2).
  * Steinweg-eigen vestigingen worden NIET via deze functie verwerkt.
  */
+// Haven-terminals: deze MOETEN via de normale terminal-lookup (op_afzetten.json)
+// portbase/bics-code krijgen. Géén `_noTerminalLookup: true`.
+const HAVEN_TERMINALS = new Set([
+  'ECT Delta', 'Euromax', 'RWG', 'APM 2', 'Apm / HUTCHISON PORTS DELTA 2',
+  'WBT', 'Rst Zuid', 'Rst noord',
+]);
+
 function canonicalTerminalNaam(naam) {
   const s = (naam || '').toLowerCase().replace(/[\s\-_\/.,]+/g, ' ').trim();
   // ── Maasvlakte port-terminals ─────────────────────────────────────────
@@ -144,7 +151,7 @@ const STEINWEG_LOCATIES = [
   [/benelux/,               { naam: 'STEINWEG BENELUXHAVEN',       adres: 'Elbeweg 101',                postcode: '3198 LC', plaats: 'Europoort',  land: 'NL' }],
   [/parmentier/,            { naam: 'STEINWEG PARMENTIERPLEIN',    adres: 'Parmentierplein 1',          postcode: '3088 GN', plaats: 'Rotterdam',  land: 'NL' }],
   [/botlek/,                { naam: 'STEINWEG BOTLEK TERMINAL BV', adres: 'Professor Gerbrandyweg 17',  postcode: '3197 KK', plaats: 'Rotterdam',  land: 'NL' }],
-  [/seinehaven|theemsweg|handelsveem/, { naam: 'STEINWEG SEINEHAVEN', adres: 'Theemsweg 26',            postcode: '3197 KM', plaats: 'Rotterdam',  land: 'NL' }],
+  [/\bseine(haven)?\b|\btheemsweg\b|\bhandelsveem\b/, { naam: 'STEINWEG SEINEHAVEN', adres: 'Theemsweg 26',            postcode: '3197 KM', plaats: 'Rotterdam',  land: 'NL' }],
   [/spakenburg/,            { naam: 'STEINWEG',                    adres: 'Spakenburgweg 45',           postcode: '3089 KN', plaats: 'Rotterdam',  land: 'NL' }],
 ];
 
@@ -518,10 +525,16 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         afspraken
       );
 
-      // Adres ophalen voor return depot uit steinweg_adressen.json
+      // Adres ophalen voor return depot uit steinweg_adressen.json.
+      // Voor haven-terminals (RWG/ECT/EuroMax/...) NIET: die moeten via de
+      // normale haventerminal-lookup (op_afzetten.json) hun portbase/bics
+      // krijgen — anders verschijnt RWG als "nieuwe terminal" in EasyTrip.
       const depotRawNaam = canonicalTerminalNaam(c2.returnDepot || c2.destination || '');
+      const isHavenTerminal = HAVEN_TERMINALS.has(depotRawNaam);
       const depotInfo    = depotRawNaam
-        ? (await getSteinwegAdres(depotRawNaam) || { naam: depotRawNaam, adres: '', postcode: '', plaats: '', land: 'NL' })
+        ? (isHavenTerminal
+            ? { naam: depotRawNaam, adres: '', postcode: '', plaats: '', land: 'NL', _isHavenTerminal: true }
+            : (await getSteinwegAdres(depotRawNaam) || { naam: depotRawNaam, adres: '', postcode: '', plaats: '', land: 'NL' }))
         : { naam: '', adres: '', postcode: '', plaats: '', land: 'NL' };
 
       // Omrijder: Opzetten (Steinweg) → Lossen (OMRIJDER) → Afzetten (return depot)
@@ -540,10 +553,11 @@ export default async function parseSteinweg({ route1Buffer, route2Buffer, emailB
         },
         {
           volgorde: '0', actie: 'Afzetten',
-          // Return depot → adres uit steinweg_adressen.json, geen haventerminal lookup nodig
           naam: depotInfo.naam, adres: depotInfo.adres, postcode: depotInfo.postcode,
           plaats: depotInfo.plaats, land: depotInfo.land,
-          _noTerminalLookup: true  // Return depot, geen portbase/bics code
+          // Bij een echte haven-terminal (RWG/ECT/...) NIET noTerminalLookup
+          // → generateXml doet dan de normale lookup en zet portbase/bics erin.
+          ...(depotInfo._isHavenTerminal ? {} : { _noTerminalLookup: true }),
         }
       ];
 
