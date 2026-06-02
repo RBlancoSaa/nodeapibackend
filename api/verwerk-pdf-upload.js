@@ -222,12 +222,13 @@ async function verwerk(req, res, ctx) {
       if (item.type === 'pdf') {
         containers = await parsePdfToJson(item.buffer);
       } else if (item.type === 'steinweg') {
-        // Gebruik buffers zoals geclassificeerd (route1 in buffer, route2 in buffer2)
+        // emailSubject en emailBody leeg laten — bij drop-zone wil je geen
+        // bestandsnaam/mail-tekst in het `instructies`-veld van de .easy.
         containers = await parseSteinweg({
           route1Buffer: item.buffer  || null,
           route2Buffer: item.buffer2 || null,
           emailBody: '',
-          emailSubject: item.bron || item.naam,
+          emailSubject: '',
         });
         // Single-bestand zonder route-marker: als route1 niets oplevert, probeer als route2
         if ((!containers || containers.length === 0) && item.buffer && !item.buffer2) {
@@ -235,7 +236,7 @@ async function verwerk(req, res, ctx) {
             route1Buffer: null,
             route2Buffer: item.buffer,
             emailBody: '',
-            emailSubject: item.bron || item.naam,
+            emailSubject: '',
           });
         }
       }
