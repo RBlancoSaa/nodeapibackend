@@ -190,12 +190,23 @@ async function verwerk(req, res, ctx) {
       if (item.type === 'pdf') {
         containers = await parsePdfToJson(item.buffer);
       } else if (item.type === 'steinweg') {
+        // Probeer eerst de doorgegeven configuratie (default: buffer = route1)
         containers = await parseSteinweg({
           route1Buffer: item.buffer,
           route2Buffer: item.buffer2,
           emailBody: '',
           emailSubject: item.bron || item.naam,
         });
+        // Single-bestand fallback: als route1 niets oplevert, probeer als route2
+        // (bv. een "LEEG RETOUR"-Excel zonder route1/route2 in de naam)
+        if ((!containers || containers.length === 0) && item.buffer && !item.buffer2) {
+          containers = await parseSteinweg({
+            route1Buffer: null,
+            route2Buffer: item.buffer,
+            emailBody: '',
+            emailSubject: item.bron || item.naam,
+          });
+        }
       }
     } catch (e) {
       resultaten.push({ bron: item.bron, naam: item.naam, ok: false, reden: 'parse-fout: ' + e.message });
