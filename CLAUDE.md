@@ -1,5 +1,17 @@
 # EasyTrip Automator — projectdocumentatie voor Claude
 
+> **Lees ook `docs/HANDOVER.md`** — het levende handover-document met per sessie
+> wát er veranderd is en wat de open punten zijn.
+
+## 🚨 Regel die ALTIJD geldt: handover bijwerken
+
+**`docs/HANDOVER.md` MOET in elk gesprek actueel gehouden worden. Zodra er iets
+naar `main` gaat (hier deployt elke commit op `main` direct via Vercel), wordt
+EERST de uitleg in de handover gegeven — niet achteraf.** Per wijziging: een
+sessie-sectie bovenaan (wát, in welke bestanden, evt. env-vars) + de
+"Open punten"-lijst bijwerken. Zo kan een volgend gesprek verder als de
+chatgeschiedenis verdwijnt.
+
 ## Wat doet dit systeem
 
 Node.js backend op Vercel die ongelezen Gmail-emails ophaalt, PDF/XLSX transportopdrachten parseert van vaste klanten, `.easy` XML-bestanden genereert voor EasyTrip (Microsoft Access transport-software), en die bestanden per email verstuurt naar `easybestanden@tiarotransport.nl`.
