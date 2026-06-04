@@ -1,6 +1,7 @@
 // 📁 /api/upload-from-inbox.js
 import '../utils/fsPatch.js';
 import { randomUUID } from 'crypto';
+import { guardCronEndpoint } from '../utils/auth.js';
 import { fetchUnreadMails, markAsRead } from '../services/gmailApiService.js';
 import { supabase } from '../services/supabaseClient.js';
 import { isReleasePdf, parseRelease } from '../parsers/parseRelease.js';
@@ -189,6 +190,7 @@ function findHandlerForMail(mail) {
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (!guardCronEndpoint(req, res)) return;
 
   try {
     const missing = ['GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN'].filter(k => !process.env[k]);

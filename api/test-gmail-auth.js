@@ -1,7 +1,11 @@
-// api/test-gmail-auth.js  — tijdelijk debug endpoint, verwijder na gebruik
+// api/test-gmail-auth.js  — diagnostisch endpoint (lekt token-preview/scopes),
+// daarom afgeschermd met CRON_SECRET. Aanroepen met ?token=<CRON_SECRET>.
 import { google } from 'googleapis';
+import { acceptCronToken } from '../utils/auth.js';
 
 export default async function handler(req, res) {
+  if (!acceptCronToken(req, res, { json: true })) return;
+
   const vars = {
     GMAIL_USER:          !!process.env.GMAIL_USER,
     GMAIL_CLIENT_ID:     !!process.env.GMAIL_CLIENT_ID,

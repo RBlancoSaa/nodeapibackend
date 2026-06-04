@@ -1,12 +1,14 @@
 // api/test-send-email.js — diagnostisch endpoint om Gmail verzenden te testen
-// Gebruik: GET /api/test-send-email?to=jouw@email.nl
-// Verwijder na gebruik of beveilig met een secret parameter
+// Gebruik: GET /api/test-send-email?to=jouw@email.nl&token=<CRON_SECRET>
+// Afgeschermd met CRON_SECRET (kan mail versturen + lekt env/scopes).
 
 import { google } from 'googleapis';
 import nodemailer from 'nodemailer';
+import { acceptCronToken } from '../utils/auth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (!acceptCronToken(req, res, { json: true })) return;
 
   const ontvanger = req.query.to || process.env.RECIPIENT_EMAIL;
   if (!ontvanger) {

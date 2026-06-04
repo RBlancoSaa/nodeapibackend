@@ -155,6 +155,42 @@ export function acceptCronToken(req, res, opts = {}) {
 }
 
 /**
+ * Soft-enforce guard voor LIVE endpoints die door een EXTERNE trigger worden
+ * aangeroepen (upload-from-inbox, check-inbox). Doel: kunnen deployen zonder de
+ * draaiende mail→.easy-flow te breken vóór de trigger het token meestuurt.
+ *
+ * Gedrag:
+ *   - geldig token (?token= / X-Token / X-Service-Token === CRON_SECRET) → toegestaan
+ *   - geen/fout token én ENFORCE_CRON_AUTH !== 'true' → toegestaan + waarschuwing
+ *   - geen/fout token én ENFORCE_CRON_AUTH === 'true'  → 401 (deur dicht)
+ *
+ * Uitrol: zet CRON_SECRET in Vercel → laat de externe trigger `?token=<secret>`
+ * meesturen → controleer dat het werkt → zet ENFORCE_CRON_AUTH=true om te sluiten.
+ *
+ * @returns {boolean} true = handler mag doorgaan
+ */
+export function guardCronEndpoint(req, res) {
+  const cron  = process.env.CRON_SECRET || '';
+  const token = req.query?.token
+            || req.headers?.['x-token']
+            || req.headers?.['x-service-token']
+            || '';
+  if (cron && token && safeEqual(String(token), cron)) return true;
+
+  if (process.env.ENFORCE_CRON_AUTH === 'true') {
+    res.status(401).json({ error: 'Niet geautoriseerd' });
+    return false;
+  }
+
+  console.warn(
+    '⚠️ [auth] endpoint zonder geldig CRON_SECRET-token aangeroepen — ' +
+    'toegestaan omdat ENFORCE_CRON_AUTH≠true. Zet CRON_SECRET + ?token= op de ' +
+    'trigger en daarna ENFORCE_CRON_AUTH=true om dit te sluiten.',
+  );
+  return true;
+}
+
+/**
  * Server-to-server: accepteert ofwel een user-sessie ofwel een service-token
  * gelijk aan CRON_SECRET (via ?token=, X-Service-Token of X-Token header).
  *
