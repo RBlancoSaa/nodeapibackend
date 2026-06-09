@@ -185,16 +185,29 @@ SUPABASE_LIST_PUBLIC_URL (publieke URL van de referentielijsten bucket)
 2. Als een terminal niet gevonden wordt → naam/adres uit PDF gebruiken + melding in bijzonderheden
 3. Geen auto-create van terminals
 4. **Rederij MOET uit de lijst komen** — bij mislukking leegmaken, nooit raw doorsturen
-5. Commits gaan rechtstreeks naar `main` (Vercel deployt automatisch)
+5. Wijzigingen gaan via de feature-branch → merge naar `main` (Vercel deployt automatisch). Zie "Git workflow".
 
 ---
 
 ## Git workflow
 
+Ontwikkel op de aangewezen feature-branch, niet rechtstreeks op `main`.
+
 ```bash
 # Vanuit de projectmap:
 git add [bestanden]
 git commit -m "omschrijving"
-git push
-# → Vercel deploy start automatisch
+git push -u origin <feature-branch>
 ```
+
+- **Altijd naar `main` mergen — niet vragen.** Zodra een afgeronde wijziging
+  klaar/getest is en de handover is bijgewerkt, merge je zonder eerst om
+  toestemming te vragen. Vaste volgorde:
+  1. Wijziging af + getest, `docs/HANDOVER.md` bijgewerkt.
+  2. **Controleer of er ondertussen niks nieuws op `main` is gekomen**
+     (`git fetch origin main`; lees de échte stand met
+     `git ls-remote origin refs/heads/main` — de git-proxy reset lokale refs
+     soms naar oude commits).
+  3. Is `main` vooruitgelopen? Integreer eerst (rebase op de actuele `main`).
+  4. Merge via PR naar `main` → Vercel deployt automatisch.
+  - Alleen pauzeren bij echte twijfel (destructief, ambigu, of buiten de opdracht).
