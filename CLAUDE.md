@@ -7,10 +7,18 @@
 
 **`docs/HANDOVER.md` MOET in elk gesprek actueel gehouden worden. Zodra er iets
 naar `main` gaat (hier deployt elke commit op `main` direct via Vercel), wordt
-EERST de uitleg in de handover gegeven — niet achteraf.** Per wijziging: een
-sessie-sectie bovenaan (wát, in welke bestanden, evt. env-vars) + de
-"Open punten"-lijst bijwerken. Zo kan een volgend gesprek verder als de
-chatgeschiedenis verdwijnt.
+EERST de uitleg in de handover gegeven — niet achteraf.** Zo kan een volgend
+gesprek verder als de chatgeschiedenis verdwijnt.
+
+**Conventie (om merge-conflicten tussen parallelle sessies te voorkomen):**
+- Voeg je sessie-sectie **helemaal bovenaan** toe (nieuwste boven): wát, in welke
+  bestanden, evt. env-vars.
+- Gebruik een **unieke prefix per sessie = datum + tijd in UTC**, bijv.
+  `## 2026-06-16 07:22 — <korte titel>`. GEEN oplopende letters/volgnummers: die
+  botsen tussen parallelle sessies op dezelfde regel.
+- **Bewerk geen gedeelde regel** (zoals een centrale `Last updated:`-regel of een
+  centrale "Open punten"-lijst die iedereen tegelijk bewerkt). Hou open punten bij
+  binnen je eigen, uniek geprefixte sectie — dan mergen rebases schoon.
 
 ## Wat doet dit systeem
 
