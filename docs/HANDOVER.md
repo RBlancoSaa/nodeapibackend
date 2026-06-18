@@ -35,6 +35,17 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-18 20:05 — Dropbox: double-wrap-bug B2L/Neelevat/Ritra/Steder gefixt
+`services/parsePdfToJson.js` (gebruikt door de Romy-HQ "easy"-dropbox via
+`/api/verwerk-pdf-upload`). parseB2L/parseNeelevat/parseRitra/parseSteder geven
+zelf al een **array** terug, maar parsePdfToJson wrapte ze als `[await parseX()]`
+→ `[[...]]` (dubbel genest). De dropbox pakte dan de binnenste array als
+"container" → `generateXmlFromJson` las `data.locaties[0]` op een array →
+`Cannot read properties of undefined (reading '0')` (B2L gaf "Geen enkele PDF
+kon verwerkt worden"). Nu net als Jordex/DFDS:
+`const r = await parseX(); return Array.isArray(r) ? r : [r];`. Alleen in de
+dropbox-flow stuk geweest; de Gmail-handlers riepen de parsers al correct aan.
+
 ### 2026-06-18 19:10 — DFDS: meerdere transport-blokken + lithium-ADR (geport uit AHQ)
 `parsers/parseDFDS.js` + `handlers/handleDFDS.js`. Geport uit AHQ's `dfds.ts`,
 maar **alleen de library-onafhankelijke extractie-winst** — nodeapi's `pdf2json`
