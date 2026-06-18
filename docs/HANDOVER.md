@@ -35,6 +35,75 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-18 19:10 — DFDS: meerdere transport-blokken + lithium-ADR (geport uit AHQ)
+`parsers/parseDFDS.js` + `handlers/handleDFDS.js`. Geport uit AHQ's `dfds.ts`,
+maar **alleen de library-onafhankelijke extractie-winst** — nodeapi's `pdf2json`
+(kolommen mét spaties) en veldvorm blijven intact. AHQ-only spul (pdf-parse-
+spatieloze regexes, `containerTypeNaarIso`, eigen types, `ctx.allPdfs`) NIET
+overgenomen; multi-PDF + body-only-order zaten al in `handleDFDS`.
+
+1. **Meerdere transport-blokken**: een DFDS-order kan >1 tabel-header hebben, elk
+   met eigen container-set én eigen afzet-depot (blok 1 → Medrepair, blok 2 →
+   ECT Delta). Voorheen las de parser alleen het EERSTE blok → containers van
+   blok 2+ bleven leeg. Nu loopt hij over álle headers; elke container krijgt de
+   locaties van zijn eigen blok.
+2. **Lithium → ADR klasse 9 veiligheidsnet**: lithium(-ion, incl. DFDS-typo
+   "li-ino") = altijd ADR, ook zonder expliciete markering (AHQ-les SFIM2600869).
+   In de parser (PDF-tekst) én in `handleDFDS` (email-body override + body-only).
+3. Preciezere ADR: `Dangerous Goods: Yes/Ja`, UN `(?!\d)`-lookahead, ADR-klasse
+   in de instructie-tekst.
+
+**NB AHQ-koppeling:** nodeapi schrijft `opdrachten_log`; AHQ's edge-function
+`sync-al-opdrachten` leest die tabel → `ritten`. Daarom: extractie-KWALITEIT
+verbeteren mag, maar VORM (veldnamen, datum `DD-MM-YYYY`, containertype-labels)
+moet identiek blijven — anders breekt AHQ's sync. Hier niets aan vorm gewijzigd.
+
+Geverifieerd: `node --check` (beide), losse multi-block-test (2 blokken/2 afzet)
++ lithium-test (incl. geen false-positive op "million"). Geen DFDS-PDF-fixture
+in repo → geen end-to-end run.
+
+### 2026-06-18 18:30 — Steinweg: groeperen op opzet- ÉN afzet-depot
+`handlers/handleSteinweg.js`: de container-groepering (één gezamenlijk `.easy`
+per groep, met duplicatienota) keyde voorheen **alleen op het afzet-depot**
+(`groepeerOpAfzetdepot`). Nu op het **paar (opzet-depot, afzet-depot)** →
+`groepeerOpDepots`. Containers worden alleen samengevoegd als ZOWEL het opzet-
+als het afzet-depot gelijk is; gelijk afzet maar ander opzet (of omgekeerd) =
+aparte opdracht. Route 1 (vol) en Route 2 (leeg) blijven sowieso gescheiden.
+
+**Bewust NIET aangeraakt:** `parsers/parseSteinweg.js` — hoe Steinweg-mails
+geparsed worden en hoe ritten worden opgebouwd blijft ongewijzigd. Alleen de
+groepeer-sleutel in de handler is aangepast. Geverifieerd met `node --check` +
+losse groepeer-test (zelfde afzet/ander opzet → apart).
+
+### 2026-06-18 17:50 — Jordex-parser: extractie-verbeteringen geport uit AHQ
+Achtergrond: de "easy parser dropbox" (`/bedrijf/easy` in Romy-HQ) proxiet naar
+`nodeapibackend` `/api/verwerk-pdf-upload` → `handleJordex` → `parseJordex.js`.
+Die JS-parser liep achter op de nieuwere TS-versie in AutomatingHQ
+(`src/lib/harvester/parsers/jordex.ts`). De **extractie-verbeteringen** zijn
+overgenomen; de AHQ-specifieke output-vorm (`referentie` i.p.v. `laadreferentie`,
+`containertypeIso`, ISO-datums, `enrich`/`persist`-laag) NIET — die zou de
+`.easy`-generatie breken. **AHQ is alleen gelezen, niet gewijzigd.**
+
+Gewijzigd: alleen `parsers/parseJordex.js`. Concreet:
+1. Regex-bugfix pickup- én extra-stop-blok: `$` staat nu BUITEn de `\n(...)`-groep.
+   Export/reefer-PDF's zonder "Drop-off terminal"-sectie gaven eerder een leeg
+   pickup-blok → geen klant/laadlocatie (bv. OE2619362 Champi-Mer BV).
+2. Cargo-regel valt terug op álle regels als de pickup-sectie ontbreekt.
+3. Carrier & Vessel non-greedy: mail-body zet alles op één regel
+   ("Carrier: MAERSK (MAEU) Vessel: TIHAMA ETD: …") → capture stopt nu bij
+   Vessel/ETD/2+ spaties i.p.v. de hele regel mee te pakken.
+4. `splitInlineAdres()` helper: naam+straat+postcode+plaats op één regel
+   (.eml/mail-body) wordt correct gesplitst; PDF-meerregelige variant → null
+   (bestaande logica blijft werken). Gebruikt in klant-, extra-stop- en
+   terminal-sectie-parsing.
+5. "Cut-off" herkend als alias voor "Drop-off terminal" (mail-body).
+6. Reply-guard: een body zonder "TRANSPORTATION REQUEST"-kop (bv. een gequote
+   RE:/FW:-reply) wordt overgeslagen → geen duplicaat-order uit een quote.
+
+Geen env-/config-/DB-wijziging. Geverifieerd: `node --check` + losse logica-tests
+(regex + helper). Geen Jordex-fixture in repo, dus geen end-to-end run.
+Open punt: zelfde port-exercitie kan later voor DFDS/Steinweg/Eimskip.
+
 ### Sessie 2026-06-04 — handover-document opgezet
 - `docs/HANDOVER.md` aangemaakt + handover-regel toegevoegd aan `CLAUDE.md`, zodat
   dit project consistent is met AHQ en Romy-HQ (alle drie houden een handover bij).

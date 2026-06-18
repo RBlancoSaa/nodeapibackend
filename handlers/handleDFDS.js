@@ -49,16 +49,17 @@ function parseDFDSBodyOrder(bodyText = '', mailSubject = '') {
   const ladingMatch = bodyText.match(/Type\s+of\s+goods\s*:\s*(.+?)(?:\r?\n|$)/i);
   const lading = (ladingMatch ? ladingMatch[1] : '').trim().toUpperCase();
 
-  // ADR detectie
+  // ADR detectie (incl. lithium-veiligheidsnet: lithium = altijd ADR klasse 9)
   const adr = (
-    /Dangerous\s+Goods\s*:\s*Yes/i.test(bodyText) ||
-    /\bUN\s*\d{4}\b/.test(bodyText) ||
-    /\bADR\b/i.test(bodyText)
+    /Dangerous\s+Goods\s*:\s*(?:Yes|Ja)/i.test(bodyText) ||
+    /\bUN\s*\d{4}(?!\d)/.test(bodyText) ||
+    /\bADR\b/i.test(bodyText) ||
+    /lithium|\bli[\s-]?ion\b|\bli[\s-]?ino\b/i.test(bodyText)
   ) ? 'Waar' : 'Onwaar';
 
   // UN-nummers extraheren voor instructies
   const unNummers = [...new Set(
-    [...bodyText.matchAll(/\bUN\s*(\d{4})\b/gi)].map(m => m[1])
+    [...bodyText.matchAll(/\bUN\s*(\d{4})(?!\d)/gi)].map(m => m[1])
   )];
   const unnr          = unNummers.length > 0 ? unNummers.join(', ') : '0';
   const adrInstructie = unNummers.length > 0 ? unNummers.map(n => `UN ${n}`).join(', ') : '';
@@ -270,10 +271,13 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
   }
 
   // ── ADR uit email body overnemen als PDF het niet detecteerde ─────────────
+  // Incl. lithium-veiligheidsnet: lithium(-ion) batterijen zijn altijd ADR
+  // klasse 9, ook als de mail "Dangerous Goods" niet expliciet noemt.
   const bodyHeeftAdr = (
-    /Dangerous\s+Goods\s*:\s*Yes/i.test(bodyText) ||
-    /\bUN\s*\d{4}\b/.test(bodyText) ||
-    /\bADR\b/i.test(bodyText)
+    /Dangerous\s+Goods\s*:\s*(?:Yes|Ja)/i.test(bodyText) ||
+    /\bUN\s*\d{4}(?!\d)/.test(bodyText) ||
+    /\bADR\b/i.test(bodyText) ||
+    /lithium|\bli[\s-]?ion\b|\bli[\s-]?ino\b/i.test(bodyText)
   );
   if (bodyHeeftAdr) {
     for (const c of containers) {

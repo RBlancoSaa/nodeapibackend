@@ -13,21 +13,29 @@ import { checkDuplicaat, buildUpdateMelding, voegUpdateInstructieToe } from '../
 // ── Helpers: groeperen op afzetdepot ────────────────────────────────────────
 
 /**
- * Groepeert containers op het afzetdepot (locaties.at(-1).naam).
- * Containers met hetzelfde depot krijgen één gezamenlijk .easy bestand
- * met een duplicatienota in de bijzonderheden.
+ * Groepeert containers op het paar (opzet-depot, afzet-depot) — d.w.z.
+ * locaties[0].naam (Opzetten) + locaties.at(-1).naam (Afzetten).
+ * Containers met ZOWEL hetzelfde opzet- ALS afzet-depot horen bij dezelfde
+ * rit en krijgen één gezamenlijk .easy bestand met een duplicatienota in de
+ * bijzonderheden.
  *
- * Route 1 (vol) en Route 2 (leeg) worden automatisch gescheiden omdat
- * hun afzetlocaties altijd anders zijn (Steinweg vs. return depot).
+ * Bewust op BEIDE depots: containers die toevallig hetzelfde afzet-depot delen
+ * maar van een ander opzet-depot komen (of omgekeerd) mogen NIET samengevoegd
+ * worden — dat is een andere rit. Route 1 (vol) en Route 2 (leeg) blijven
+ * sowieso gescheiden omdat hun opzet/afzet altijd verschillen
+ * (terminal→Steinweg vs. Steinweg→return depot).
  *
- * @returns {Array<{ depotSleutel: string, depotNaam: string, containers: object[] }>}
+ * @returns {Array<{ depotSleutel: string, depotNaam: string, opzetNaam: string, containers: object[] }>}
  */
-function groepeerOpAfzetdepot(containers) {
+function groepeerOpDepots(containers) {
   const map = new Map();
   for (const c of containers) {
-    const depotNaam = c.locaties?.at(-1)?.naam || 'onbekend';
-    const sleutel = depotNaam.trim().toLowerCase();
-    if (!map.has(sleutel)) map.set(sleutel, { depotSleutel: sleutel, depotNaam, containers: [] });
+    const opzetNaam = c.locaties?.[0]?.naam   || 'onbekend';
+    const afzetNaam = c.locaties?.at(-1)?.naam || 'onbekend';
+    const sleutel = `${opzetNaam.trim().toLowerCase()} → ${afzetNaam.trim().toLowerCase()}`;
+    if (!map.has(sleutel)) {
+      map.set(sleutel, { depotSleutel: sleutel, depotNaam: afzetNaam, opzetNaam, containers: [] });
+    }
     map.get(sleutel).containers.push(c);
   }
   return [...map.values()];
@@ -109,11 +117,11 @@ export default async function handleSteinweg({
 
   const useGmail = hasGmail();
 
-  // ── Groepeer op afzetdepot ────────────────────────────────────────────────
-  const groepen = groepeerOpAfzetdepot(containers);
+  // ── Groepeer op opzet- + afzet-depot ───────────────────────────────────────
+  const groepen = groepeerOpDepots(containers);
   console.log(`📦 ${containers.length} Steinweg container(s) → ${groepen.length} groep(en) | ${useGmail ? 'Gmail OAuth2' : 'queue'}`);
   for (const g of groepen) {
-    console.log(`  📍 "${g.depotNaam}" → ${g.containers.length}x container(s)`);
+    console.log(`  📍 "${g.opzetNaam}" → "${g.depotNaam}" → ${g.containers.length}x container(s)`);
   }
 
   const ordernummer = containers[0]?.ritnummer || `steinweg_${Date.now()}`;
