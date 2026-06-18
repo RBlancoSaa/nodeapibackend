@@ -49,12 +49,14 @@ console.log('📄 Eerste 500 tekens tekst:\n', text.slice(0, 500));
 
   if (text.includes('Neele-Vat') || text.includes('Neelevat')) {
     console.log('🔍 Neelevat PDF herkend');
-    return [await parseNeelevat(buffer, 'neelevat')];
+    const result = await parseNeelevat(buffer, 'neelevat');
+    return Array.isArray(result) ? result : [result];
   }
 
   if (text.includes('B2L Cargocare') || text.includes('B2L')) {
     console.log('🔍 B2L PDF herkend');
-    return [await parseB2L(buffer, 'b2l')];
+    const result = await parseB2L(buffer, 'b2l');
+    return Array.isArray(result) ? result : [result];
   }
 
   // herken DFDS op: nl-rtm-operations@dfds.com of 'DFDS Warehousing Rotterdam B.V.'
@@ -75,7 +77,8 @@ if (
 
   if (text.includes('Easyfresh')) {
     console.log('🔍 Easyfresh PDF herkend');
-    return [await parseEasyfresh(buffer, 'easyfresh')];
+    const result = await parseEasyfresh(buffer, 'easyfresh');
+    return Array.isArray(result) ? result : [result];
   }
 
   if (text.includes('Kintetsu World Express') || text.includes('KWE')) {
@@ -85,12 +88,14 @@ if (
 
   if (text.includes('Ritra')) {
     console.log('🔍 Ritra PDF herkend');
-    return [await parseRitra(buffer, 'ritra')];
+    const result = await parseRitra(buffer, 'ritra');
+    return Array.isArray(result) ? result : [result];
   }
 
   if (/steder/i.test(text)) {
     console.log('🔍 Steder PDF herkend');
-    return [await parseSteder(buffer)];
+    const result = await parseSteder(buffer);
+    return Array.isArray(result) ? result : [result];
   }
 
   console.warn('⚠️ Onbekende klant; geen parser uitgevoerd');

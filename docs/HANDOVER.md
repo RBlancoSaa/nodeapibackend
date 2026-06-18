@@ -35,6 +35,36 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-18 20:30 — Easyfresh parser geïmplementeerd (stub → echt, geport uit AHQ)
+`parsers/parseEasyfresh.js` was een stub (gaf leeg object → lege `.easy`
+"Order_GeenReferentie_Onbekend"). Nu een echte parser, geport uit AHQ
+`easyfresh.ts`, aangepast aan nodeapi-vorm (enrichOrder, `DD-MM-YYYY`,
+nodeapi-veldnamen). Verwerkt het Easyfresh-formaat: header
+"Opdrachtbevestiging EFN..", "Vracht"-regel (lading+temperatuur),
+"Cont. vol uithal." (opzet+container+boot/rederij) en "Container vol
+inleveren" (afzet+ref). Terminal→terminal import-flow. Fallback bij
+ontbrekende uithaal-regel: minimale order + ruwe tekst in instructies.
+`parsePdfToJson` Easyfresh-route ook genormaliseerd (Array.isArray).
+
+FIX (20:55): getest tegen een echte Easyfresh-PDF ("Magazijn - Proforma Zending
+Leverancier_L04764", EFN26-06-0364). De activiteit-marker bleek **"Container vol
+uithal."** i.p.v. de "Cont. vol uithal." uit AHQ → regex aangepast naar
+`/Cont(?:ainer)?\.?\s+vol\s+uithal\.?/i`. Nu worden ref, datum, lading+temp,
+opzet-terminal, container, boot/rederij, afzet-locatie en afzet-ref allemaal
+correct geëxtraheerd. ("L04764" in de bestandsnaam is een intern report-nr; de
+echte ref EFN26-06-0364 staat in de PDF-tekst.)
+
+### 2026-06-18 20:05 — Dropbox: double-wrap-bug B2L/Neelevat/Ritra/Steder gefixt
+`services/parsePdfToJson.js` (gebruikt door de Romy-HQ "easy"-dropbox via
+`/api/verwerk-pdf-upload`). parseB2L/parseNeelevat/parseRitra/parseSteder geven
+zelf al een **array** terug, maar parsePdfToJson wrapte ze als `[await parseX()]`
+→ `[[...]]` (dubbel genest). De dropbox pakte dan de binnenste array als
+"container" → `generateXmlFromJson` las `data.locaties[0]` op een array →
+`Cannot read properties of undefined (reading '0')` (B2L gaf "Geen enkele PDF
+kon verwerkt worden"). Nu net als Jordex/DFDS:
+`const r = await parseX(); return Array.isArray(r) ? r : [r];`. Alleen in de
+dropbox-flow stuk geweest; de Gmail-handlers riepen de parsers al correct aan.
+
 ### 2026-06-18 19:10 — DFDS: meerdere transport-blokken + lithium-ADR (geport uit AHQ)
 `parsers/parseDFDS.js` + `handlers/handleDFDS.js`. Geport uit AHQ's `dfds.ts`,
 maar **alleen de library-onafhankelijke extractie-winst** — nodeapi's `pdf2json`
