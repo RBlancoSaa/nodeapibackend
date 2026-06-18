@@ -35,6 +35,33 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-18 19:10 — DFDS: meerdere transport-blokken + lithium-ADR (geport uit AHQ)
+`parsers/parseDFDS.js` + `handlers/handleDFDS.js`. Geport uit AHQ's `dfds.ts`,
+maar **alleen de library-onafhankelijke extractie-winst** — nodeapi's `pdf2json`
+(kolommen mét spaties) en veldvorm blijven intact. AHQ-only spul (pdf-parse-
+spatieloze regexes, `containerTypeNaarIso`, eigen types, `ctx.allPdfs`) NIET
+overgenomen; multi-PDF + body-only-order zaten al in `handleDFDS`.
+
+1. **Meerdere transport-blokken**: een DFDS-order kan >1 tabel-header hebben, elk
+   met eigen container-set én eigen afzet-depot (blok 1 → Medrepair, blok 2 →
+   ECT Delta). Voorheen las de parser alleen het EERSTE blok → containers van
+   blok 2+ bleven leeg. Nu loopt hij over álle headers; elke container krijgt de
+   locaties van zijn eigen blok.
+2. **Lithium → ADR klasse 9 veiligheidsnet**: lithium(-ion, incl. DFDS-typo
+   "li-ino") = altijd ADR, ook zonder expliciete markering (AHQ-les SFIM2600869).
+   In de parser (PDF-tekst) én in `handleDFDS` (email-body override + body-only).
+3. Preciezere ADR: `Dangerous Goods: Yes/Ja`, UN `(?!\d)`-lookahead, ADR-klasse
+   in de instructie-tekst.
+
+**NB AHQ-koppeling:** nodeapi schrijft `opdrachten_log`; AHQ's edge-function
+`sync-al-opdrachten` leest die tabel → `ritten`. Daarom: extractie-KWALITEIT
+verbeteren mag, maar VORM (veldnamen, datum `DD-MM-YYYY`, containertype-labels)
+moet identiek blijven — anders breekt AHQ's sync. Hier niets aan vorm gewijzigd.
+
+Geverifieerd: `node --check` (beide), losse multi-block-test (2 blokken/2 afzet)
++ lithium-test (incl. geen false-positive op "million"). Geen DFDS-PDF-fixture
+in repo → geen end-to-end run.
+
 ### 2026-06-18 18:30 — Steinweg: groeperen op opzet- ÉN afzet-depot
 `handlers/handleSteinweg.js`: de container-groepering (één gezamenlijk `.easy`
 per groep, met duplicatienota) keyde voorheen **alleen op het afzet-depot**
