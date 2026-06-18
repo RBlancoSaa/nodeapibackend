@@ -97,7 +97,7 @@ export default async function parseEasyfresh(buffer, alias = 'easyfresh') {
   }
 
   // Activiteit-regels
-  const uithalRegel    = ls.find(l => /Cont\.?\s+vol\s+uithal\.?/i.test(l)) || '';
+  const uithalRegel    = ls.find(l => /Cont(?:ainer)?\.?\s+vol\s+uithal\.?/i.test(l)) || '';
   const inleverenRegel = ls.find(l => /Container\s+vol\s+inleveren/i.test(l)) || '';
 
   // ── Uithaal-regel: datum + opzet-locatie + container + boot/rederij ──
@@ -108,10 +108,10 @@ export default async function parseEasyfresh(buffer, alias = 'easyfresh') {
     const dtM = uithalRegel.match(/^(\d{1,2}-\d{1,2}-\d{2,4})\s+(\d{1,2}:\d{2}):/);
     if (dtM) { datumUithaal = parseDatumNL(dtM[1]); tijdUithaal = formatTijd(dtM[2]); }
     const naActiviteit = uithalRegel.replace(/^\d{1,2}-\d{1,2}-\d{2,4}\s+\d{1,2}:\d{2}:\s*/, '');
-    const splitIdx = naActiviteit.search(/Cont\.?\s+vol\s+uithal\.?/i);
+    const splitIdx = naActiviteit.search(/Cont(?:ainer)?\.?\s+vol\s+uithal\.?/i);
     const adresDeel = splitIdx > 0 ? naActiviteit.slice(0, splitIdx).replace(/,\s*$/, '') : naActiviteit;
     opzetLoc = parseAdresUitActiviteit(adresDeel);
-    const naUithal = splitIdx > 0 ? naActiviteit.slice(splitIdx).replace(/^Cont\.?\s+vol\s+uithal\.?/i, '') : '';
+    const naUithal = splitIdx > 0 ? naActiviteit.slice(splitIdx).replace(/^Cont(?:ainer)?\.?\s+vol\s+uithal\.?/i, '') : '';
     const cMatch = naUithal.match(/([A-Z]{3}[UJZ]\d{7})/);
     if (cMatch) containernummer = cMatch[1];
     const naContainer = naUithal.split(',').slice(1).join(',').trim();

@@ -46,10 +46,13 @@ inleveren" (afzet+ref). Terminal→terminal import-flow. Fallback bij
 ontbrekende uithaal-regel: minimale order + ruwe tekst in instructies.
 `parsePdfToJson` Easyfresh-route ook genormaliseerd (Array.isArray).
 
-⚠️ OPEN PUNT: getest op AHQ's gedocumenteerde **EFN**-formaat. De door de
-gebruiker gemelde PDF ("Magazijn - Proforma Zending Leverancier_L04764") heeft
-ref "L04764" (geen EFN..) → mogelijk een ánder Easyfresh-sjabloon dat deze
-parser nog niet matcht. Ruwe PDF-tekst nodig om te bevestigen/uit te breiden.
+FIX (20:55): getest tegen een echte Easyfresh-PDF ("Magazijn - Proforma Zending
+Leverancier_L04764", EFN26-06-0364). De activiteit-marker bleek **"Container vol
+uithal."** i.p.v. de "Cont. vol uithal." uit AHQ → regex aangepast naar
+`/Cont(?:ainer)?\.?\s+vol\s+uithal\.?/i`. Nu worden ref, datum, lading+temp,
+opzet-terminal, container, boot/rederij, afzet-locatie en afzet-ref allemaal
+correct geëxtraheerd. ("L04764" in de bestandsnaam is een intern report-nr; de
+echte ref EFN26-06-0364 staat in de PDF-tekst.)
 
 ### 2026-06-18 20:05 — Dropbox: double-wrap-bug B2L/Neelevat/Ritra/Steder gefixt
 `services/parsePdfToJson.js` (gebruikt door de Romy-HQ "easy"-dropbox via
