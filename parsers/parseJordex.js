@@ -18,6 +18,30 @@ function formatDatum(text) {
   return `${parseInt(day)}-${maand}-${year}`;
 }
 
+/**
+ * Splitst een Jordex EMAIL-BODY adresregel waar naam + straat + postcode +
+ * plaats op ÉÉN regel staan, bijv:
+ *   "HAPAG LLOYD DEPOT Ophemertstraat 1 3089 JD ROTTERDAM"
+ *   "Bakker Warehousing Komeet 7 8448 CG HEERENVEEN"
+ * In de PDF-tekst staan die velden op aparte regels; in de mail-body op één
+ * regel met de postcode middenin. Geeft null als er geen inline-postcode is
+ * (dan is het de meerregelige PDF-variant en pakt de bestaande logica het op).
+ */
+function splitInlineAdres(regel) {
+  const t = (regel || '').replace(/^Address:\s*/i, '').trim();
+  const pcM = t.match(/\b(\d{4})\s*([A-Z]{2})\b/);
+  if (!pcM || pcM.index === undefined || pcM.index === 0) return null;
+  const postcode = `${pcM[1]} ${pcM[2]}`;
+  const voor = t.slice(0, pcM.index).trim();
+  const plaats = t.slice(pcM.index + pcM[0].length).trim();
+  // straat = laatste "<straatnaam> <huisnr>" in het deel vóór de postcode
+  const straatM = voor.match(/^(.+?)\s+([A-Za-zÀ-ÿ'.-]+\s+\d+[A-Za-z]?(?:\s*[-/]\s*\d+[A-Za-z]?)?)$/);
+  if (straatM) {
+    return { naam: straatM[1].trim(), adres: straatM[2].trim(), postcode, plaats };
+  }
+  return { naam: voor, adres: '', postcode, plaats };
+}
+
 
 export default async function parseJordex(pdfBufferOrText, klantAlias = 'jordex') {
   // Accepteert zowel een PDF-buffer als ruwe tekst (bijv. email body van updated orders)
@@ -28,6 +52,16 @@ export default async function parseJordex(pdfBufferOrText, klantAlias = 'jordex'
     console.log('📦 Jordex: ruwe tekst als input (email body)');
     text   = pdfBufferOrText;
     regels = text.split('\n').map(r => r.trim()).filter(Boolean);
+    // REPLY-guard: een Jordex "RE:/FW:"-reply bevat een kort mens-bericht met de
+    // originele opdracht eronder GEQUOTE. Zonder PDF zou de parser die quote als
+    // verse order zien → duplicaat-rit met dubbele stops. Een ECHTE opdracht heeft
+    // "TRANSPORTATION REQUEST" binnen de eerste regels; bij een reply staat die pas
+    // diep in de quote. Geen kop-header bovenaan → geen order.
+    const kop = regels.slice(0, 3).join(' ');
+    if (!/TRANSPORTATION\s+REQUEST/i.test(kop)) {
+      console.warn('⚠️ Jordex body zonder "TRANSPORTATION REQUEST"-kop — waarschijnlijk een reply, overgeslagen');
+      return [];
+    }
   } else {
     const pdfBuffer = pdfBufferOrText;
     console.log('📦 Ontvangen pdfBuffer:', pdfBuffer?.length, 'bytes');
@@ -66,13 +100,17 @@ export default async function parseJordex(pdfBufferOrText, klantAlias = 'jordex'
   };
   // ✅ 100% correcte extractie uit alleen het "Pick-up" blok (klant)
   // Stop bij "Extra stop" zodat bijladen-secties niet als aparte container worden meegeteld
-    const pickupBlokMatch = text.match(/Pick-up\s*\n([\s\S]+?)(?=\n(?:Extra\s+stop|Drop-off terminal|Pick-up terminal|Extra Information|$))/i);
+    // `$` staat BUITEN de `\n(...)`-groep: JS' `$` (zonder /m) matcht alleen écht
+    // einde-string, niet vóór een trailing \n. Bij export/reefer-PDF's zonder
+    // "Drop-off terminal"-sectie faalde anders de hele match → leeg pickup-blok
+    // → geen klant/laadlocatie (bv. OE2619362 Champi-Mer BV).
+    const pickupBlokMatch = text.match(/Pick-up\s*\n([\s\S]+?)(?=\n(?:Extra\s+stop|Drop-off terminal|Pick-up terminal|Extra Information)|$)/i);
     const pickupBlok = pickupBlokMatch?.[1] || '';
     const pickupRegels = pickupBlok.split('\n').map(r => r.trim()).filter(Boolean);
 
   // Extra stop secties (bijladen — meerdere laadadressen voor dezelfde container)
   const extraStopBlokken = [];
-  for (const m of text.matchAll(/Extra\s+stop\s*\n([\s\S]+?)(?=\n(?:Extra\s+stop|Drop-off terminal|Pick-up\s+terminal|$))/gi)) {
+  for (const m of text.matchAll(/Extra\s+stop\s*\n([\s\S]+?)(?=\n(?:Extra\s+stop|Drop-off terminal|Pick-up\s+terminal)|$)/gi)) {
     const esRegels = m[1].split('\n').map(r => r.trim()).filter(Boolean);
     const esAdresIdx = esRegels.findIndex(r => /^Address:/i.test(r));
     const esPcIdx    = esRegels.findIndex(r => /^\d{4}\s*[A-Z]{2}\b/i.test(r));
@@ -85,10 +123,16 @@ export default async function parseJordex(pdfBufferOrText, klantAlias = 'jordex'
       esPostcode = esRegels[esPcIdx]     || '';
       esPlaats   = esRegels[esPcIdx + 1] || '';
     } else if (esAdresIdx >= 0) {
-      esNaam     = esRegels[esAdresIdx].replace(/^Address:/i, '').trim();
-      esAdres    = esRegels[esAdresIdx + 1] || '';
-      esPostcode = esRegels[esAdresIdx + 2] || '';
-      esPlaats   = esRegels[esAdresIdx + 3] || '';
+      const inline = splitInlineAdres(esRegels[esAdresIdx]);
+      if (inline) {
+        esNaam = inline.naam; esAdres = inline.adres;
+        esPostcode = inline.postcode; esPlaats = inline.plaats;
+      } else {
+        esNaam     = esRegels[esAdresIdx].replace(/^Address:/i, '').trim();
+        esAdres    = esRegels[esAdresIdx + 1] || '';
+        esPostcode = esRegels[esAdresIdx + 2] || '';
+        esPlaats   = esRegels[esAdresIdx + 3] || '';
+      }
     }
     extraStopBlokken.push({ naam: esNaam, adres: esAdres, postcode: esPostcode, plaats: esPlaats });
     console.log(`📍 Extra stop gevonden: ${esNaam} | ${esAdres} | ${esPostcode} ${esPlaats}`);
@@ -107,14 +151,24 @@ export default async function parseJordex(pdfBufferOrText, klantAlias = 'jordex'
     postcode   = pickupRegels[postcodeIdx] || '';
     plaats     = pickupRegels[postcodeIdx + 1] || '';
   } else if (adresLineIdx >= 0) {
-    klantNaam  = pickupRegels[adresLineIdx].replace(/^Address:/i, '').trim();
-    adres      = pickupRegels[adresLineIdx + 1] || '';
-    postcode   = pickupRegels[adresLineIdx + 2] || '';
-    plaats     = pickupRegels[adresLineIdx + 3] || '';
+    const inline = splitInlineAdres(pickupRegels[adresLineIdx]);
+    if (inline) {
+      klantNaam = inline.naam; adres = inline.adres;
+      postcode = inline.postcode; plaats = inline.plaats;
+    } else {
+      klantNaam  = pickupRegels[adresLineIdx].replace(/^Address:/i, '').trim();
+      adres      = pickupRegels[adresLineIdx + 1] || '';
+      postcode   = pickupRegels[adresLineIdx + 2] || '';
+      plaats     = pickupRegels[adresLineIdx + 3] || '';
+    }
   }
 
   // 📦 Containerinformatie (eerste Cargo-regel als fallback)
-    const cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
+    // Cargo-regel: eerst in de pickup-sectie. Valt die weg (bv. export-PDF zónder
+    // "Pick-up terminal"/"Drop-off terminal"-secties, waar pickupBlok niet matcht),
+    // val terug op álle regels — de "Cargo: N x <type>"-regel staat er dan nog.
+    let cargoLine = pickupRegels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
+    if (!cargoLine) cargoLine = regels.find(r => r.toLowerCase().startsWith('cargo:')) || '';
     const containertype = cargoLine.match(/\d+\s*x\s*(.+)/i)?.[1]?.trim() || '';
 
   // 📦 Containerwaarden + lading
@@ -356,8 +410,12 @@ export default async function parseJordex(pdfBufferOrText, klantAlias = 'jordex'
         console.log('📅 laadDatum:', laadDatum);
         console.log('📅 laadTijd:', laadTijd);
 
-  // Rederij: raw waarde, enrichOrder doet de lookup
-  const rederijRaw_full = multiExtract([/Carrier[:\t ]+(.+)/i]) || '';
+  // Rederij: raw waarde, enrichOrder doet de lookup.
+  // Non-greedy capture: in het mail-body-formaat staat alles op één regel
+  // ("Carrier: MAERSK (MAEU) Vessel: TIHAMA ETD: 10 Jun 2026"). Stop bij
+  // Vessel/ETD/2+ spaties/regeleinde, anders matcht "MAERSK (MAEU) Vessel: …"
+  // nergens in de rederijen-lijst.
+  const rederijRaw_full = multiExtract([/Carrier[:\t ]+(.+?)(?:\s+Vessel\b|\s+ETD\b|\s{2,}|$)/i]) || '';
   const rederijRaw = rederijRaw_full.includes(' - ')
     ? rederijRaw_full.split(' - ')[1].trim()
     : rederijRaw_full.trim();
@@ -388,8 +446,8 @@ const data = {
     rederijRaw,          // enrichOrder doet de lookup
     rederij:        '',
     inleverRederij: '',
-    bootnaam: logResult('bootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
-    inleverBootnaam: logResult('inleverBootnaam', multiExtract([/Vessel[:\t ]+(.+)/i])),
+    bootnaam: logResult('bootnaam', multiExtract([/Vessel[:\t ]+(.+?)(?:\s+ETD\b|\s{2,}|$)/i])),
+    inleverBootnaam: logResult('inleverBootnaam', multiExtract([/Vessel[:\t ]+(.+?)(?:\s+ETD\b|\s{2,}|$)/i])),
 
     containernummer: logResult('containernummer', (() => {
       // ISO 6346: 3 owner letters + U + 7 digits, bijv. TEMU1234567
@@ -501,6 +559,26 @@ function parseSectieAdresData(regels, headerIdx, maxLines = 8) {
     const r = raw.replace(/^Address:\s*/i, '').trim();
     if (!r) continue;
 
+    // Email-body variant: naam + straat + postcode + plaats op één regel.
+    if (!postcode) {
+      const inline = splitInlineAdres(r);
+      if (inline) {
+        if (!naam)  naam  = inline.naam;
+        if (!adres) adres = inline.adres;
+        postcode = inline.postcode;
+        plaats   = inline.plaats;
+        // Lange terminalregels wrappen in de mail-body: postcode aan het eind
+        // van regel 1, plaats op regel 2 (bv. RWG "…3199 KD\nROTTERDAM-MAASVLAKTE").
+        if (!plaats) {
+          const volgende = (regels[i + 1] || '').trim();
+          if (volgende && !/^(Cargo|Reference|Date:|Vessel|Carrier|Remark|IMO|Extra|Drop-off|Pick-up|Cut-off|Booking|Customs|Address:)/i.test(volgende)) {
+            plaats = volgende;
+          }
+        }
+        continue;
+      }
+    }
+
     // Postcode: "3089 KN" of "3089KN Rotterdam"
     if (!postcode && /^\d{4}\s*[A-Z]{2}\b/i.test(r)) {
       const pcM = r.match(/^(\d{4})\s*([A-Z]{2})\s*(.*)/i);
@@ -527,7 +605,9 @@ function parseSectieAdresData(regels, headerIdx, maxLines = 8) {
 
 // ── Terminal-secties opzoeken en parsen ─────────────────────────────────────
 const puIndex = regels.findIndex(line => /^Pick[-\s]?up terminal$/i.test(line));
-const doIndex = regels.findIndex(line => /^Drop[-\s]?off terminal$/i.test(line));
+// "Drop-off terminal" (PDF) óf "Cut-off" (mail-body): beide duiden de
+// afzet-/inlever-terminal voor de boot aan (bv. RWG Maasvlakte).
+const doIndex = regels.findIndex(line => /^(?:Drop[-\s]?off terminal|Cut[-\s]?off)$/i.test(line));
 
 const { naam: puNaamRaw, adres: puAdresRaw, postcode: puPCRaw, plaats: puPlaatsRaw } =
   parseSectieAdresData(regels, puIndex);

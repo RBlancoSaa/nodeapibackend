@@ -35,6 +35,35 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-18 17:50 — Jordex-parser: extractie-verbeteringen geport uit AHQ
+Achtergrond: de "easy parser dropbox" (`/bedrijf/easy` in Romy-HQ) proxiet naar
+`nodeapibackend` `/api/verwerk-pdf-upload` → `handleJordex` → `parseJordex.js`.
+Die JS-parser liep achter op de nieuwere TS-versie in AutomatingHQ
+(`src/lib/harvester/parsers/jordex.ts`). De **extractie-verbeteringen** zijn
+overgenomen; de AHQ-specifieke output-vorm (`referentie` i.p.v. `laadreferentie`,
+`containertypeIso`, ISO-datums, `enrich`/`persist`-laag) NIET — die zou de
+`.easy`-generatie breken. **AHQ is alleen gelezen, niet gewijzigd.**
+
+Gewijzigd: alleen `parsers/parseJordex.js`. Concreet:
+1. Regex-bugfix pickup- én extra-stop-blok: `$` staat nu BUITEn de `\n(...)`-groep.
+   Export/reefer-PDF's zonder "Drop-off terminal"-sectie gaven eerder een leeg
+   pickup-blok → geen klant/laadlocatie (bv. OE2619362 Champi-Mer BV).
+2. Cargo-regel valt terug op álle regels als de pickup-sectie ontbreekt.
+3. Carrier & Vessel non-greedy: mail-body zet alles op één regel
+   ("Carrier: MAERSK (MAEU) Vessel: TIHAMA ETD: …") → capture stopt nu bij
+   Vessel/ETD/2+ spaties i.p.v. de hele regel mee te pakken.
+4. `splitInlineAdres()` helper: naam+straat+postcode+plaats op één regel
+   (.eml/mail-body) wordt correct gesplitst; PDF-meerregelige variant → null
+   (bestaande logica blijft werken). Gebruikt in klant-, extra-stop- en
+   terminal-sectie-parsing.
+5. "Cut-off" herkend als alias voor "Drop-off terminal" (mail-body).
+6. Reply-guard: een body zonder "TRANSPORTATION REQUEST"-kop (bv. een gequote
+   RE:/FW:-reply) wordt overgeslagen → geen duplicaat-order uit een quote.
+
+Geen env-/config-/DB-wijziging. Geverifieerd: `node --check` + losse logica-tests
+(regex + helper). Geen Jordex-fixture in repo, dus geen end-to-end run.
+Open punt: zelfde port-exercitie kan later voor DFDS/Steinweg/Eimskip.
+
 ### Sessie 2026-06-04 — handover-document opgezet
 - `docs/HANDOVER.md` aangemaakt + handover-regel toegevoegd aan `CLAUDE.md`, zodat
   dit project consistent is met AHQ en Romy-HQ (alle drie houden een handover bij).
