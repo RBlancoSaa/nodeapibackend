@@ -35,6 +35,22 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-18 20:30 — Easyfresh parser geïmplementeerd (stub → echt, geport uit AHQ)
+`parsers/parseEasyfresh.js` was een stub (gaf leeg object → lege `.easy`
+"Order_GeenReferentie_Onbekend"). Nu een echte parser, geport uit AHQ
+`easyfresh.ts`, aangepast aan nodeapi-vorm (enrichOrder, `DD-MM-YYYY`,
+nodeapi-veldnamen). Verwerkt het Easyfresh-formaat: header
+"Opdrachtbevestiging EFN..", "Vracht"-regel (lading+temperatuur),
+"Cont. vol uithal." (opzet+container+boot/rederij) en "Container vol
+inleveren" (afzet+ref). Terminal→terminal import-flow. Fallback bij
+ontbrekende uithaal-regel: minimale order + ruwe tekst in instructies.
+`parsePdfToJson` Easyfresh-route ook genormaliseerd (Array.isArray).
+
+⚠️ OPEN PUNT: getest op AHQ's gedocumenteerde **EFN**-formaat. De door de
+gebruiker gemelde PDF ("Magazijn - Proforma Zending Leverancier_L04764") heeft
+ref "L04764" (geen EFN..) → mogelijk een ánder Easyfresh-sjabloon dat deze
+parser nog niet matcht. Ruwe PDF-tekst nodig om te bevestigen/uit te breiden.
+
 ### 2026-06-18 20:05 — Dropbox: double-wrap-bug B2L/Neelevat/Ritra/Steder gefixt
 `services/parsePdfToJson.js` (gebruikt door de Romy-HQ "easy"-dropbox via
 `/api/verwerk-pdf-upload`). parseB2L/parseNeelevat/parseRitra/parseSteder geven

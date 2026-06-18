@@ -77,7 +77,8 @@ if (
 
   if (text.includes('Easyfresh')) {
     console.log('🔍 Easyfresh PDF herkend');
-    return [await parseEasyfresh(buffer, 'easyfresh')];
+    const result = await parseEasyfresh(buffer, 'easyfresh');
+    return Array.isArray(result) ? result : [result];
   }
 
   if (text.includes('Kintetsu World Express') || text.includes('KWE')) {
