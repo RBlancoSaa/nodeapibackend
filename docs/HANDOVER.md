@@ -35,6 +35,19 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-18 18:30 — Steinweg: groeperen op opzet- ÉN afzet-depot
+`handlers/handleSteinweg.js`: de container-groepering (één gezamenlijk `.easy`
+per groep, met duplicatienota) keyde voorheen **alleen op het afzet-depot**
+(`groepeerOpAfzetdepot`). Nu op het **paar (opzet-depot, afzet-depot)** →
+`groepeerOpDepots`. Containers worden alleen samengevoegd als ZOWEL het opzet-
+als het afzet-depot gelijk is; gelijk afzet maar ander opzet (of omgekeerd) =
+aparte opdracht. Route 1 (vol) en Route 2 (leeg) blijven sowieso gescheiden.
+
+**Bewust NIET aangeraakt:** `parsers/parseSteinweg.js` — hoe Steinweg-mails
+geparsed worden en hoe ritten worden opgebouwd blijft ongewijzigd. Alleen de
+groepeer-sleutel in de handler is aangepast. Geverifieerd met `node --check` +
+losse groepeer-test (zelfde afzet/ander opzet → apart).
+
 ### 2026-06-18 17:50 — Jordex-parser: extractie-verbeteringen geport uit AHQ
 Achtergrond: de "easy parser dropbox" (`/bedrijf/easy` in Romy-HQ) proxiet naar
 `nodeapibackend` `/api/verwerk-pdf-upload` → `handleJordex` → `parseJordex.js`.
