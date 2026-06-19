@@ -847,6 +847,13 @@ export default async function handler(req, res) {
         </div>
         <div class="tg-bulk-bar" id="tg-bulk-bar" style="display:none">
           <span id="tg-sel-count" style="font-size:12px;color:#5C4A34;font-weight:600"></span>
+          <span style="font-size:11px;color:#5C4A34">Zet</span>
+          <select id="tg-bulk-col" class="tg-bulk-sel">
+            ${T_COLS.map(c => `<option value="${esc(c.key)}">${esc(c.label)}</option>`).join('')}
+          </select>
+          <span style="font-size:11px;color:#5C4A34">op</span>
+          <input type="number" step="0.01" id="tg-bulk-val" class="tg-bulk-val" placeholder="0">
+          <button class="tg-bulk-btn tg-bulk-apply" onclick="tgBulkSet('${esc(token)}')">✓ Toepassen op selectie</button>
           <button class="tg-bulk-btn tg-bulk-hide" onclick="tgBulkVerberg('${esc(token)}')">🚫 Verberg geselecteerde</button>
           <button class="tg-bulk-btn tg-bulk-cancel" onclick="tgDeselectAll()">✕ Deselecteer</button>
         </div>
@@ -1225,6 +1232,10 @@ td           { padding: 8px 14px; vertical-align: middle; }
 .tg-bulk-hide:hover { background:#6B1220; }
 .tg-bulk-cancel { background:var(--light-bg);color:var(--text-med); }
 .tg-bulk-cancel:hover { background:var(--border); }
+.tg-bulk-apply { background:#2E7D32;color:white; }
+.tg-bulk-apply:hover { background:#1B5E20; }
+.tg-bulk-sel { font-size:11px;padding:4px 6px;border:1px solid #D4A843;border-radius:6px;background:white; }
+.tg-bulk-val { width:70px;font-size:11px;padding:4px 6px;border:1px solid #D4A843;border-radius:6px; }
 .tg-wrap   { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(44,26,15,.04); }
 .tg-table  { border-collapse: collapse; background: var(--card); min-width: 100%; }
 .tg-table thead tr { background: var(--sidebar); position: sticky; top: 0; z-index: 2; }
@@ -1764,6 +1775,44 @@ async function tgBulkVerberg(token) {
     });
   }
   location.reload();
+}
+
+// Bulk wijzigen — zet één kolom (tarief/diesel/toeslag) op dezelfde waarde voor
+// alle geselecteerde klanten. Hergebruikt het /api/prijsafspraken opslaan-endpoint.
+async function tgBulkSet(token) {
+  const col    = document.getElementById('tg-bulk-col').value;
+  const label  = document.getElementById('tg-bulk-col').selectedOptions[0]?.textContent || col;
+  const valRaw = document.getElementById('tg-bulk-val').value;
+  if (valRaw === '' || valRaw == null) { alert('Vul eerst een waarde in.'); return; }
+  const val = parseFloat(valRaw) || 0;
+  const selected = [...document.querySelectorAll('#tg-body .tg-cb:checked')].map(cb => cb.closest('tr'));
+  if (!selected.length) return;
+  if (!confirm('"' + label + '" op ' + val + ' zetten voor ' + selected.length + ' klant(en)?')) return;
+
+  let ok = 0, fail = 0, skip = 0;
+  for (const row of selected) {
+    // All-in + terminal-toeslag → overslaan (die waarde telt toch niet mee)
+    if (row.dataset.allin === '1' && TG_TERMINAL_KEYS.has(col)) { skip++; continue; }
+    let velden = {};
+    try { velden = JSON.parse(row.dataset.velden || '{}'); } catch {}
+    if (!velden[col]) velden[col] = {};
+    velden[col].chart  = val;
+    velden[col].actief = val > 0;
+    row.dataset.velden = JSON.stringify(velden);
+    // UI bijwerken: het invoerveld van die kolom in deze rij
+    const inp = row.querySelector('.tg-inp[data-key="' + col + '"]');
+    if (inp && !inp.disabled) inp.value = val;
+    const payload = { ...velden };
+    delete payload._negeer;
+    try {
+      const res = await fetch('/api/prijsafspraken?tenant=' + encodeURIComponent(__TENANT_SLUG__), {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ klant: row.dataset.klant, velden: payload, all_in: row.dataset.allin === '1' })
+      });
+      if (res.ok) ok++; else fail++;
+    } catch { fail++; }
+  }
+  alert('Klaar: ' + ok + ' bijgewerkt' + (skip ? ', ' + skip + ' overgeslagen (all-in)' : '') + (fail ? ', ' + fail + ' mislukt' : '') + '.');
 }
 
 // Toon/verberg hidden sectie

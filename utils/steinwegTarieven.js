@@ -254,7 +254,7 @@ export function berekenVolTarief(terminalNaam, bestemmingNaam, sizeStr, afsprake
 
   return {
     tarief,
-    dieselToeslagChart: dieselChart,
+    dieselToeslagChart: dieselPct,  // EasyTrip verwacht een PERCENTAGE (zoals andere klanten), niet het euro-bedrag
     deltaChart,
     euromaxChart,
     blanco1Chart,
@@ -323,7 +323,7 @@ export function berekenLeegTarief(depotNaam, opzetNaam, sizeStr, isPaired, afspr
 
   return {
     tarief,
-    dieselToeslagChart: dieselChart,
+    dieselToeslagChart: dieselPct,  // EasyTrip verwacht een PERCENTAGE (zoals andere klanten), niet het euro-bedrag
     deltaChart,
     euromaxChart,
     blanco1Chart,

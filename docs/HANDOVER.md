@@ -35,6 +35,23 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-18 22:45 — Steinweg-diesel als percentage + bulk-tarief-wijzigen in dashboard
+Twee dingen:
+1. **Steinweg diesel** (`utils/steinwegTarieven.js`): `dieselToeslagChart` gaf een
+   €-BEDRAG terug (9% × basistarief, bv. €13,50), terwijl EasyTrip in
+   `<Diesel_toeslag_Chart>` een PERCENTAGE verwacht (zoals alle andere klanten via
+   `enrichOrder`). Steinweg sloeg `enrichOrder`'s toeslagen-blok over (want het zet
+   `adrBedragChart` zelf → guard op regel ~211 in enrichOrder), dus het €-bedrag
+   bleef staan. Nu geeft `berekenVolTarief`/`berekenLeegTarief` het **percentage**
+   (`dieselPct`) terug. (13,5 die de gebruiker zag = €13,50 = 9% van het tarief,
+   géén losse prijsafspraak — staat nergens in nodeapi/AHQ als 13,5%.)
+2. **Bulk-tarief wijzigen** (`api/dashboard.js`, tarieven-grid): de bulk-balk kon
+   alleen "verbergen". Toegevoegd: kolom-select (tarief/diesel/delta/…) + waarde +
+   knop **"Toepassen op selectie"** → zet die kolom op dezelfde waarde voor alle
+   aangevinkte klanten via het bestaande `/api/prijsafspraken`-endpoint
+   (`tgBulkSet`). All-in-rijen slaan terminal-toeslagen over.
+`node --check` groen.
+
 ### 2026-06-18 22:10 — KWE: echte parser (`parsers/parseKWE.js`) + AHQ-verbeteringen
 `parsers/parseKWE.js` was een stub (lege `.easy` in de dropbox). De volledige
 KWE-extractie zat al inline in `handlers/handleKWE.js` (Gmail-flow werkte dus
