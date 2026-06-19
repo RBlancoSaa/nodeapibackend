@@ -35,6 +35,25 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-18 21:40 — B2L + Ritra: gerichte extractie-verbeteringen uit AHQ
+Na een parser-voor-parser vergelijking met de AHQ-versies (b2l/neelevat/ritra/
+steder.ts) twee echte verbeteringen geport (rest is gelijkwaardig — zie onder):
+- **B2L** (`parsers/parseB2L.js`): bij RIDER-PDF's is "CARGO DESCRIPTION" een
+  kolom-kop i.p.v. een label → `valAfterLabel` pakte de kop-rest ("Packages
+  Gross Weight Volume") als lading. Nu: als de lading leeg is of naar die
+  kop-tekst ruikt, wordt de echte omschrijving uit de eerste RIDER-datarij
+  gehaald (na container+zegel, vóór de gewicht/volume-regel). `const lading`
+  → `let lading`.
+- **Ritra** (`parsers/parseRitra.js`): containertype ondersteunt nu 45ft +
+  45ft HC + 20ft HC (voorheen viel alles ≠ 40ft terug op kaal "{size}ft").
+
+**Geen verandering nodig voor Neelevat en Steder**: AHQ's versies hebben
+identieke extractie-logica (zelfde regexes/velden) — bevestigd, nodeapi is hier
+niet achtergelopen. ISO-datum/number-types uit AHQ bewust NIET overgenomen:
+nodeapi moet `DD-MM-YYYY` houden, anders breekt AHQ's opdrachten_log-sync
+(`parseDate` verwacht dat formaat). Geverifieerd met `node --check` + losse
+extractie-tests.
+
 ### 2026-06-18 20:30 — Easyfresh parser geïmplementeerd (stub → echt, geport uit AHQ)
 `parsers/parseEasyfresh.js` was een stub (gaf leeg object → lege `.easy`
 "Order_GeenReferentie_Onbekend"). Nu een echte parser, geport uit AHQ

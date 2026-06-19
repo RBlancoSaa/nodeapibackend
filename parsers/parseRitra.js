@@ -51,7 +51,12 @@ export default async function parseRitra(buffer) {
   const typeLine       = ls.find(l => /\bft\d{2}\b/i.test(l));
   const sizeNum        = typeLine?.match(/ft(\d{2})|(\d{2})ft/i);
   const size           = sizeNum?.[1] || sizeNum?.[2] || '20';
-  const containertype  = size === '40' ? (isHC ? '40ft HC' : '40ft') : `${size}ft`;
+  // 45ft + 20ft HC ondersteuning (voorheen viel alles ≠ 40 terug op "{size}ft")
+  let containertype;
+  if (size === '40')      containertype = isHC ? '40ft HC' : '40ft';
+  else if (size === '45') containertype = isHC ? '45ft HC' : '45ft';
+  else if (size === '20') containertype = isHC ? '20ft HC' : '20ft';
+  else                    containertype = `${size}ft`;
 
   // === Zegel ===
   // FIX: patroon uitgebreid met koppeltekens (bijv. ML-CN5467370, HLK1459712)
