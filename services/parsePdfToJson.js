@@ -83,7 +83,10 @@ if (
 
   if (text.includes('Kintetsu World Express') || text.includes('KWE')) {
     console.log('🔍 KWE PDF herkend');
-    return [await parseKWE(buffer, 'kwe')];
+    // KWE-data zit normaal in de mail-body; via de dropbox geven we de PDF-tekst
+    // als body mee. enrichOrder draait in parseKWE.
+    const result = await parseKWE({ buffer });
+    return Array.isArray(result) ? result : [result];
   }
 
   if (text.includes('Ritra')) {
