@@ -35,6 +35,27 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-18 22:10 — KWE: echte parser (`parsers/parseKWE.js`) + AHQ-verbeteringen
+`parsers/parseKWE.js` was een stub (lege `.easy` in de dropbox). De volledige
+KWE-extractie zat al inline in `handlers/handleKWE.js` (Gmail-flow werkte dus
+al); die logica is nu naar `parseKWE.js` verplaatst én verbeterd met de
+AHQ-port (`kwe.ts`):
+- **conversatie/reply-guard**: body zonder order-marker maar mét vraag/reply-
+  markers → geen (spook)order;
+- **subject-route fallback** ("Transportopdracht Rotterdam - Plaats / …");
+- **alternatief body-formaat** ("Laden:", "LEVEREN:", containerregel
+  "KOCU4597056// A264031605 // 04-06-2026 om 13.00U", "Leeg retour RWG",
+  Turn-In-Ref → inleverreferentie, pin → referentie);
+- **containernr uit release-PDF** (best-effort) + **rederij uit container-prefix**
+  (BIC owner code; enrichOrder valideert via rederijen-lijst).
+`handleKWE.js` is nu een dunne wrapper (parse → .easy → mail → log).
+`parsePdfToJson` KWE-route geeft de PDF-tekst als body mee (dropbox) en is
+genormaliseerd (Array.isArray). nodeapi-vorm behouden (DD-MM-YYYY,
+opdrachtgeverBTW/KVK, inleverreferentie, _noTerminalLookup) → opdrachten_log-
+sync naar AHQ blijft intact. `node --check` + losse extractie-test (alt-formaat).
+NB: KWE is body-based; een losse release-PDF in de dropbox levert weinig — de
+echte bron is de e-mail (Gmail-flow of een .eml met body).
+
 ### 2026-06-18 21:40 — B2L + Ritra: gerichte extractie-verbeteringen uit AHQ
 Na een parser-voor-parser vergelijking met de AHQ-versies (b2l/neelevat/ritra/
 steder.ts) twee echte verbeteringen geport (rest is gelijkwaardig — zie onder):
