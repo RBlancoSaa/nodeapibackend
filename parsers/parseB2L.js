@@ -131,7 +131,7 @@ export default async function parseB2L(buffer) {
   // === Cargo ===
   const cargoLine  = ls.find(l => /CARGO DESCRIPTION/i.test(l));
   const weightLine = ls.find(l => /ESTIMATED WEIGHT/i.test(l));
-  const lading  = valAfterLabel(cargoLine,  'CARGO DESCRIPTION');
+  let lading    = valAfterLabel(cargoLine,  'CARGO DESCRIPTION');
   const kgMatch = weightLine?.match(/([\d.,]+)\s*KGS?/i);
   const gewicht = kgMatch ? String(Math.round(parseFloat(kgMatch[1].replace(',', '.')))) : '0';
 
@@ -166,6 +166,31 @@ export default async function parseB2L(buffer) {
     }
   }
   console.log(`📦 B2L RIDER containers: ${riderContainers.length}`, riderContainers.map(c => c.containernummer).join(', '));
+
+  // RIDER-formaat: daar is "CARGO DESCRIPTION" een kolom-kop (geen label), dus
+  // valAfterLabel pakt de kop-rest ("Packages Gross Weight Volume"). Haal de
+  // echte omschrijving dan uit de eerste RIDER-datarij (na container + zegel,
+  // vóór de packages/gewicht/volume-regel). Alleen bij een kop-restant, zodat
+  // het label-formaat dat nu wél werkt onaangeroerd blijft.
+  if (riderIdx >= 0 && (!lading || /packages|gross\s*weight|volume/i.test(lading))) {
+    for (let i = riderIdx + 1; i < ls.length; i++) {
+      if (!CNTR_RE.test(ls[i].trim())) continue;
+      const delen = [];
+      for (let j = i + 1; j < Math.min(i + 12, ls.length); j++) {
+        const lj = ls[j].trim();
+        if (CNTR_RE.test(lj)) break;
+        if (/^SEAL:?$/i.test(lj)) continue;
+        if (/^[A-Z0-9]{6,}$/.test(lj) && delen.length === 0) continue; // zegelwaarde
+        if (/\bkgs?\b|\bm3\b|^\d+\s*[xX]\s/i.test(lj)) break;           // packages/gewicht/volume
+        if (/^delivery reference/i.test(lj)) break;
+        const stripped = lj.replace(/^\d{2,3}ft\s*(high\s*cube|hc|standard|std|dv|reefer)?/i, '').trim();
+        if (stripped) delen.push(stripped);
+      }
+      const riderCargo = delen.join(' ').trim();
+      if (riderCargo) lading = riderCargo;
+      break;
+    }
+  }
 
   // === DELIVERY SCHEDULE: per-container datum & tijd ===
   // Formaat: "SEGU-647633340ft High Cube-04-May-2026 at 14.00h"
