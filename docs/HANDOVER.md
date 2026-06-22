@@ -35,6 +35,14 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-22 19:52 — PERF: Vercel-functie co-loceren met DB (branch `claude/keen-wozniak-c44ghi`)
+`vercel.json`: `"regions": ["arn1"]` toegevoegd (in het `version: 2`-blok). De
+functie draaide in `iad1` (VS) terwijl de Supabase (Storage + `verwerkingslog`)
+in **eu-north-1 (Stockholm)** staat → elke Supabase-call deed een trans-Atlantische
+round-trip. `arn1` (Stockholm) co-loceert de functie náást de DB. Eén-regel-config,
+geen code, vereist redeploy (automatisch bij merge). Zelfde fix als AHQ (dub1) en
+Romy-HQ (cdg1).
+
 ### 2026-06-18 23:45 — Ritra-detectie in dropbox hoofdletter-ongevoelig
 `services/parsePdfToJson.js`: de dropbox herkende Ritra op `text.includes('Ritra')`
 (hoofdlettergevoelig). Een echte Ritra-PDF (transport_288503.pdf) bevat "ritra"
