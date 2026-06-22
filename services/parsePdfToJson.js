@@ -89,7 +89,7 @@ if (
     return Array.isArray(result) ? result : [result];
   }
 
-  if (text.includes('Ritra')) {
+  if (/ritra/i.test(text)) {
     console.log('🔍 Ritra PDF herkend');
     const result = await parseRitra(buffer, 'ritra');
     return Array.isArray(result) ? result : [result];

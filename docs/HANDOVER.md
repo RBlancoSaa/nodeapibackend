@@ -35,6 +35,14 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-18 23:45 — Ritra-detectie in dropbox hoofdletter-ongevoelig
+`services/parsePdfToJson.js`: de dropbox herkende Ritra op `text.includes('Ritra')`
+(hoofdlettergevoelig). Een echte Ritra-PDF (transport_288503.pdf) bevat "ritra"
+alleen in kleine letters (`info@ritra.nl`, `www.ritra.nl`) → geen match → "onbekende
+klant". Nu `/ritra/i.test(text)`. Geverifieerd tegen de echte PDF: detectie nu OK,
+container CSNU6448163 / 40ft HC / opdracht 288503 leesbaar. (Gmail-flow matcht Ritra
+op bestandsnaam 'ritra' — los pad, niet geraakt.)
+
 ### 2026-06-18 23:15 — Update-detectie met veld-voor-veld diff
 `utils/checkDuplicaat.js` uitgebreid: detecteert nu een update niet alleen op
 containernummer maar ook op **klant-ritnummer** (fallback als er geen container
