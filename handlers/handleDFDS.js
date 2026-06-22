@@ -304,7 +304,7 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
       const cntr = container.containernummer || 'onbekend';
       const ref  = container.ritnummer || cntr;
 
-      const vorigeEntry = await checkDuplicaat(cntr, 'DFDS');
+      const vorigeEntry = await checkDuplicaat(cntr, 'DFDS', container.ritnummer);
       const isUpdate    = !!vorigeEntry;
       if (isUpdate) console.log(`🔁 DFDS update gedetecteerd: ${cntr}`);
       voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
@@ -324,7 +324,7 @@ export default async function handleDFDS({ buffer, base64, filename, fromEmail =
         subject: isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`,
         text: metOrigineel(
           isUpdate
-            ? `${buildUpdateMelding(vorigeEntry, cntr)}\nDFDS transportopdracht verwerkt: ${ref}`
+            ? `${buildUpdateMelding(vorigeEntry, container)}\nDFDS transportopdracht verwerkt: ${ref}`
             : `DFDS transportopdracht verwerkt: ${ref}`,
           bodyText),
         attachments: bijlagen

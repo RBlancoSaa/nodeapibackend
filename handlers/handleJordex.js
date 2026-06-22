@@ -60,7 +60,7 @@ export default async function handleJordex({ buffer, base64, filename, mailSubje
       const ref  = container.ritnummer || cntr;
 
       // Update-detectie vóór XML-generatie zodat waarschuwing in .easy terecht komt
-      const vorigeEntry = await checkDuplicaat(cntr, 'Jordex');
+      const vorigeEntry = await checkDuplicaat(cntr, 'Jordex', container.ritnummer);
       const isUpdate    = !!vorigeEntry || subjectIsUpdate;
       if (isUpdate) console.log(`🔁 Jordex update gedetecteerd: ${cntr}`);
       voegUpdateInstructieToe(container, vorigeEntry, mailSubject);
@@ -72,7 +72,7 @@ export default async function handleJordex({ buffer, base64, filename, mailSubje
 
       const emailBody = metOrigineel(
         isUpdate
-          ? `${vorigeEntry ? buildUpdateMelding(vorigeEntry, cntr) : 'LET OP: updated transportation request\n\n'}Jordex transportopdracht verwerkt: ${ref}`
+          ? `${vorigeEntry ? buildUpdateMelding(vorigeEntry, container) : 'LET OP: updated transportation request\n\n'}Jordex transportopdracht verwerkt: ${ref}`
           : `Jordex transportopdracht verwerkt: ${ref}`,
         bodyText);
 

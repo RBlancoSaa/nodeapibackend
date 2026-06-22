@@ -34,6 +34,7 @@ import parseSteinweg from '../parsers/parseSteinweg.js';
 import { generateXmlFromJson } from '../services/generateXmlFromJson.js';
 import { sendEmailWithAttachments } from '../services/sendEmailWithAttachments.js';
 import { sendViaAhqEdge } from '../services/sendViaAhqEdge.js';
+import { checkDuplicaat, voegUpdateInstructieToe, buildUpdateDiff } from '../utils/checkDuplicaat.js';
 
 function veiligeNaam(s) {
   return String(s || '').replace(/[^\w\s.-]/gi, '').replace(/\s+/g, '_').trim() || 'Onbekend';
@@ -254,6 +255,13 @@ async function verwerk(req, res, ctx) {
 
     for (const container of containers) {
       try {
+        // Update-detectie: is deze container/klant-referentie al eerder verwerkt
+        // (staat al op het planbord)? Zo ja → "⚠️ UPDATE" + de gewijzigde velden
+        // in de .easy-instructies, en in de response zodat de dropbox het toont.
+        const vorige = await checkDuplicaat(container.containernummer || '', null, container.ritnummer);
+        const updateDiff = vorige ? buildUpdateDiff(vorige, container) : [];
+        voegUpdateInstructieToe(container, vorige, '');
+
         const xml = await generateXmlFromJson(container);
         const reference = (container.referentie && container.referentie !== '0')
           ? container.referentie
@@ -274,7 +282,16 @@ async function verwerk(req, res, ctx) {
           bronBuffer: item.buffer,
           rit: container.ritnummer || reference,
         });
-        resultaten.push({ bron: item.bron, naam: item.naam, ok: true, easy: easyFilename });
+        resultaten.push({
+          bron: item.bron, naam: item.naam, ok: true, easy: easyFilename,
+          update: !!vorige,
+          updateInfo: vorige
+            ? {
+                vorigeDatum: vorige.datum || null,
+                wijzigingen: updateDiff.length ? updateDiff : ['(geen velden gewijzigd t.o.v. vorige verwerking)'],
+              }
+            : undefined,
+        });
       } catch (e) {
         resultaten.push({ bron: item.bron, naam: item.naam, ok: false, reden: 'XML-fout: ' + e.message });
       }
