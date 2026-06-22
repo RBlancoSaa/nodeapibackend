@@ -164,7 +164,7 @@ export default async function handleSteinweg({
       // ── Update-detectie vóór XML-generatie zodat waarschuwing in .easy komt ─
       // Route 2 (lege container retour) heeft dezelfde containernummers als Route 1
       // maar is een APARTE opdracht — nooit als update van Route 1 beschouwen.
-      const vorigeEntry = isRetour ? null : await checkDuplicaat(cntr, 'Steinweg');
+      const vorigeEntry = isRetour ? null : await checkDuplicaat(cntr, 'Steinweg', base.ritnummer);
       const isUpdate    = !!vorigeEntry;
       if (isUpdate) console.log(`🔁 Steinweg update gedetecteerd: ${cntr}`);
       voegUpdateInstructieToe(base, vorigeEntry, emailSubject);
@@ -223,7 +223,7 @@ export default async function handleSteinweg({
         } else {
           emailTekst = `Steinweg transportopdracht: ${cntr} → ${depotNaam}`;
         }
-        if (isUpdate) emailTekst = `${buildUpdateMelding(vorigeEntry, base.containernummer)}\n${emailTekst}`;
+        if (isUpdate) emailTekst = `${buildUpdateMelding(vorigeEntry, base)}\n${emailTekst}`;
         emailTekst = metOrigineel(emailTekst, emailBody);
 
         const emailSubject = isUpdate ? `UPDATE easytrip file - ${ref}` : `easytrip file - ${ref}`;

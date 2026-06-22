@@ -35,6 +35,25 @@ Trigger: `GET /api/upload-from-inbox`. Pijplijn: classify → handler → parser
 
 ## Sessies
 
+### 2026-06-18 23:15 — Update-detectie met veld-voor-veld diff
+`utils/checkDuplicaat.js` uitgebreid: detecteert nu een update niet alleen op
+containernummer maar ook op **klant-ritnummer** (fallback als er geen container
+is), en haalt méér velden uit `opdrachten_log` (opzet/afzet/refs/type/datum).
+Nieuwe `buildUpdateDiff(vorige, container)` → lijst "Veld: oud → nieuw" voor
+datum, tijd, ritnummer, laad-/inleverreferentie, containertype, opzet-locatie,
+afzet-locatie, klant. `voegUpdateInstructieToe` zet nu "⚠️ UPDATE — eerder
+verwerkt op … | Gewijzigd: …" in de `.easy`-instructies; `buildUpdateMelding`
+toont de diff in de e-mail.
+- Handlers (`handleJordex/handleDFDS/handleSteinweg`) geven nu `ritnummer` mee
+  aan checkDuplicaat en het container-object aan buildUpdateMelding.
+- **Dropbox** (`api/verwerk-pdf-upload.js`) deed voorheen GEEN update-detectie;
+  nu wel: per container `checkDuplicaat` + `voegUpdateInstructieToe`, en de
+  response bevat `update`/`updateInfo.wijzigingen` zodat de Romy-dropbox het toont.
+Veld-vorm/`opdrachten_log` ongewijzigd. `node --check` + losse diff-test groen.
+Let op false-positive-guard: ritnummer-fallback alleen als containernummer leeg
+is (anders zou container 2 binnen een multi-container-order als update van
+container 1 gezien worden).
+
 ### 2026-06-18 22:45 — Steinweg-diesel als percentage + bulk-tarief-wijzigen in dashboard
 Twee dingen:
 1. **Steinweg diesel** (`utils/steinwegTarieven.js`): `dieselToeslagChart` gaf een
