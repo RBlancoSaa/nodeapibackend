@@ -219,3 +219,30 @@ git push -u origin <feature-branch>
   3. Is `main` vooruitgelopen? Integreer eerst (rebase op de actuele `main`).
   4. Merge via PR naar `main` → Vercel deployt automatisch.
   - Alleen pauzeren bij echte twijfel (destructief, ambigu, of buiten de opdracht).
+
+### Lus automatisch sluiten (auto-merge) — élke sessie
+
+Zodra een afgeronde wijziging klaar/getest is en de handover is bijgewerkt, sluit je de
+lus via **GitHub-native auto-merge** — niet via handmatig pollen/wachten binnen de sessie:
+
+1. **Unieke branch per taak**: `claude/<onderdeel>-<korte-titel>`. NOOIT een gedeelde of
+   hergebruikte branchnaam — parallelle sessies op dezelfde naam overschrijven elkaar.
+2. Push de branch en open een **PR naar `main`**.
+3. Zet **auto-merge (squash)** aan op de PR (`enable_pr_auto_merge`, methode `SQUASH`).
+   **Daarna stopt de sessie** — niet wachten, niet pollen.
+4. GitHub merget **zodra de vereiste checks groen zijn** en **blokkeert** als `main`
+   ondertussen is opgeschoven (branch-protection "up to date") → eerst rebasen, klaar.
+5. De head-branch wordt na de merge automatisch verwijderd (repo-instelling).
+
+**NIET auto-mergen** (eerst overleg): wijzigingen aan referentielijsten/rederij/terminal-
+logica met datarisico, destructieve acties, of ambigue/buiten-scope wijzigingen.
+
+**Eenmalige repo-instellingen (admin, GitHub UI):**
+- *Settings → General → Pull Requests*: **Allow auto-merge** ✅ +
+  **Automatically delete head branches** ✅.
+- *Settings → Branches → Branch protection* voor `main`:
+  **Require branches to be up to date before merging** + (zodra aanwezig) een
+  **test/build-check** als vereiste status-check.
+- ⚠️ Deze repo heeft nog **geen GitHub Actions-CI**. Zonder vereiste check merget
+  auto-merge meteen bij mergeable — overweeg de **Vercel-deploycheck** als vereiste
+  status-check, of voeg een test/build-workflow toe, zodat er ook hier een poort is.
