@@ -21,9 +21,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Syntax check (node --check op alle .js)
+      - name: Syntax check (node --check op alle .js, excl. node_modules)
         run: |
           set -e
-          git ls-files '*.js' | while read -r f; do
+          git ls-files '*.js' ':!:node_modules/**' | while read -r f; do
             node --check "$f"
           done
