@@ -208,41 +208,27 @@ git commit -m "omschrijving"
 git push -u origin <feature-branch>
 ```
 
-- **Altijd naar `main` mergen — niet vragen.** Zodra een afgeronde wijziging
-  klaar/getest is en de handover is bijgewerkt, merge je zonder eerst om
-  toestemming te vragen. Vaste volgorde:
-  1. Wijziging af + getest, `docs/HANDOVER.md` bijgewerkt.
-  2. **Controleer of er ondertussen niks nieuws op `main` is gekomen**
-     (`git fetch origin main`; lees de échte stand met
-     `git ls-remote origin refs/heads/main` — de git-proxy reset lokale refs
-     soms naar oude commits).
-  3. Is `main` vooruitgelopen? Integreer eerst (rebase op de actuele `main`).
-  4. Merge via PR naar `main` → Vercel deployt automatisch.
-  - Alleen pauzeren bij echte twijfel (destructief, ambigu, of buiten de opdracht).
+**Kernregel: één gesprek = één branch. Merge direct naar `main` zodra het kan.**
 
-### Lus automatisch sluiten (auto-merge) — élke sessie
+- **Eén branch per gesprek.** Werk de héle taak van een sessie af op één
+  feature-branch `claude/<korte-titel>`. **Splits NIET** in meerdere branches/PR's
+  per deeltaak of "per gat" — dat kost onnodig veel rebasen, hermergen en controle.
+  Eén onderdeel = één branch, ook als het meerdere bestanden of stappen raakt.
+- **Direct mergen zodra het klaar/getest is** en `docs/HANDOVER.md` bijgewerkt is:
+  meteen squash-mergen naar `main` (Vercel deployt elke commit op `main` automatisch).
+  Niet wachten, niet pollen, geen lange auto-merge-lus.
+- **Vaste volgorde vóór de merge:**
+  1. Wijziging af + getest, handover bijgewerkt.
+  2. Lees de **échte** stand van `main` met `git ls-remote origin refs/heads/main`
+     (de git-proxy reset lokale refs soms naar oude commits).
+  3. Is `main` vooruitgelopen? **Rebase** op de actuele `main`.
+  4. Squash-merge naar `main` → Vercel deployt automatisch.
+- **Uitzondering — eerst expliciet akkoord vragen (NIET direct mergen):** wijzigingen
+  aan referentielijsten/rederij/terminal-logica met datarisico, destructieve acties,
+  of ambigue/buiten-scope wijzigingen. Leg die voor, wacht op "ja", merge daarna mee.
 
-Zodra een afgeronde wijziging klaar/getest is en de handover is bijgewerkt, sluit je de
-lus via **GitHub-native auto-merge** — niet via handmatig pollen/wachten binnen de sessie:
-
-1. **Unieke branch per taak**: `claude/<onderdeel>-<korte-titel>`. NOOIT een gedeelde of
-   hergebruikte branchnaam — parallelle sessies op dezelfde naam overschrijven elkaar.
-2. Push de branch en open een **PR naar `main`**.
-3. Zet **auto-merge (squash)** aan op de PR (`enable_pr_auto_merge`, methode `SQUASH`).
-   **Daarna stopt de sessie** — niet wachten, niet pollen.
-4. GitHub merget **zodra de vereiste checks groen zijn** en **blokkeert** als `main`
-   ondertussen is opgeschoven (branch-protection "up to date") → eerst rebasen, klaar.
-5. De head-branch wordt na de merge automatisch verwijderd (repo-instelling).
-
-**NIET auto-mergen** (eerst overleg): wijzigingen aan referentielijsten/rederij/terminal-
-logica met datarisico, destructieve acties, of ambigue/buiten-scope wijzigingen.
-
-**Eenmalige repo-instellingen (admin, GitHub UI):**
-- *Settings → General → Pull Requests*: **Allow auto-merge** ✅ +
-  **Automatically delete head branches** ✅.
-- *Settings → Branches → Branch protection* voor `main`:
-  **Require branches to be up to date before merging** + (zodra aanwezig) een
-  **test/build-check** als vereiste status-check.
-- ⚠️ Deze repo heeft nog **geen GitHub Actions-CI**. Zonder vereiste check merget
-  auto-merge meteen bij mergeable — overweeg de **Vercel-deploycheck** als vereiste
-  status-check, of voeg een test/build-workflow toe, zodat er ook hier een poort is.
+**Repo-instellingen (admin, GitHub UI):** *Pull Requests* → **Allow auto-merge** ✅ +
+**Automatically delete head branches** ✅; *Branch protection* voor `main` →
+**Require branches to be up to date before merging** (+ een test/build-check zodra die
+er is). ⚠️ Deze repo heeft nog **geen GitHub Actions-CI** — zonder vereiste check landt
+een merge direct bij mergeable; overweeg de **Vercel-deploycheck** als poort.
